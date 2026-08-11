@@ -1,0 +1,51 @@
+{
+  "manifestVersion": 1,
+  "name": "Deliberately Invalid List",
+  "game": "tcgcardshopsimulator",
+  "mods": [
+    {
+      "id": "mod-a",
+      "name": "Mod A",
+      "version": "1.0.0",
+      "archive": "a.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "installType": "BepInExPlugin",
+      "dependencies": ["mod-b"]
+    },
+    {
+      "id": "mod-b",
+      "name": "Mod B",
+      "version": "1.0.0",
+      "archive": "b.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "installType": "BepInExPlugin",
+      "dependencies": ["mod-a"]
+    },
+    {
+      "id": "mod-c",
+      "name": "Mod C",
+      "version": "1.0.0",
+      "archive": "c.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "installType": "BepInExPlugin",
+      "conflicts": ["mod-d"]
+    },
+    {
+      "id": "mod-d",
+      "name": "Mod D",
+      "version": "1.0.0",
+      "archive": "d.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "installType": "BepInExPlugin"
+    },
+    {
+      "id": "mod-e",
+      "name": "Mod E",
+      "version": "1.0.0",
+      "archive": "e.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "installType": "BepInExPlugin",
+      "dependencies": ["ghost-library"]
+    }
+  ]
+}

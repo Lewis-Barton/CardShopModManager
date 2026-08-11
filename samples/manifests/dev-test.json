@@ -1,0 +1,15 @@
+{
+  "manifestVersion": 1,
+  "name": "Development Test List",
+  "game": "tcgcardshopsimulator",
+  "mods": [
+    {
+      "id": "example-mod",
+      "name": "Example Mod",
+      "version": "0.1.0",
+      "archive": "ExampleMod.dll",
+      "sha256": "f5bb4c3ef15af99778c7956385f5e19e835db6f25f43b0f24f62c0a0495ed1fc",
+      "installType": "BepInExPlugin"
+    }
+  ]
+}

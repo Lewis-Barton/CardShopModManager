@@ -1,0 +1,31 @@
+{
+  "manifestVersion": 1,
+  "name": "Archive Layout Demo",
+  "game": "tcgcardshopsimulator",
+  "mods": [
+    {
+      "id": "loose-plugin",
+      "name": "Loose Plugin",
+      "version": "1.0.0",
+      "archive": "loose-plugin.zip",
+      "sha256": "b8f2ab348a08112212408c88006eeb2455131907c55c661d7fc9ec35a822c10b",
+      "installType": "BepInExPlugin"
+    },
+    {
+      "id": "bepinex-layout-pack",
+      "name": "BepInEx Layout Pack",
+      "version": "2.0.0",
+      "archive": "bepinex-layout.zip",
+      "sha256": "7d6655ef61592b8d51f7f72d9ee777bb43905859261f1f4dc699e2a407d2c1e1",
+      "installType": "BepInExPlugin"
+    },
+    {
+      "id": "core-patcher",
+      "name": "Core Patcher",
+      "version": "1.1.0",
+      "archive": "patcher.zip",
+      "sha256": "8e098e0bbb7b1e44919776ab54e50b56708869a8d9d1337bdd662ea61722e59e",
+      "installType": "BepInExPlugin"
+    }
+  ]
+}

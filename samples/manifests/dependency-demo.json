@@ -1,0 +1,24 @@
+{
+  "manifestVersion": 1,
+  "name": "Dependency Ordering Demo",
+  "game": "tcgcardshopsimulator",
+  "mods": [
+    {
+      "id": "cool-plugin",
+      "name": "Cool Plugin",
+      "version": "1.2.0",
+      "archive": "loose-plugin.zip",
+      "sha256": "b8f2ab348a08112212408c88006eeb2455131907c55c661d7fc9ec35a822c10b",
+      "installType": "BepInExPlugin",
+      "dependencies": ["shared-library"]
+    },
+    {
+      "id": "shared-library",
+      "name": "Shared Library",
+      "version": "0.9.0",
+      "archive": "shared-library.zip",
+      "sha256": "387912a0f1c23454c7dff035f4d3bf98e5204f03b6b41f6d0532222905209b42",
+      "installType": "BepInExPlugin"
+    }
+  ]
+}

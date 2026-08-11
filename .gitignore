@@ -1,0 +1,24 @@
+# local editor/agent config and session data - never committed
+.claude/
+
+# .NET build output
+bin/
+obj/
+
+# IDE / editor
+.vs/
+.vscode/
+*.user
+
+# OS junk
+Thumbs.db
+.DS_Store
+# runtime artifacts written into the fake game by demos/tests
+samples/fake-game/cardshopmodmanager.*
+
+# credential material - never commit (key lives outside the repo via DPAPI)
+nexus-key*
+*.key
+*api-key*
+*apikey*
+secrets.json
