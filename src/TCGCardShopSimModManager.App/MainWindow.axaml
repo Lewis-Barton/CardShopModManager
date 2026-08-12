@@ -15,9 +15,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="TCGCardShopSimModManager.App.MainWindow"
         Title="TCG Card Shop Sim Mod Manager"
-        Width="980" Height="640">
+        Width="980" Height="680">
 
-  <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*">
+  <Grid Margin="16" RowDefinitions="Auto,*">
 
     <!-- Header -->
     <StackPanel Grid.Row="0" Spacing="2">
@@ -25,65 +25,110 @@
       <TextBlock Classes="subtitle" Text="Install and manage mods for TCG Card Shop Simulator" />
     </StackPanel>
 
-    <!-- Game folder -->
-    <Grid Grid.Row="1" Margin="0,8,0,0" ColumnDefinitions="*,Auto">
-      <TextBox x:Name="_gameBox"
-               Watermark="Game folder (where Card Shop Simulator is installed)" />
-      <Button Grid.Column="1" Margin="8,0,0,0" Content="Browse…" Click="OnPickGameFolder" />
-    </Grid>
+    <TabControl Grid.Row="1" Margin="0,8,0,0">
 
-    <!-- Modpack manifest (for now you provide the .json; archives folder below) -->
-    <Grid Grid.Row="2" Margin="0,6,0,0" ColumnDefinitions="*,Auto">
-      <TextBox x:Name="_manifestBox" Watermark="modpack manifest (manifest.json)" />
-      <Button Grid.Column="1" Margin="8,0,0,0" Content="Browse…" Click="OnPickManifestFile" />
-    </Grid>
+      <!-- Modpacks: pick a hosted pack, see what's in it, install in one click -->
+      <TabItem Header="Modpacks">
+        <Grid ColumnDefinitions="*,300" RowDefinitions="*,Auto,Auto">
+          <!-- Gallery of pack cards -->
+          <ScrollViewer Grid.Column="0" Grid.Row="0" VerticalScrollBarVisibility="Auto">
+            <WrapPanel x:Name="_packsPanel" Orientation="Horizontal" Margin="0,0,8,0" />
+          </ScrollViewer>
 
-    <!-- Source folder -->
-    <Grid Grid.Row="3" Margin="0,6,0,0" ColumnDefinitions="*,Auto">
-      <TextBox x:Name="_sourceBox" Watermark="folder containing the mod archives" />
-      <Button Grid.Column="1" Margin="8,0,0,0" Content="Browse…" Click="OnPickSourceFolder" />
-    </Grid>
+          <!-- Selected pack details -->
+          <Border Grid.Column="1" Grid.Row="0" Classes="card" Margin="8,0,0,0">
+            <DockPanel LastChildFill="True">
+              <TextBlock DockPanel.Dock="Top" Classes="header" FontSize="14"
+                         Text="Modpack details" Margin="0,0,0,8" />
+              <StackPanel Spacing="6">
+                <Image x:Name="_packLogo" MaxHeight="96" Stretch="Uniform" />
+                <TextBlock x:Name="_packName" Classes="subtitle" Text="" />
+                <TextBlock x:Name="_packDesc" TextWrapping="Wrap" Text="" />
+                <TextBlock Classes="subtitle" FontSize="12" Text="Includes:" Margin="0,6,0,0" />
+                <ItemsControl x:Name="_packMods" />
+                <Button x:Name="_packInstall" Content="Install modpack"
+                        IsEnabled="False" Click="OnPackInstallClick" Margin="0,6,0,0" />
+                <TextBlock x:Name="_packStatus" TextWrapping="Wrap" Text="" />
+              </StackPanel>
+            </DockPanel>
+          </Border>
 
-    <!-- Mod name to uninstall (this input was missing from the old UI) -->
-    <TextBox Grid.Row="4" Margin="0,6,0,0" x:Name="_uninstallBox" Watermark="mod name to uninstall" />
+          <!-- Progress + per-pack log -->
+          <ProgressBar Grid.Column="0" Grid.Row="1" x:Name="_packProgress"
+                       IsIndeterminate="True" IsVisible="False" Height="6" Margin="0,8,0,0" />
+          <TextBox Grid.Column="0" Grid.Row="2" x:Name="_packLog"
+                   IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+                   FontFamily="Consolas" Height="90" Margin="0,6,0,0" />
+        </Grid>
+      </TabItem>
 
-    <!-- Primary actions: one click validates, plans and installs the modpack -->
-    <StackPanel Grid.Row="5" Margin="0,6,0,0" Orientation="Horizontal" Spacing="8">
-      <Button Content="Install modpack" Click="OnInstallClick" />
-      <Button Content="Uninstall" Click="OnUninstallClick" />
-    </StackPanel>
+      <!-- Local / Manage: the manual manifest + source flow and day-to-day care -->
+      <TabItem Header="Local / Manage">
+        <Grid Margin="0,8,0,0" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*">
 
-    <!-- Utilities -->
-    <StackPanel Grid.Row="6" Margin="0,6,0,0" Orientation="Horizontal" Spacing="8">
-      <Button Content="List mods" Click="OnListModsClick" />
-      <Button Content="Enable" Click="OnEnableClick" />
-      <Button Content="Disable" Click="OnDisableClick" />
-      <Button Content="Update check" Click="OnUpdateCheckClick" />
-      <Button Content="Export bundle" Click="OnExportBundleClick" />
-    </StackPanel>
+          <!-- Game folder -->
+          <Grid Grid.Row="1" Margin="0,8,0,0" ColumnDefinitions="*,Auto">
+            <TextBox x:Name="_gameBox"
+                     Watermark="Game folder (where Card Shop Simulator is installed)" />
+            <Button Grid.Column="1" Margin="8,0,0,0" Content="Browse…" Click="OnPickGameFolder" />
+          </Grid>
 
-    <!-- Progress (hidden until a job runs) -->
-    <ProgressBar Grid.Row="7" Margin="0,6,0,0" x:Name="_progress"
-                 IsIndeterminate="True" IsVisible="False" Height="6" />
+          <!-- Modpack manifest (for now you provide the .json; archives folder below) -->
+          <Grid Grid.Row="2" Margin="0,6,0,0" ColumnDefinitions="*,Auto">
+            <TextBox x:Name="_manifestBox" Watermark="modpack manifest (manifest.json)" />
+            <Button Grid.Column="1" Margin="8,0,0,0" Content="Browse…" Click="OnPickManifestFile" />
+          </Grid>
 
-    <!-- Bottom split: log + installed mods, each in a card -->
-    <Grid Grid.Row="8" Margin="0,6,0,0" ColumnDefinitions="*,260">
-      <Border Classes="card" Grid.Column="0" Margin="0,0,12,0">
-        <TextBox x:Name="_log"
-                 IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
-                 FontFamily="Consolas" Text="TCG Card Shop Sim Mod Manager" />
-      </Border>
+          <!-- Source folder -->
+          <Grid Grid.Row="3" Margin="0,6,0,0" ColumnDefinitions="*,Auto">
+            <TextBox x:Name="_sourceBox" Watermark="folder containing the mod archives" />
+            <Button Grid.Column="1" Margin="8,0,0,0" Content="Browse…" Click="OnPickSourceFolder" />
+          </Grid>
 
-      <Border Classes="card" Grid.Column="1">
-        <!-- DockPanel bounds the ListBox height: the header docks to the top and
-             the ListBox fills the rest, so its scrollbar appears only when the
-             mod list overflows the card. -->
-        <DockPanel LastChildFill="True">
-          <TextBlock DockPanel.Dock="Top" Classes="header" FontSize="14" Text="Installed mods" />
-          <ListBox x:Name="_modsList" />
-        </DockPanel>
-      </Border>
-    </Grid>
+          <!-- Mod name to uninstall (this input was missing from the old UI) -->
+          <TextBox Grid.Row="4" Margin="0,6,0,0" x:Name="_uninstallBox" Watermark="mod name to uninstall" />
 
+          <!-- Primary actions: one click validates, plans and installs the modpack -->
+          <StackPanel Grid.Row="5" Margin="0,6,0,0" Orientation="Horizontal" Spacing="8">
+            <Button Content="Install modpack" Click="OnInstallClick" />
+            <Button Content="Uninstall" Click="OnUninstallClick" />
+          </StackPanel>
+
+          <!-- Utilities -->
+          <StackPanel Grid.Row="6" Margin="0,6,0,0" Orientation="Horizontal" Spacing="8">
+            <Button Content="List mods" Click="OnListModsClick" />
+            <Button Content="Enable" Click="OnEnableClick" />
+            <Button Content="Disable" Click="OnDisableClick" />
+            <Button Content="Update check" Click="OnUpdateCheckClick" />
+            <Button Content="Export bundle" Click="OnExportBundleClick" />
+          </StackPanel>
+
+          <!-- Progress (hidden until a job runs) -->
+          <ProgressBar Grid.Row="7" Margin="0,6,0,0" x:Name="_progress"
+                       IsIndeterminate="True" IsVisible="False" Height="6" />
+
+          <!-- Bottom split: log + installed mods, each in a card -->
+          <Grid Grid.Row="8" Margin="0,6,0,0" ColumnDefinitions="*,260">
+            <Border Classes="card" Grid.Column="0" Margin="0,0,12,0">
+              <TextBox x:Name="_log"
+                       IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+                       FontFamily="Consolas" Text="TCG Card Shop Sim Mod Manager" />
+            </Border>
+
+            <Border Classes="card" Grid.Column="1">
+              <!-- DockPanel bounds the ListBox height: the header docks to the top and
+                   the ListBox fills the rest, so its scrollbar appears only when the
+                   mod list overflows the card. -->
+              <DockPanel LastChildFill="True">
+                <TextBlock DockPanel.Dock="Top" Classes="header" FontSize="14" Text="Installed mods" />
+                <ListBox x:Name="_modsList" />
+              </DockPanel>
+            </Border>
+          </Grid>
+
+        </Grid>
+      </TabItem>
+
+    </TabControl>
   </Grid>
 </Window>

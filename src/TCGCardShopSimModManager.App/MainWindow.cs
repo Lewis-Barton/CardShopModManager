@@ -1,9 +1,14 @@
+using System.Net.Http;
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using TCGCardShopSimModManager.Core;
 
 namespace TCGCardShopSimModManager.App;
@@ -22,6 +27,13 @@ public sealed partial class MainWindow : Window
 
     private List<DiscoveredMod> _discovered = new();
     private readonly DeploymentService _service = new();
+
+    // Modpack gallery state (the "Modpacks" tab).
+    private List<ModpackSummary> _packs = new();
+    private ModpackSummary? _selectedPack;
+    private ModListManifest? _selectedManifest;
+    private readonly HttpClient _http = new();
+    private readonly ModpackIndexReader _packReader = new();
 
     public MainWindow()
     {
@@ -48,6 +60,7 @@ public sealed partial class MainWindow : Window
     private async void OnDisableClick(object? sender, RoutedEventArgs e) => await RunHandler(OnDisableAsync);
     private async void OnUpdateCheckClick(object? sender, RoutedEventArgs e) => await RunHandler(OnUpdateCheckAsync);
     private async void OnExportBundleClick(object? sender, RoutedEventArgs e) => await RunHandler(OnExportBundleAsync);
+    private async void OnPackInstallClick(object? sender, RoutedEventArgs e) => await RunHandler(OnPackInstallAsync);
     private async void OnPickGameFolder(object? sender, RoutedEventArgs e) => await RunHandler(() => PickFolderAsync(_gameBox));
     private async void OnPickManifestFile(object? sender, RoutedEventArgs e) => await RunHandler(() => PickFileAsync(_manifestBox));
     private async void OnPickSourceFolder(object? sender, RoutedEventArgs e) => await RunHandler(() => PickFolderAsync(_sourceBox));
@@ -82,6 +95,10 @@ public sealed partial class MainWindow : Window
             Log($"Detected: {path}");
             await OnListModsAsync();
         }
+
+        // Best-effort: populate the Modpacks gallery too. If we're offline this
+        // logs and carries on; the tab just shows "could not load".
+        await LoadPacksAsync();
     }
 
     private async Task OnListModsAsync()
@@ -102,6 +119,162 @@ public sealed partial class MainWindow : Window
         Log($"Mods found on disk ({_discovered.Count}):");
         foreach (var mod in _discovered)
             Log($"  {mod.ModName,-35} {mod.State} ({mod.FileCount} file(s))");
+    }
+
+    // --- modpack gallery ----------------------------------------------------
+
+    private async Task LoadPacksAsync()
+    {
+        PackLog("Loading modpacks from GitHub...");
+        try
+        {
+            var index = await _packReader.FetchIndexAsync();
+            _packs = index.Packs;
+            _packsPanel.Children.Clear();
+            foreach (var pack in _packs)
+                _packsPanel.Children.Add(BuildPackCard(pack));
+            PackLog($"Found {_packs.Count} modpack(s).");
+        }
+        catch (Exception ex)
+        {
+            PackLog($"Could not load modpacks: {ex.Message}");
+        }
+    }
+
+    private Border BuildPackCard(ModpackSummary pack)
+    {
+        var card = new Border
+        {
+            Classes = { "card" },
+            Width = 200,
+            Margin = new Thickness(0, 0, 8, 8),
+            Padding = new Thickness(8)
+        };
+
+        var stack = new StackPanel { Spacing = 4 };
+        var img = new Image { Width = 64, Height = 64, Stretch = Stretch.Uniform };
+
+        // Fetch the logo off the UI thread, then drop it in once it arrives.
+        _ = LoadLogoAsync(_packReader.LogoUrl(pack)).ContinueWith(t =>
+        {
+            if (t.Status == TaskStatus.RanToCompletion && t.Result is Bitmap bmp)
+                Dispatcher.UIThread.Post(() => img.Source = bmp);
+        });
+
+        stack.Children.Add(img);
+        stack.Children.Add(new TextBlock { Text = pack.Name, FontWeight = FontWeight.Bold });
+        stack.Children.Add(new TextBlock
+        {
+            Text = pack.ShortDescription,
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 11
+        });
+
+        card.Child = stack;
+        card.PointerPressed += (_, _) => _ = SelectPack(pack);
+        return card;
+    }
+
+    private async Task SelectPack(ModpackSummary pack)
+    {
+        _selectedPack = pack;
+        _selectedManifest = null;
+        _packInstall.IsEnabled = false;
+        _packName.Text = pack.Name;
+        _packDesc.Text = pack.ShortDescription;
+        _packMods.ItemsSource = null;
+        _packStatus.Text = "Reading manifest...";
+
+        var logo = await LoadLogoAsync(_packReader.LogoUrl(pack));
+        if (logo is not null)
+            _packLogo.Source = logo;
+
+        try
+        {
+            var manifest = await _packReader.FetchManifestAsync(pack);
+            _selectedManifest = manifest;
+            _packMods.ItemsSource = manifest.Mods
+                .Select(m => $"  {m.Name} {m.Version ?? ""}".Trim())
+                .ToList();
+            _packInstall.IsEnabled = true;
+            _packStatus.Text = $"{manifest.Mods.Count} mod(s). Ready to install.";
+        }
+        catch (Exception ex)
+        {
+            _packStatus.Text = $"Could not read manifest: {ex.Message}";
+        }
+    }
+
+    private async Task OnPackInstallAsync()
+    {
+        var pack = _selectedPack;
+        var manifest = _selectedManifest;
+        var gameFolder = _gameBox.Text;
+
+        if (pack is null || manifest is null)
+        {
+            PackLog("Select a modpack first.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(gameFolder))
+        {
+            PackLog("Set the game folder first (Local / Manage tab).");
+            return;
+        }
+
+        PackLog($"--- Install {pack.Name} into {gameFolder}");
+        var fallback = BuildFallback(pack);
+        var report = await RunUnderPack(() =>
+            new ModpackInstaller(gameFolder, _http).InstallAsync(manifest, fallback));
+
+        foreach (var line in report.Lines)
+            PackLog(line);
+
+        _packStatus.Text = report.Success
+            ? $"Installed {pack.Name}."
+            : "Install did not complete — see the log above.";
+    }
+
+    private static IModSource? BuildFallback(ModpackSummary pack)
+    {
+        if (pack.Source is null)
+            return null;
+
+        return pack.Source.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? new HttpModSource(m => $"{pack.Source.TrimEnd('/')}/{Uri.EscapeDataString(m.FileName)}")
+            : new LocalFileSource(pack.Source);
+    }
+
+    private static async Task<Bitmap?> LoadLogoAsync(string url)
+    {
+        try
+        {
+            var bytes = await new HttpClient().GetByteArrayAsync(url);
+            return new Bitmap(new MemoryStream(bytes));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void PackLog(string line)
+    {
+        _packLog.Text += line + "\n";
+        _packLog.CaretIndex = _packLog.Text.Length;
+    }
+
+    private async Task<T> RunUnderPack<T>(Func<Task<T>> work)
+    {
+        _packProgress.IsVisible = true;
+        try
+        {
+            return await work();
+        }
+        finally
+        {
+            _packProgress.IsVisible = false;
+        }
     }
 
     private async Task OnEnableAsync()
