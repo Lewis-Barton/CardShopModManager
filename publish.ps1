@@ -10,11 +10,11 @@ Set-Location $root
 $rid = "win-x64"
 $publishArgs = @("-c", "Release", "-r", $rid, "--self-contained", ($SelfContained.ToString().ToLowerInvariant()))
 
-Write-Host "Publishing CardShopModManager.Cli ..."
-dotnet publish src/CardShopModManager.Cli/CardShopModManager.Cli.csproj @publishArgs -p:PublishSingleFile=true -o "$Output/cli"
+Write-Host "Publishing TCGCardShopSimModManager.Cli ..."
+dotnet publish src/TCGCardShopSimModManager.Cli/TCGCardShopSimModManager.Cli.csproj @publishArgs -p:PublishSingleFile=true -o "$Output/cli"
 
-Write-Host "Publishing CardShopModManager.App ..."
-dotnet publish src/CardShopModManager.App/CardShopModManager.App.csproj @publishArgs -p:PublishSingleFile=true -o "$Output/app"
+Write-Host "Publishing TCGCardShopSimModManager.App ..."
+dotnet publish src/TCGCardShopSimModManager.App/TCGCardShopSimModManager.App.csproj @publishArgs -p:PublishSingleFile=true -o "$Output/app"
 
 Write-Host ""
 Write-Host "Publish complete. Output:"

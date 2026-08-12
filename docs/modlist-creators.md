@@ -88,8 +88,8 @@ skipped, and `plan` reports that they were skipped.
 ## Checking your list
 
 ```
-dotnet run --project src/CardShopModManager.Cli -- validate list.json
-dotnet run --project src/CardShopModManager.Cli -- plan     list.json sourceFolder gameFolder
+dotnet run --project src/TCGCardShopSimModManager.Cli -- validate list.json
+dotnet run --project src/TCGCardShopSimModManager.Cli -- plan     list.json sourceFolder gameFolder
 ```
 
 `validate` checks structure and the dependency/conflict graph and prints the

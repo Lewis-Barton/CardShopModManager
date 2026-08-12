@@ -1,0 +1,23 @@
+namespace TCGCardShopSimModManager.Core;
+
+public sealed record ModListManifest(
+    int ManifestVersion,
+    string Name,
+    string Game,
+    List<ModEntry> Mods);
+
+/// <summary>
+/// One mod in the list. <see cref="Id"/> is the stable key dependencies and
+/// profiles reference; <see cref="Name"/> is what humans see.
+/// </summary>
+public sealed record ModEntry(
+    string Id,
+    string Name,
+    string? Version,
+    string Archive,
+    string Sha256,
+    string InstallType,
+    List<string> Dependencies,
+    List<string> Conflicts,
+    long? NexusModId = null,
+    long? NexusFileId = null);

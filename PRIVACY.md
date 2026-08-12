@@ -10,9 +10,9 @@ Card Shop Mod Manager collects nothing and sends nothing on its own.
   that would send it.
 - **Your Nexus key stays on this machine.** `nexus set-key` stores the key
   encrypted with DPAPI, readable only by the current Windows user, in
-  `%LOCALAPPDATA%\CardShopModManager`. It is never written into the project, the
+  `%LOCALAPPDATA%\TCGCardShopSimModManager`. It is never written into the project, the
   logs, or the support bundle.
-- **Diagnostic logs** are plain text in `%LOCALAPPDATA%\CardShopModManager\logs`
+- **Diagnostic logs** are plain text in `%LOCALAPPDATA%\TCGCardShopSimModManager\logs`
   (override with the `CSMM_LOG_DIR` environment variable). You can delete them
   at any time. The `support-bundle` command collects them into a zip you share
   only if you choose to.

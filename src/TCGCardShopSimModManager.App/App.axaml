@@ -1,0 +1,96 @@
+<!--
+  App.axaml is the styling layer for the whole desktop app.
+
+  Two XAML concepts (web-dev analogies):
+  - <Application.Resources> holds reusable values (brushes, radii). Think of it
+    like CSS custom properties (the accent color below) that any control can read.
+  - <Application.Styles> holds <Style> blocks. A <Style> with a Selector but no
+    x:Key is "implicit": it applies to every matching control automatically,
+    like a CSS rule such as "button { ... }". These reach controls we build in
+    C# (MainWindow.cs) too, because the app theme styles the whole tree.
+-->
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TCGCardShopSimModManager.App.App">
+
+  <Application.Resources>
+    <!-- Palette: a calm, card-shop teal on light panels. -->
+    <SolidColorBrush x:Key="AppBackgroundBrush">#EEF1F5</SolidColorBrush>
+    <SolidColorBrush x:Key="PanelBrush">#FFFFFF</SolidColorBrush>
+    <SolidColorBrush x:Key="BorderBrushKey">#D2D8E0</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentBrush">#0F766E</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentHoverBrush">#115E59</SolidColorBrush>
+    <SolidColorBrush x:Key="TextBrush">#1F2933</SolidColorBrush>
+    <SolidColorBrush x:Key="MutedBrush">#6B7280</SolidColorBrush>
+    <CornerRadius x:Key="ControlRadius">6</CornerRadius>
+  </Application.Resources>
+
+  <Application.Styles>
+    <!-- The base modern theme; our implicit styles below override its defaults. -->
+    <FluentTheme />
+
+    <Style Selector="Window">
+      <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+
+    <Style Selector="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+
+    <!-- Buttons: teal fill, white label, rounded, with hover + disabled states. -->
+    <Style Selector="Button">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="Padding" Value="12,6" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ControlRadius}" />
+      <Setter Property="MinWidth" Value="86" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button:pointerover">
+      <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+    </Style>
+    <Style Selector="Button:disabled">
+      <Setter Property="Background" Value="#B7C0CC" />
+      <Setter Property="Foreground" Value="#6B7280" />
+    </Style>
+
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushKey}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ControlRadius}" />
+      <Setter Property="Padding" Value="8,5" />
+    </Style>
+
+    <Style Selector="ListBox">
+      <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushKey}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ControlRadius}" />
+      <Setter Property="Padding" Value="4" />
+    </Style>
+
+    <Style Selector="ProgressBar">
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <!-- Class-based styles (hooked via Classes="header" / "subtitle" / "card").
+         These are the XAML equivalent of CSS classes. -->
+    <Style Selector="TextBlock.header">
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.subtitle">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushKey}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="10" />
+    </Style>
+  </Application.Styles>
+</Application>

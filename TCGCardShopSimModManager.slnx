@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TCGCardShopSimModManager.Cli/TCGCardShopSimModManager.Cli.csproj" />
+    <Project Path="src/TCGCardShopSimModManager.Core/TCGCardShopSimModManager.Core.csproj" />
+    <Project Path="src/TCGCardShopSimModManager.App/TCGCardShopSimModManager.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/TCGCardShopSimModManager.Core.Tests/">
+    <Project Path="tests/TCGCardShopSimModManager.Core.Tests/TCGCardShopSimModManager.Core.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -17,7 +17,7 @@ docs are in place; publishing/testing to real hardware is next.
 Needs a display (Windows):
 
 ```
-dotnet run --project src/CardShopModManager.App
+dotnet run --project src/TCGCardShopSimModManager.App
 ```
 
 Pick a game folder, a manifest and the archive folder, then **Validate** (install
@@ -36,21 +36,21 @@ deleted, and a modified file is left alone with a warning. **Update check** and
 ## Commands
 
 ```
-dotnet run --project src/CardShopModManager.Cli -- detect  [gameFolder]
-dotnet run --project src/CardShopModManager.Cli -- validate <manifest.json> [gameFolder]
-dotnet run --project src/CardShopModManager.Cli -- plan     <manifest.json> <sourceDir> <gameFolder>
-dotnet run --project src/CardShopModManager.Cli -- download <manifest.json> <httpUrlBase|localFolder|nexus> <cacheDir> <outDir>
-dotnet run --project src/CardShopModManager.Cli -- serve     <folder> [port]
-dotnet run --project src/CardShopModManager.Cli -- demo
-dotnet run --project src/CardShopModManager.Cli -- nexus     <set-key <apikey>|status|clear>
-dotnet run --project src/CardShopModManager.Cli -- nexus-demo
-dotnet run --project src/CardShopModManager.Cli -- update-check
-dotnet run --project src/CardShopModManager.Cli -- support-bundle [outDir]
-dotnet run --project src/CardShopModManager.Cli -- --version
-dotnet run --project src/CardShopModManager.Cli -- install  <manifest.json> <sourceDir> <gameFolder>
-dotnet run --project src/CardShopModManager.Cli -- uninstall <modName> <gameFolder>
-dotnet run --project src/CardShopModManager.Cli -- profile  <list|use|enable|disable> ...
-dotnet run --project src/CardShopModManager.Cli -- mods     <list <gameFolder> | disable <name> <gameFolder> | enable <name> <gameFolder>>
+dotnet run --project src/TCGCardShopSimModManager.Cli -- detect  [gameFolder]
+dotnet run --project src/TCGCardShopSimModManager.Cli -- validate <manifest.json> [gameFolder]
+dotnet run --project src/TCGCardShopSimModManager.Cli -- plan     <manifest.json> <sourceDir> <gameFolder>
+dotnet run --project src/TCGCardShopSimModManager.Cli -- download <manifest.json> <httpUrlBase|localFolder|nexus> <cacheDir> <outDir>
+dotnet run --project src/TCGCardShopSimModManager.Cli -- serve     <folder> [port]
+dotnet run --project src/TCGCardShopSimModManager.Cli -- demo
+dotnet run --project src/TCGCardShopSimModManager.Cli -- nexus     <set-key <apikey>|status|clear>
+dotnet run --project src/TCGCardShopSimModManager.Cli -- nexus-demo
+dotnet run --project src/TCGCardShopSimModManager.Cli -- update-check
+dotnet run --project src/TCGCardShopSimModManager.Cli -- support-bundle [outDir]
+dotnet run --project src/TCGCardShopSimModManager.Cli -- --version
+dotnet run --project src/TCGCardShopSimModManager.Cli -- install  <manifest.json> <sourceDir> <gameFolder>
+dotnet run --project src/TCGCardShopSimModManager.Cli -- uninstall <modName> <gameFolder>
+dotnet run --project src/TCGCardShopSimModManager.Cli -- profile  <list|use|enable|disable> ...
+dotnet run --project src/TCGCardShopSimModManager.Cli -- mods     <list <gameFolder> | disable <name> <gameFolder> | enable <name> <gameFolder>>
 ```
 
 - `detect`    — with a path, check it's a game install. With no path, auto-detect the game through Steam (reads the Steam library folders — no API key needed).
@@ -159,7 +159,7 @@ bytes from a given offset (`HttpModSource`, `LocalFileSource`,
 Try it in one terminal:
 
 ```
-dotnet run --project src/CardShopModManager.Cli -- demo
+dotnet run --project src/TCGCardShopSimModManager.Cli -- demo
 ```
 
 `demo` serves the archives, downloads every mod, installs them into a temp game
@@ -173,7 +173,7 @@ resolve through the Nexus v1 API to an authenticated download URI, and the plain
 HTTP source fetches the bytes. Notes:
 
 - `nexus set-key <apikey>` stores the key encrypted with DPAPI (current user
-  only) in `%LOCALAPPDATA%\CardShopModManager\nexus-key.bin`.
+  only) in `%LOCALAPPDATA%\TCGCardShopSimModManager\nexus-key.bin`.
 - **No secrets in the repo.** The API key never lives in the project directory,
   and `.gitignore` excludes anything that would hold or reference a key
   (`nexus-key*`, `*.key`, `*apikey*`, ...). You can verify yourself: no key
@@ -214,7 +214,7 @@ interface makes them drop-in additions.
 ## Diagnostics and privacy
 
 Every command writes a structured JSON-lines log to
-`%LOCALAPPDATA%\CardShopModManager\logs` (override with `CSMM_LOG_DIR`). An
+`%LOCALAPPDATA%\TCGCardShopSimModManager\logs` (override with `CSMM_LOG_DIR`). An
 unexpected error is captured there locally; nothing is uploaded. Export a
 bundle with `support-bundle` when sharing a problem. See `PRIVACY.md`, the
 `LICENSE`, and `THIRD-PARTY-NOTICES.md`. Docs for list authors and the release
