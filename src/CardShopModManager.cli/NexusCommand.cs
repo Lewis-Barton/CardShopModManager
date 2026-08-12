@@ -51,7 +51,7 @@ public static class NexusCommand
 
         try
         {
-            var api = new NexusApi(baseUrl, "tcgcardshopsimulator", "CardShopModManager/dev");
+            var api = new NexusApi(baseUrl, NexusApi.GameDomain, NexusApi.UserAgent);
             var user = await api.GetUserAsync(apiKey, CancellationToken.None);
 
             Console.WriteLine($"User: {user.Name} (id {user.UserId})");

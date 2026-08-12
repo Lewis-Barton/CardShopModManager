@@ -18,6 +18,11 @@ public sealed class NexusApi
     private readonly string _gameDomain; // e.g. tcgcardshopsimulator
     private readonly string _userAgent;
 
+    // Single source of truth for how we identify to Nexus. Update to the
+    // registered-app UA once the app is registered with Nexus.
+    public const string UserAgent = "CardShopModManager";
+    public const string GameDomain = "tcgcardshopsimulator";
+
     public NexusApi(string baseUrl, string gameDomain, string userAgent, HttpClient? http = null)
     {
         _baseUrl = baseUrl.TrimEnd('/');

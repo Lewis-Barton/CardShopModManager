@@ -71,7 +71,7 @@ public static class DownloadCommand
                 NexusCommand.ApiBaseUrl(),
                 gameDomain,
                 ApiKeyStore.TryLoad,
-                userAgent: "CardShopModManager/dev");
+                userAgent: NexusApi.UserAgent);
         }
 
         if (sourceSpec.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||

@@ -22,7 +22,7 @@ public sealed class NexusModSource : IModSource
         string gameDomain,
         Func<string?> apiKeyProvider,
         HttpClient? http = null,
-        string userAgent = "CardShopModManager/dev")
+        string userAgent = NexusApi.UserAgent)
     {
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(100) };
         _api = new NexusApi(apiBaseUrl, gameDomain, userAgent, _http);
