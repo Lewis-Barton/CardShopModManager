@@ -2,7 +2,7 @@
 
 Card Shop Mod Manager collects nothing and sends nothing on its own.
 
-- **No telemetry.** The app does not phone home. The only network calls are ones
+- **No telemetry.** The app makes no network calls on its own. The only network calls are ones
   you start: downloading mods (`download`), and `update-check`, which asks GitHub
   for the latest release tag when you run it.
 - **Crash data stays local.** An unexpected error is written to a diagnostic log

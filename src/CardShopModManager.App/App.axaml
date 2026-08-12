@@ -1,11 +1,11 @@
 <!--
   App.axaml is the styling layer for the whole desktop app.
 
-  Two XAML ideas worth knowing (web-dev analogies):
+  Two XAML concepts (web-dev analogies):
   - <Application.Resources> holds reusable values (brushes, radii). Think of it
     like CSS custom properties (the accent color below) that any control can read.
   - <Application.Styles> holds <Style> blocks. A <Style> with a Selector but no
-    x:Key is "implicit": it applies to EVERY matching control automatically,
+    x:Key is "implicit": it applies to every matching control automatically,
     like a CSS rule such as "button { ... }". These reach controls we build in
     C# (MainWindow.cs) too, because the app theme styles the whole tree.
 -->

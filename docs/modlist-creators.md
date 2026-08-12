@@ -1,7 +1,7 @@
 # Writing a mod list
 
 A mod list is a JSON file that says *what* to install and *where it comes from*.
-The tool never executes code and never overwrites files silently — everything
+The tool never executes code and never overwrites files silently. Everything
 is hash-checked, previewed and journaled before it lands.
 
 ## The manifest
@@ -57,7 +57,7 @@ Fields:
 
 ## Archive layout rules
 
-An archive's structure decides where files go — the `plan` command shows the
+An archive's structure decides where files go; the `plan` command shows the
 result before anything is installed. In order:
 
 1. **BepInEx layout** — archive contains a top-level `BepInEx/` folder. Its

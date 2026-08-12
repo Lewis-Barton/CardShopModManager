@@ -28,7 +28,7 @@ On open, the window tries to find TCG Card Shop Simulator through your Steam
 library folders automatically and fills the game folder; if not found, use
 Browse. **List mods** reads what is actually in `BepInEx/plugins`, `patchers`
 and `disabled` and labels it with the journal (installed / modified / disabled /
-unknown — mods placed in the folder by hand are shown as unknown). Select a mod and use **Enable** /
+unknown; a mod placed in the folder by hand is shown as unknown). Select a mod and use **Enable** /
 **Disable** to move it between the game and `BepInEx/disabled` — nothing is
 deleted, and a modified file is left alone with a warning. **Update check** and
 **Export bundle** round out the utilities. The title shows the version.
@@ -148,8 +148,8 @@ bytes from a given offset (`HttpModSource`, `LocalFileSource`,
 `NexusModSource`). The `ModDownloader` applies the safety rules:
 
 - bytes are written to `<name>.partial` and only renamed to the final name after
-  the whole file passes its SHA-256 check — a cancelled or corrupt download can't
-  leave a file that looks valid;
+  the whole file passes its SHA-256 check, so a cancelled or corrupt download
+  leaves no valid-looking file behind;
 - an existing `.partial` is resumed (HTTP Range / 206) instead of restarted;
 - transient failures (5xx, network errors, corrupt payloads) are retried with
   backoff, deleting the partial between attempts;
@@ -215,7 +215,7 @@ interface makes them drop-in additions.
 
 Every command writes a structured JSON-lines log to
 `%LOCALAPPDATA%\CardShopModManager\logs` (override with `CSMM_LOG_DIR`). An
-unexpected error is captured there locally; nothing is ever uploaded. Export a
+unexpected error is captured there locally; nothing is uploaded. Export a
 bundle with `support-bundle` when sharing a problem. See `PRIVACY.md`, the
 `LICENSE`, and `THIRD-PARTY-NOTICES.md`. Docs for list authors and the release
 testing checklist live in `docs/`, and `publish.ps1` produces a self-contained
