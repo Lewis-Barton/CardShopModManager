@@ -4,7 +4,11 @@ public sealed record ModListManifest(
     int ManifestVersion,
     string Name,
     string Game,
-    List<ModEntry> Mods);
+    List<ModEntry> Mods,
+    /// <summary>Optional total download size in bytes, declared by the pack
+    /// author. When present, the installer pre-flights disk space (download temp
+    /// + game folder) before fetching anything.</summary>
+    long? TotalSize = null);
 
 /// <summary>
 /// One mod in the list. <see cref="Id"/> is the stable key dependencies and

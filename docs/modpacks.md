@@ -80,8 +80,16 @@ Each mod resolves its archive in this order:
 `Archive` and `Sha256` stay as they are: after download, the file is hash-checked
 against `Sha256` before anything is installed.
 
-The new `DownloadUrl` field is the only schema addition; `NexusModId`/
-`NexusFileId` already exist on `ModEntry`.
+**Disk-space pre-flight:** a pack may declare a top-level `totalSize` (bytes, the
+sum of its mod archives). When present, the installer checks free space on both
+the download temp location and the game folder *before* fetching anything, and
+fails fast with a clear message if either is short — so a large pack won't
+partially download and then stall on a full disk. The per-file gate in
+`ModDownloader` remains as a backstop for any mod whose real size exceeds the
+declared total.
+
+The new `DownloadUrl` field and the optional top-level `totalSize` are the schema
+additions; `NexusModId`/`NexusFileId` already exist on `ModEntry`.
 
 ## Download and install flow
 

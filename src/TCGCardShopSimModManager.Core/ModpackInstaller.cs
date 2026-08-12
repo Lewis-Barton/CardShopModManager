@@ -31,8 +31,20 @@ public sealed class ModpackInstaller
             "cardshopmodmanager-modpack",
             (manifest.Name ?? "pack").ToLowerInvariant());
 
-        // The fallback only matters for mods with neither a DownloadUrl nor a
-        // Nexus id; point it at the cache so an already-downloaded file is reused.
+        // Pre-flight: if the pack declares a total download size, refuse early
+        // (before touching the network) when the download temp location or the
+        // game folder lacks room. The per-file gate in ModDownloader is a
+        // backstop for any mod whose real size exceeds the declared total.
+        if (manifest.TotalSize is { } total && total > 0)
+        {
+            var margin = 25L * 1024 * 1024; // 25 MiB headroom for extraction overhead
+            if (!HasFreeSpace(cacheDirectory, total + margin, out var downloadMsg))
+                return DeploymentReport.Failure(new List<string>(), downloadMsg);
+            if (!HasFreeSpace(_gameFolderPath, total + margin, out var installMsg))
+                return DeploymentReport.Failure(new List<string>(), installMsg);
+        }
+
+        // The fallback only matters for mods with neither a DownloadUrl nor a Nexus id; point it at the cache so an already-downloaded file is reused.
         var fallback = fallbackSource ?? new LocalFileSource(cacheDirectory);
 
         var source = new ModpackModSource(manifest.Game, fallback, http: _http);
@@ -50,6 +62,48 @@ public sealed class ModpackInstaller
                     new List<string>(), $"Failed to download {entry.Name}: {result.Error}");
         }
 
-        return new DeploymentService().Install(manifest, cacheDirectory, _gameFolderPath);
+        var report = new DeploymentService().Install(manifest, cacheDirectory, _gameFolderPath);
+
+        // The install copied what it needed out of the temp cache; drop it so a
+        // finished modpack doesn't leave the downloaded archives on disk.
+        if (report.Success)
+            TryDeleteDirectory(cacheDirectory);
+
+        return report;
+    }
+
+    private static bool HasFreeSpace(string path, long neededBytes, out string message)
+    {
+        message = string.Empty;
+        try
+        {
+            var root = Path.GetPathRoot(Path.GetFullPath(path)) ?? string.Empty;
+            var free = new DriveInfo(root).AvailableFreeSpace;
+            if (free < neededBytes)
+            {
+                message = $"Not enough free disk space on '{root}': need {neededBytes} bytes, only {free} free.";
+                return false;
+            }
+            return true;
+        }
+        catch
+        {
+            // Can't read free space (network drive, unusual root) — don't block
+            // on a false alarm; let a real write failure surface later.
+            return true;
+        }
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+                Directory.Delete(path, recursive: true);
+        }
+        catch
+        {
+            // Best-effort cleanup; a leftover temp folder is harmless.
+        }
     }
 }

@@ -26,7 +26,6 @@ public sealed partial class MainWindow : Window
     // don't declare them here.
 
     private List<DiscoveredMod> _discovered = new();
-    private readonly DeploymentService _service = new();
 
     // Modpack gallery state (the "Modpacks" tab).
     private List<ModpackSummary> _packs = new();
@@ -53,7 +52,6 @@ public sealed partial class MainWindow : Window
     // XAML wires each Button.Click to one of these. They forward to the real
     // async work and swallow exceptions into the log (mirrors the old helper).
 
-    private async void OnInstallClick(object? sender, RoutedEventArgs e) => await RunHandler(OnInstallAsync);
     private async void OnUninstallClick(object? sender, RoutedEventArgs e) => await RunHandler(OnUninstallAsync);
     private async void OnListModsClick(object? sender, RoutedEventArgs e) => await RunHandler(OnListModsAsync);
     private async void OnEnableClick(object? sender, RoutedEventArgs e) => await RunHandler(OnEnableAsync);
@@ -62,8 +60,6 @@ public sealed partial class MainWindow : Window
     private async void OnExportBundleClick(object? sender, RoutedEventArgs e) => await RunHandler(OnExportBundleAsync);
     private async void OnPackInstallClick(object? sender, RoutedEventArgs e) => await RunHandler(OnPackInstallAsync);
     private async void OnPickGameFolder(object? sender, RoutedEventArgs e) => await RunHandler(() => PickFolderAsync(_gameBox));
-    private async void OnPickManifestFile(object? sender, RoutedEventArgs e) => await RunHandler(() => PickFileAsync(_manifestBox));
-    private async void OnPickSourceFolder(object? sender, RoutedEventArgs e) => await RunHandler(() => PickFolderAsync(_sourceBox));
 
     private async Task RunHandler(Func<Task> action)
     {
@@ -375,37 +371,6 @@ public sealed partial class MainWindow : Window
         Log($"Support bundle written to: {bundlePath}");
     }
 
-    private async Task OnInstallAsync()
-    {
-        var manifestPath = _manifestBox.Text;
-        var source = _sourceBox.Text;
-        var gameFolder = _gameBox.Text;
-        if (string.IsNullOrWhiteSpace(manifestPath) || string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(gameFolder))
-        {
-            Log($"Enter the modpack manifest, the archives folder and the game folder first.");
-            return;
-        }
-
-        // DeploymentService.Install already validates the manifest, plans every
-        // archive and refuses conflicts before copying anything — so one click
-        // covers what used to be three buttons.
-        Log($"--- Install modpack into {gameFolder}");
-        Log("Validating manifest and planning the install...");
-        var report = await RunUnderProgress(() => Task.Run(() => _service.Install(manifestPath, source, gameFolder)));
-
-        foreach (var line in report.Lines)
-            Log(line);
-
-        if (!report.Success)
-        {
-            Log("Install did not complete — see the errors above.");
-            return;
-        }
-
-        Log("Modpack installed.");
-        await OnListModsAsync();
-    }
-
     private async Task OnUninstallAsync()
     {
         var gameFolder = _gameBox.Text;
@@ -457,27 +422,6 @@ public sealed partial class MainWindow : Window
             new FolderPickerOpenOptions { Title = "Choose folder", AllowMultiple = false });
         if (folders.Count > 0)
             target.Text = folders[0].Path.LocalPath;
-    }
-
-    private async Task PickFileAsync(TextBox target)
-    {
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel is null)
-            return;
-
-        var files = await topLevel.StorageProvider.OpenFilePickerAsync(
-            new FilePickerOpenOptions
-            {
-                Title = "Choose manifest",
-                AllowMultiple = false,
-                FileTypeFilter = new[]
-                {
-                    new FilePickerFileType("JSON") { Patterns = new[] { "*.json" } },
-                    new FilePickerFileType("All files") { Patterns = new[] { "*" } }
-                }
-            });
-        if (files.Count > 0)
-            target.Text = files[0].Path.LocalPath;
     }
 
     private void Log(string line)
