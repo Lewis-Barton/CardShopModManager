@@ -23,6 +23,13 @@ public sealed class NexusApi
     public const string UserAgent = "TCGCardShopSimModManager";
     public const string GameDomain = "tcgcardshopsimulator";
 
+    /// <summary>The Nexus v1 API root. <see cref="ApiBaseUrl"/> honours NEXUS_API_BASE.</summary>
+    public const string DefaultApiBaseUrl = "https://api.nexusmods.com/v1";
+
+    /// <summary>API base URL, overridable with the NEXUS_API_BASE environment variable.</summary>
+    public static string ApiBaseUrl() =>
+        Environment.GetEnvironmentVariable("NEXUS_API_BASE") ?? DefaultApiBaseUrl;
+
     public NexusApi(string baseUrl, string gameDomain, string userAgent, HttpClient? http = null)
     {
         _baseUrl = baseUrl.TrimEnd('/');

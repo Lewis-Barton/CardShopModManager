@@ -20,4 +20,5 @@ public sealed record ModEntry(
     List<string> Dependencies,
     List<string> Conflicts,
     long? NexusModId = null,
-    long? NexusFileId = null);
+    long? NexusFileId = null,
+    string? DownloadUrl = null);

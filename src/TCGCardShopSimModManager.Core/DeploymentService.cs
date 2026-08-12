@@ -71,6 +71,18 @@ public sealed class DeploymentService
             return DeploymentReport.Failure(lines, $"Manifest file not found: {manifestPath}");
 
         var manifest = new ManifestReader().Read(manifestPath);
+        return Install(manifest, sourceDirectory, gameFolderPath);
+    }
+
+    /// <summary>
+    /// Install from an already-loaded manifest (e.g. one fetched from a hosted
+    /// modpack). Same validate → plan → install pipeline as the file overload.
+    /// </summary>
+    public DeploymentReport Install(ModListManifest manifest, string sourceDirectory, string gameFolderPath)
+    {
+        Diagnostic.Write("DeploymentService.Install(manifest)");
+        var lines = new List<string>();
+
         var validation = new ManifestValidator().Validate(manifest);
         if (!validation.IsValid)
         {

@@ -10,7 +10,8 @@ public sealed record ModReference(
     string Sha256,
     string? Version,
     long? NexusModId = null,
-    long? NexusFileId = null);
+    long? NexusFileId = null,
+    string? DownloadUrl = null);
 
 public sealed record DownloadProgress(long DownloadedBytes, long? TotalBytes);
 
