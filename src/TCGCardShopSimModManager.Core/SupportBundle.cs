@@ -39,7 +39,7 @@ public static class SupportBundle
     {
         var version = typeof(SupportBundle).Assembly.GetName().Version;
         var sb = new StringBuilder();
-        sb.AppendLine($"Card Shop Mod Manager version: {version}");
+        sb.AppendLine($"TCG Card Shop Sim Mod Manager version: {version}");
         sb.AppendLine($"OS: {RuntimeInformation.OSDescription}");
         sb.AppendLine($"Architecture: {RuntimeInformation.OSArchitecture}");
         sb.AppendLine($".NET runtime: {RuntimeInformation.FrameworkDescription}");

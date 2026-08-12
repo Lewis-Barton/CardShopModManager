@@ -30,7 +30,7 @@ public sealed partial class MainWindow : Window
 
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         if (version is not null)
-            Title = $"Card Shop Mod Manager {version}";
+            Title = $"TCG Card Shop Sim Mod Manager {version}";
 
         Opened += async (_, _) => await WelcomeDetectAsync();
     }

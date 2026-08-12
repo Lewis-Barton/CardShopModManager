@@ -1,4 +1,4 @@
-# Card Shop Mod Manager
+# TCG Card Shop Sim Mod Manager
 
 A mod installer/manager for **TCG Card Shop Simulator** (Windows). You list the
 mods you want in a JSON manifest; the tool verifies, extracts, plans, installs,

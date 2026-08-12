@@ -1,6 +1,6 @@
 # Privacy
 
-Card Shop Mod Manager collects nothing and sends nothing on its own.
+TCG Card Shop Sim Mod Manager collects nothing and sends nothing on its own.
 
 - **No telemetry.** The app makes no network calls on its own. The only network calls are ones
   you start: downloading mods (`download`), and `update-check`, which asks GitHub

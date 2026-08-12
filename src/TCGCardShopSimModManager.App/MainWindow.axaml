@@ -14,14 +14,14 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="TCGCardShopSimModManager.App.MainWindow"
-        Title="Card Shop Mod Manager"
+        Title="TCG Card Shop Sim Mod Manager"
         Width="980" Height="640">
 
   <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*">
 
     <!-- Header -->
     <StackPanel Grid.Row="0" Spacing="2">
-      <TextBlock Classes="header" Text="Card Shop Mod Manager" />
+      <TextBlock Classes="header" Text="TCG Card Shop Sim Mod Manager" />
       <TextBlock Classes="subtitle" Text="Install and manage mods for TCG Card Shop Simulator" />
     </StackPanel>
 
@@ -73,7 +73,7 @@
       <Border Classes="card" Grid.Column="0" Margin="0,0,12,0">
         <TextBox x:Name="_log"
                  IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
-                 FontFamily="Consolas" Text="Card Shop Mod Manager" />
+                 FontFamily="Consolas" Text="TCG Card Shop Sim Mod Manager" />
       </Border>
 
       <Border Classes="card" Grid.Column="1">
