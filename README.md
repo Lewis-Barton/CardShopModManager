@@ -14,6 +14,8 @@ docs are in place; publishing/testing to real hardware is next.
 
 ## Desktop app
 
+<img src="src/TCGCardShopSimModManager.App/app-icon.png" width="180" alt="TCG Card Shop Sim Mod Manager app icon" />
+
 Needs a display (Windows):
 
 ```
