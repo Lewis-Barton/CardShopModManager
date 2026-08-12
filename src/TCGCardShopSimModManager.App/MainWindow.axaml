@@ -32,9 +32,9 @@
       <Button Grid.Column="1" Margin="8,0,0,0" Content="Browse…" Click="OnPickGameFolder" />
     </Grid>
 
-    <!-- Manifest -->
+    <!-- Modpack manifest (for now you provide the .json; archives folder below) -->
     <Grid Grid.Row="2" Margin="0,6,0,0" ColumnDefinitions="*,Auto">
-      <TextBox x:Name="_manifestBox" Watermark="path to manifest.json" />
+      <TextBox x:Name="_manifestBox" Watermark="modpack manifest (manifest.json)" />
       <Button Grid.Column="1" Margin="8,0,0,0" Content="Browse…" Click="OnPickManifestFile" />
     </Grid>
 
@@ -47,11 +47,9 @@
     <!-- Mod name to uninstall (this input was missing from the old UI) -->
     <TextBox Grid.Row="4" Margin="0,6,0,0" x:Name="_uninstallBox" Watermark="mod name to uninstall" />
 
-    <!-- Primary actions -->
+    <!-- Primary actions: one click validates, plans and installs the modpack -->
     <StackPanel Grid.Row="5" Margin="0,6,0,0" Orientation="Horizontal" Spacing="8">
-      <Button Content="Validate" Click="OnValidateClick" />
-      <Button Content="Plan" Click="OnPlanClick" />
-      <Button Content="Install" Click="OnInstallClick" />
+      <Button Content="Install modpack" Click="OnInstallClick" />
       <Button Content="Uninstall" Click="OnUninstallClick" />
     </StackPanel>
 

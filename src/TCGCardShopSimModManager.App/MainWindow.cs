@@ -41,8 +41,6 @@ public sealed partial class MainWindow : Window
     // XAML wires each Button.Click to one of these. They forward to the real
     // async work and swallow exceptions into the log (mirrors the old helper).
 
-    private async void OnValidateClick(object? sender, RoutedEventArgs e) => await RunHandler(OnValidateAsync);
-    private async void OnPlanClick(object? sender, RoutedEventArgs e) => await RunHandler(OnPlanAsync);
     private async void OnInstallClick(object? sender, RoutedEventArgs e) => await RunHandler(OnInstallAsync);
     private async void OnUninstallClick(object? sender, RoutedEventArgs e) => await RunHandler(OnUninstallAsync);
     private async void OnListModsClick(object? sender, RoutedEventArgs e) => await RunHandler(OnListModsAsync);
@@ -204,52 +202,6 @@ public sealed partial class MainWindow : Window
         Log($"Support bundle written to: {bundlePath}");
     }
 
-    private async Task OnValidateAsync()
-    {
-        var manifestPath = _manifestBox.Text;
-        if (string.IsNullOrWhiteSpace(manifestPath))
-        {
-            Log($"Enter a manifest path first.");
-            return;
-        }
-
-        Log($"--- Validate {manifestPath}");
-        var report = await RunUnderProgress(() => Task.Run(() =>
-        {
-            var gameFolder = string.IsNullOrWhiteSpace(_gameBox.Text) ? null : _gameBox.Text;
-            return _service.Validate(manifestPath, gameFolder);
-        }));
-
-        foreach (var line in report.Lines)
-            Log(line);
-    }
-
-    private async Task OnPlanAsync()
-    {
-        var manifestPath = _manifestBox.Text;
-        var source = _sourceBox.Text;
-        if (string.IsNullOrWhiteSpace(manifestPath) || string.IsNullOrWhiteSpace(source))
-        {
-            Log($"Enter a manifest path and an archives folder first.");
-            return;
-        }
-
-        Log($"--- Plan {manifestPath}");
-        var previews = await RunUnderProgress(() => Task.Run(() => _service.Preview(manifestPath, source)));
-
-        foreach (var preview in previews)
-        {
-            Log($"\n[{preview.ModName}]");
-            Log($"  layout: {preview.LayoutName}");
-            foreach (var file in preview.Files)
-                Log(file);
-            foreach (var skip in preview.Skipped)
-                Log($"  skip: {skip}");
-            foreach (var rejected in preview.Rejected)
-                Log($"  rejected: {rejected}");
-        }
-    }
-
     private async Task OnInstallAsync()
     {
         var manifestPath = _manifestBox.Text;
@@ -257,16 +209,27 @@ public sealed partial class MainWindow : Window
         var gameFolder = _gameBox.Text;
         if (string.IsNullOrWhiteSpace(manifestPath) || string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(gameFolder))
         {
-            Log($"Enter the manifest, archives folder and game folder first.");
+            Log($"Enter the modpack manifest, the archives folder and the game folder first.");
             return;
         }
 
-        Log($"--- Install into {gameFolder}");
+        // DeploymentService.Install already validates the manifest, plans every
+        // archive and refuses conflicts before copying anything — so one click
+        // covers what used to be three buttons.
+        Log($"--- Install modpack into {gameFolder}");
+        Log("Validating manifest and planning the install...");
         var report = await RunUnderProgress(() => Task.Run(() => _service.Install(manifestPath, source, gameFolder)));
 
         foreach (var line in report.Lines)
             Log(line);
 
+        if (!report.Success)
+        {
+            Log("Install did not complete — see the errors above.");
+            return;
+        }
+
+        Log("Modpack installed.");
         await OnListModsAsync();
     }
 
