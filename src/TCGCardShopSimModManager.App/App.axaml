@@ -23,6 +23,26 @@
     <SolidColorBrush x:Key="TextBrush">#1F2933</SolidColorBrush>
     <SolidColorBrush x:Key="MutedBrush">#6B7280</SolidColorBrush>
     <CornerRadius x:Key="ControlRadius">6</CornerRadius>
+
+    <!-- Button theme: teal fill, white label, rounded, with hover + disabled
+         states. Defined as a ControlTheme (not a plain Style) so it replaces
+         Fluent's default button theme — otherwise the hover state reverts to
+         Fluent's light tint and the white label vanishes on hover. -->
+    <ControlTheme x:Key="ButtonTheme" TargetType="Button">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="Padding" Value="12,6" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ControlRadius}" />
+      <Setter Property="MinWidth" Value="86" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Style Selector="^:pointerover">
+        <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+      </Style>
+      <Style Selector="^:disabled">
+        <Setter Property="Background" Value="#B7C0CC" />
+        <Setter Property="Foreground" Value="#6B7280" />
+      </Style>
+    </ControlTheme>
   </Application.Resources>
 
   <Application.Styles>
@@ -38,21 +58,10 @@
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
 
-    <!-- Buttons: teal fill, white label, rounded, with hover + disabled states. -->
+    <!-- Buttons: apply our ControlTheme so hover keeps a solid teal background
+         (Fluent's default would lighten it and hide the white label). -->
     <Style Selector="Button">
-      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-      <Setter Property="Foreground" Value="White" />
-      <Setter Property="Padding" Value="12,6" />
-      <Setter Property="CornerRadius" Value="{DynamicResource ControlRadius}" />
-      <Setter Property="MinWidth" Value="86" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
-    <Style Selector="Button:pointerover">
-      <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
-    </Style>
-    <Style Selector="Button:disabled">
-      <Setter Property="Background" Value="#B7C0CC" />
-      <Setter Property="Foreground" Value="#6B7280" />
+      <Setter Property="Theme" Value="{DynamicResource ButtonTheme}" />
     </Style>
 
     <Style Selector="TextBox">
