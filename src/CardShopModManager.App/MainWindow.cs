@@ -1,8 +1,8 @@
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Layout;
-using Avalonia.Media;
+using Avalonia.Interactivity;
+using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
 using CardShopModManager.Core;
 
@@ -10,130 +10,58 @@ namespace CardShopModManager.App;
 
 /// <summary>
 /// The desktop shell over <see cref="DeploymentService"/> and the rest of the
-/// engine. Compute happens on a background task; controls are only touched on
-/// the UI thread (after the await resumes there).
+/// engine. The layout lives in MainWindow.axaml; this file is the behaviour.
+/// Compute happens on a background task; controls are only touched on the UI
+/// thread (after the await resumes there).
 /// </summary>
-public sealed class MainWindow : Window
+public sealed partial class MainWindow : Window
 {
-    private readonly TextBox _gameBox = new()
-    {
-        Watermark = "Game folder (where Card Shop Simulator is installed)"
-    };
-    private readonly TextBox _manifestBox = new() { Watermark = "path to manifest.json" };
-    private readonly TextBox _sourceBox = new() { Watermark = "folder containing the mod archives" };
-    private readonly TextBox _uninstallBox = new() { Watermark = "mod name to uninstall" };
-    private readonly TextBox _log = new()
-    {
-        IsReadOnly = true,
-        AcceptsReturn = true,
-        TextWrapping = TextWrapping.Wrap,
-        FontFamily = new FontFamily("Consolas"),
-        Text = "Card Shop Mod Manager\n"
-    };
-    private readonly ListBox _modsList = new() { };
-    private List<DiscoveredMod> _discovered = new();
-    private readonly ProgressBar _progress = new()
-    {
-        IsIndeterminate = true,
-        IsVisible = false,
-        Height = 6
-    };
+    // The controls declared with x:Name in MainWindow.axaml (_gameBox, _log, ...)
+    // are generated for this partial class by Avalonia's name generator, so we
+    // don't declare them here.
 
+    private List<DiscoveredMod> _discovered = new();
     private readonly DeploymentService _service = new();
 
     public MainWindow()
     {
+        // Builds the visual tree declared in MainWindow.axaml.
+        AvaloniaXamlLoader.Load(this);
+
         var version = Assembly.GetExecutingAssembly().GetName().Version;
-        Title = version is null ? "Card Shop Mod Manager" : $"Card Shop Mod Manager {version}";
-        Width = 980;
-        Height = 640;
-        Content = BuildLayout();
+        if (version is not null)
+            Title = $"Card Shop Mod Manager {version}";
 
         Opened += async (_, _) => await WelcomeDetectAsync();
     }
 
-    private Control BuildLayout()
+    // --- click handlers -----------------------------------------------------
+    // XAML wires each Button.Click to one of these. They forward to the real
+    // async work and swallow exceptions into the log (mirrors the old helper).
+
+    private async void OnValidateClick(object? sender, RoutedEventArgs e) => await RunHandler(OnValidateAsync);
+    private async void OnPlanClick(object? sender, RoutedEventArgs e) => await RunHandler(OnPlanAsync);
+    private async void OnInstallClick(object? sender, RoutedEventArgs e) => await RunHandler(OnInstallAsync);
+    private async void OnUninstallClick(object? sender, RoutedEventArgs e) => await RunHandler(OnUninstallAsync);
+    private async void OnListModsClick(object? sender, RoutedEventArgs e) => await RunHandler(OnListModsAsync);
+    private async void OnEnableClick(object? sender, RoutedEventArgs e) => await RunHandler(OnEnableAsync);
+    private async void OnDisableClick(object? sender, RoutedEventArgs e) => await RunHandler(OnDisableAsync);
+    private async void OnUpdateCheckClick(object? sender, RoutedEventArgs e) => await RunHandler(OnUpdateCheckAsync);
+    private async void OnExportBundleClick(object? sender, RoutedEventArgs e) => await RunHandler(OnExportBundleAsync);
+    private async void OnPickGameFolder(object? sender, RoutedEventArgs e) => await RunHandler(() => PickFolderAsync(_gameBox));
+    private async void OnPickManifestFile(object? sender, RoutedEventArgs e) => await RunHandler(() => PickFileAsync(_manifestBox));
+    private async void OnPickSourceFolder(object? sender, RoutedEventArgs e) => await RunHandler(() => PickFolderAsync(_sourceBox));
+
+    private async Task RunHandler(Func<Task> action)
     {
-        var grid = new Grid { Margin = new Thickness(12) };
-        for (var i = 0; i < 5; i++)
-            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        grid.RowDefinitions.Add(new RowDefinition(GridLength.Star)); // bottom split fills the rest
-
-        AddPathRow(grid, 0, _gameBox, "Browse…", () => PickFolderAsync(_gameBox));
-        AddPathRow(grid, 1, _manifestBox, "Browse…", () => PickFileAsync(_manifestBox));
-        AddPathRow(grid, 2, _sourceBox, "Browse…", () => PickFolderAsync(_sourceBox));
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        actions.Children.Add(Button("Validate", OnValidateAsync));
-        actions.Children.Add(Button("Plan", OnPlanAsync));
-        actions.Children.Add(Button("Install", OnInstallAsync));
-        actions.Children.Add(Button("Uninstall", OnUninstallAsync));
-        Grid.SetRow(actions, 3);
-        grid.Children.Add(actions);
-
-        var utilities = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        utilities.Children.Add(Button("List mods", OnListModsAsync));
-        utilities.Children.Add(Button("Enable", OnEnableAsync));
-        utilities.Children.Add(Button("Disable", OnDisableAsync));
-        utilities.Children.Add(Button("Update check", OnUpdateCheckAsync));
-        utilities.Children.Add(Button("Export bundle", OnExportBundleAsync));
-        Grid.SetRow(utilities, 4);
-        grid.Children.Add(utilities);
-
-        Grid.SetRow(_progress, 5);
-        grid.Children.Add(_progress);
-
-        var split = new Grid();
-        split.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        split.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(260)));
-
-        Grid.SetColumn(_log, 0);
-        split.Children.Add(_log);
-
-        var modsPanel = new StackPanel { Spacing = 4 };
-        modsPanel.Children.Add(new TextBlock { Text = "Installed mods", FontWeight = FontWeight.Bold });
-        modsPanel.Children.Add(_modsList);
-        Grid.SetColumn(modsPanel, 1);
-        split.Children.Add(modsPanel);
-
-        Grid.SetRow(split, 6);
-        grid.Children.Add(split);
-
-        return grid;
-    }
-
-    private void AddPathRow(Grid grid, int row, TextBox box, string browseText, Func<Task> browseAction)
-    {
-        var panel = new Grid();
-        panel.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        panel.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-
-        Grid.SetColumn(box, 0);
-        panel.Children.Add(box);
-
-        var browse = Button(browseText, browseAction);
-        Grid.SetColumn(browse, 1);
-        panel.Children.Add(browse);
-
-        Grid.SetRow(panel, row);
-        grid.Children.Add(panel);
-    }
-
-    private Button Button(string content, Func<Task> onClick)
-    {
-        var button = new Button { Content = content };
-        button.Click += async (_, _) =>
+        try
         {
-            try
-            {
-                await onClick();
-            }
-            catch (Exception ex)
-            {
-                Log($"Error: {ex.Message}");
-            }
-        };
-        return button;
+            await action();
+        }
+        catch (Exception ex)
+        {
+            Log($"Error: {ex.Message}");
+        }
     }
 
     // --- actions -----------------------------------------------------------
