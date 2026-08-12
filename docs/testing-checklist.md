@@ -11,9 +11,8 @@ unit test already covers it, **[manual]** where it needs a real environment.
 - [ ] **[auto]** Paths containing spaces install correctly
       (`Install_WorksWithSpacesInGamePath`).
 - [ ] **[manual]** Game folder on a **different drive** than the source folder.
-- [ ] **[manual]** A **non-default Steam library** (Steam API detection is
-      Stage 9+, so for now: detect + install against a manually entered path on
-      that library).
+- [ ] **[manual]** A **non-default Steam library**: detect the game via Steam
+      and install against a manually entered path on that library.
 
 ## Failures and recovery
 
