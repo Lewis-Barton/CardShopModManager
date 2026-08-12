@@ -25,8 +25,10 @@ public sealed partial class MainWindow : Window
 
     public MainWindow()
     {
-        // Builds the visual tree declared in MainWindow.axaml.
-        AvaloniaXamlLoader.Load(this);
+        // Builds the visual tree declared in MainWindow.axaml and assigns the
+        // x:Name fields (_log, _gameBox, ...). Must use InitializeComponent
+        // (not AvaloniaXamlLoader.Load) so those fields are populated.
+        InitializeComponent();
 
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         if (version is not null)
