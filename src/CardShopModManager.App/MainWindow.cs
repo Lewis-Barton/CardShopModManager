@@ -1,3 +1,4 @@
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -8,9 +9,9 @@ using CardShopModManager.Core;
 namespace CardShopModManager.App;
 
 /// <summary>
-/// The desktop shell: thin UI over <see cref="DeploymentService"/> — the same
-/// engine the CLI uses. Heavy work runs on a background task so the window
-/// stays responsive, then results are written to the log panel.
+/// The desktop shell over <see cref="DeploymentService"/> and the rest of the
+/// engine. Compute happens on a background task; controls are only touched on
+/// the UI thread (after the await resumes there).
 /// </summary>
 public sealed class MainWindow : Window
 {
@@ -29,6 +30,7 @@ public sealed class MainWindow : Window
         FontFamily = new FontFamily("Consolas"),
         Text = "Card Shop Mod Manager\n"
     };
+    private readonly ListBox _modsList = new() { };
     private readonly ProgressBar _progress = new()
     {
         IsIndeterminate = true,
@@ -40,8 +42,9 @@ public sealed class MainWindow : Window
 
     public MainWindow()
     {
-        Title = "Card Shop Mod Manager";
-        Width = 940;
+        var version = Assembly.GetExecutingAssembly().GetName().Version;
+        Title = version is null ? "Card Shop Mod Manager" : $"Card Shop Mod Manager {version}";
+        Width = 980;
         Height = 640;
         Content = BuildLayout();
     }
@@ -51,30 +54,51 @@ public sealed class MainWindow : Window
         var grid = new Grid { Margin = new Thickness(12) };
         for (var i = 0; i < 5; i++)
             grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        grid.RowDefinitions.Add(new RowDefinition(GridLength.Star)); // log fills the rest
+        grid.RowDefinitions.Add(new RowDefinition(GridLength.Star)); // bottom split fills the rest
 
-        AddPathRow(grid, 0, _gameBox, () => PickFolderAsync(_gameBox));
-        AddPathRow(grid, 1, _manifestBox, () => PickFileAsync(_manifestBox));
-        AddPathRow(grid, 2, _sourceBox, () => PickFolderAsync(_sourceBox));
+        AddPathRow(grid, 0, _gameBox, "Browse…", () => PickFolderAsync(_gameBox));
+        AddPathRow(grid, 1, _manifestBox, "Browse…", () => PickFileAsync(_manifestBox));
+        AddPathRow(grid, 2, _sourceBox, "Browse…", () => PickFolderAsync(_sourceBox));
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        buttons.Children.Add(Button("Validate", OnValidateAsync));
-        buttons.Children.Add(Button("Plan", OnPlanAsync));
-        buttons.Children.Add(Button("Install", OnInstallAsync));
-        buttons.Children.Add(Button("Uninstall", OnUninstallAsync));
-        Grid.SetRow(buttons, 3);
-        grid.Children.Add(buttons);
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        actions.Children.Add(Button("Validate", OnValidateAsync));
+        actions.Children.Add(Button("Plan", OnPlanAsync));
+        actions.Children.Add(Button("Install", OnInstallAsync));
+        actions.Children.Add(Button("Uninstall", OnUninstallAsync));
+        Grid.SetRow(actions, 3);
+        grid.Children.Add(actions);
 
-        Grid.SetRow(_progress, 4);
+        var utilities = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        utilities.Children.Add(Button("Detect game", OnDetectAsync));
+        utilities.Children.Add(Button("List mods", OnListModsAsync));
+        utilities.Children.Add(Button("Update check", OnUpdateCheckAsync));
+        utilities.Children.Add(Button("Export bundle", OnExportBundleAsync));
+        Grid.SetRow(utilities, 4);
+        grid.Children.Add(utilities);
+
+        Grid.SetRow(_progress, 5);
         grid.Children.Add(_progress);
 
-        Grid.SetRow(_log, 5);
-        grid.Children.Add(_log);
+        var split = new Grid();
+        split.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        split.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(260)));
+
+        Grid.SetColumn(_log, 0);
+        split.Children.Add(_log);
+
+        var modsPanel = new StackPanel { Spacing = 4 };
+        modsPanel.Children.Add(new TextBlock { Text = "Installed mods", FontWeight = FontWeight.Bold });
+        modsPanel.Children.Add(_modsList);
+        Grid.SetColumn(modsPanel, 1);
+        split.Children.Add(modsPanel);
+
+        Grid.SetRow(split, 6);
+        grid.Children.Add(split);
 
         return grid;
     }
 
-    private void AddPathRow(Grid grid, int row, TextBox box, Func<Task> browseAction)
+    private void AddPathRow(Grid grid, int row, TextBox box, string browseText, Func<Task> browseAction)
     {
         var panel = new Grid();
         panel.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -83,7 +107,7 @@ public sealed class MainWindow : Window
         Grid.SetColumn(box, 0);
         panel.Children.Add(box);
 
-        var browse = Button("Browse…", browseAction);
+        var browse = Button(browseText, browseAction);
         Grid.SetColumn(browse, 1);
         panel.Children.Add(browse);
 
@@ -110,6 +134,68 @@ public sealed class MainWindow : Window
 
     // --- actions -----------------------------------------------------------
 
+    private async Task OnDetectAsync()
+    {
+        Log("--- Detect game via Steam");
+        var path = await Task.Run(() =>
+            new SteamLocator().FindGameInstallPath(SteamLocator.GameAppId));
+
+        if (path is null)
+            Log("Could not find TCG Card Shop Simulator through Steam.");
+        else
+        {
+            _gameBox.Text = path;
+            Log($"Detected: {path}");
+        }
+    }
+
+    private async Task OnListModsAsync()
+    {
+        var gameFolder = _gameBox.Text;
+        if (string.IsNullOrWhiteSpace(gameFolder))
+        {
+            Log($"Enter a game folder first.");
+            return;
+        }
+
+        var names = await Task.Run(() =>
+            new JournalStore(gameFolder).Load().Select(e => e.ModName).OrderBy(n => n).ToList());
+
+        _modsList.ItemsSource = names;
+        Log($"Installed mods ({names.Count}):");
+        foreach (var name in names)
+            Log($"  {name}");
+    }
+
+    private async Task OnUpdateCheckAsync()
+    {
+        Log("--- Update check");
+        var local = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
+
+        var result = await Task.Run(() =>
+            new UpdateChecker("Lewis-Barton/CardShopModManager", local).CheckAsync(CancellationToken.None));
+
+        if (result.Error is not null)
+        {
+            Log(result.Error);
+            return;
+        }
+
+        if (!result.HasRelease)
+            Log($"Local version: {local}. No GitHub releases published yet.");
+        else
+            Log(result.IsUpToDate
+                ? $"Local {local} — up to date (latest {result.LatestVersion})."
+                : $"Update available: {result.LatestVersion} ({result.ReleaseUrl})");
+    }
+
+    private async Task OnExportBundleAsync()
+    {
+        Log("--- Export support bundle");
+        var bundlePath = await Task.Run(() => SupportBundle.Create(gameFolder: null, outputDirectory: null));
+        Log($"Support bundle written to: {bundlePath}");
+    }
+
     private async Task OnValidateAsync()
     {
         var manifestPath = _manifestBox.Text;
@@ -120,13 +206,14 @@ public sealed class MainWindow : Window
         }
 
         Log($"--- Validate {manifestPath}");
-        await RunUnderProgress(() => Task.Run(() =>
+        var report = await RunUnderProgress(() => Task.Run(() =>
         {
             var gameFolder = string.IsNullOrWhiteSpace(_gameBox.Text) ? null : _gameBox.Text;
-            var report = _service.Validate(manifestPath, gameFolder);
-            foreach (var line in report.Lines)
-                Log(line);
+            return _service.Validate(manifestPath, gameFolder);
         }));
+
+        foreach (var line in report.Lines)
+            Log(line);
     }
 
     private async Task OnPlanAsync()
@@ -140,21 +227,19 @@ public sealed class MainWindow : Window
         }
 
         Log($"--- Plan {manifestPath}");
-        await RunUnderProgress(() => Task.Run(() =>
+        var previews = await RunUnderProgress(() => Task.Run(() => _service.Preview(manifestPath, source)));
+
+        foreach (var preview in previews)
         {
-            var previews = _service.Preview(manifestPath, source);
-            foreach (var preview in previews)
-            {
-                Log($"\n[{preview.ModName}]");
-                Log($"  layout: {preview.LayoutName}");
-                foreach (var file in preview.Files)
-                    Log(file);
-                foreach (var skip in preview.Skipped)
-                    Log($"  skip: {skip}");
-                foreach (var rejected in preview.Rejected)
-                    Log($"  rejected: {rejected}");
-            }
-        }));
+            Log($"\n[{preview.ModName}]");
+            Log($"  layout: {preview.LayoutName}");
+            foreach (var file in preview.Files)
+                Log(file);
+            foreach (var skip in preview.Skipped)
+                Log($"  skip: {skip}");
+            foreach (var rejected in preview.Rejected)
+                Log($"  rejected: {rejected}");
+        }
     }
 
     private async Task OnInstallAsync()
@@ -169,12 +254,12 @@ public sealed class MainWindow : Window
         }
 
         Log($"--- Install into {gameFolder}");
-        await RunUnderProgress(() => Task.Run(() =>
-        {
-            var report = _service.Install(manifestPath, source, gameFolder);
-            foreach (var line in report.Lines)
-                Log(line);
-        }));
+        var report = await RunUnderProgress(() => Task.Run(() => _service.Install(manifestPath, source, gameFolder)));
+
+        foreach (var line in report.Lines)
+            Log(line);
+
+        await OnListModsAsync();
     }
 
     private async Task OnUninstallAsync()
@@ -188,27 +273,27 @@ public sealed class MainWindow : Window
         }
 
         Log($"--- Uninstall {modName}");
-        await RunUnderProgress(() => Task.Run(() =>
-        {
-            var result = new ModInstaller(gameFolder).Uninstall(modName);
-            if (!result.Success)
-            {
-                Log(result.Error ?? "Uninstall failed.");
-                return;
-            }
+        var result = await RunUnderProgress(() => Task.Run(() => new ModInstaller(gameFolder).Uninstall(modName)));
 
-            Log($"Uninstalled {modName}.");
-            foreach (var warning in result.Warnings)
-                Log($"  Warning: {warning}");
-        }));
+        if (!result.Success)
+        {
+            Log(result.Error ?? "Uninstall failed.");
+            return;
+        }
+
+        Log($"Uninstalled {modName}.");
+        foreach (var warning in result.Warnings)
+            Log($"  Warning: {warning}");
+
+        await OnListModsAsync();
     }
 
-    private async Task RunUnderProgress(Func<Task> work)
+    private async Task<T> RunUnderProgress<T>(Func<Task<T>> work)
     {
         _progress.IsVisible = true;
         try
         {
-            await work();
+            return await work();
         }
         finally
         {

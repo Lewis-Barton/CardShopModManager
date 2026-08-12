@@ -16,5 +16,8 @@ public static class ValidateCommand
 
         foreach (var line in report.Lines)
             Console.WriteLine(line);
+
+        if (!report.Success)
+            Environment.ExitCode = 1;
     }
 }

@@ -24,6 +24,7 @@ public static class PlanCommand
             Console.WriteLine("Manifest is invalid:");
             foreach (var error in validation.Errors)
                 Console.WriteLine($"  - {error}");
+            Environment.ExitCode = 1;
             return;
         }
 
@@ -67,6 +68,7 @@ public static class PlanCommand
                 catch (Exception ex)
                 {
                     Console.WriteLine($"  could not plan: {ex.Message}");
+                    Environment.ExitCode = 1;
                 }
             }
         }

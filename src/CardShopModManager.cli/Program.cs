@@ -10,7 +10,7 @@ if (args.Length > 0 && args[0] is "--version" or "-v")
 
 if (args.Length == 0)
 {
-    Console.WriteLine("Usage: cardshopmodmanager <detect|validate|plan|download|serve|demo|nexus|nexus-demo|update-check|support-bundle|install|uninstall|profile> [path]");
+    PrintUsage();
     return;
 }
 
@@ -79,8 +79,12 @@ try
                 args.ElementAtOrDefault(4),
                 args.ElementAtOrDefault(5));
             break;
+        case "help" when args.Length == 1:
+            PrintUsage();
+            break;
         default:
             Console.WriteLine($"Unknown command: {args[0]}");
+            Environment.ExitCode = 2;
             break;
     }
 
@@ -93,6 +97,25 @@ catch (Exception ex)
     Console.Error.WriteLine($"Unexpected error: {ex.Message}");
     Console.Error.WriteLine("Details were written to the diagnostic log. Export it with: support-bundle");
     Environment.ExitCode = 1;
+}
+
+static void PrintUsage()
+{
+    Console.WriteLine(
+        "Usage: cardshopmodmanager <command> [args]\n" +
+        "  detect <gameFolder?>          check a game folder, or auto-detect via Steam with no path\n" +
+        "  validate <manifest> [game]    check the manifest and enabled list; print install order\n" +
+        "  plan <manifest> <src> <game>  dry-run: show the file-by-file plan without touching the game\n" +
+        "  download <manifest> <src> <cache> <out>   fetch archives (src: url | folder | nexus)\n" +
+        "  serve <folder> [port]         host a folder over HTTP (run downloads from a second terminal)\n" +
+        "  demo / nexus-demo             one-command end-to-end demos\n" +
+        "  nexus set-key|status|clear    manage the Nexus API key\n" +
+        "  update-check                  compare version with the latest GitHub release\n" +
+        "  support-bundle [outDir]       export logs + environment info (never the API key)\n" +
+        "  install <manifest> <src> <game>   verify, plan, install, journal\n" +
+        "  uninstall <modName> <game>    remove a mod's files if they still match the journal\n" +
+        "  profile list|use|enable|disable ...\n" +
+        "  --version                     print the version");
 }
 
 static string RedactArgs(string[] args)

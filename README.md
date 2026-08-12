@@ -23,10 +23,15 @@ Pick a game folder, a manifest and the archive folder, then **Validate** (instal
 order, or why the list can't be installed), **Plan** (file-by-file preview),
 **Install** (progress bar while it works), or type a mod name and **Uninstall**.
 
+Also on the window: **Detect game** (finds TCG Card Shop Simulator through your
+Steam library folders automatically), **List mods** (shows what the journal says
+is installed), **Update check**, and **Export bundle** (the support bundle). The
+title shows the version.
+
 ## Commands
 
 ```
-dotnet run --project src/CardShopModManager.Cli -- detect  <gameFolder>
+dotnet run --project src/CardShopModManager.Cli -- detect  [gameFolder]
 dotnet run --project src/CardShopModManager.Cli -- validate <manifest.json> [gameFolder]
 dotnet run --project src/CardShopModManager.Cli -- plan     <manifest.json> <sourceDir> <gameFolder>
 dotnet run --project src/CardShopModManager.Cli -- download <manifest.json> <httpUrlBase|localFolder|nexus> <cacheDir> <outDir>
@@ -42,7 +47,7 @@ dotnet run --project src/CardShopModManager.Cli -- uninstall <modName> <gameFold
 dotnet run --project src/CardShopModManager.Cli -- profile <list|use|enable|disable> ...
 ```
 
-- `detect`    — check a folder is a game install (manual path for now; Steam API coming later).
+- `detect`    — with a path, check it's a game install. With no path, auto-detect the game through Steam (reads the Steam library folders — no API key needed).
 - `validate`  — checks the manifest and the enabled list; prints the valid install order, or every reason it can't be installed.
 - `plan`      — dry run: exactly which files each archive would install, where, and what's skipped/rejected. Never touches the game.
 - `download`  — fetch every archive into `outDir` through the download pipeline. Source is an http(s) base URL, a local folder, or `nexus`.

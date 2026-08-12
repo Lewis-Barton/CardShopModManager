@@ -18,6 +18,7 @@ public static class UninstallCommand
         if (!result.Success)
         {
             Console.WriteLine(result.Error);
+            Environment.ExitCode = 1;
             return;
         }
 
