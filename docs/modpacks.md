@@ -21,6 +21,13 @@ modpacks/
     logo.png              # pack logo, square, ~512x512
 ```
 
+A `essential-qol` demo pack ships in this repo so the gallery has something to
+show before real packs exist. Its manifest points `downloadUrl` at a sample
+archive already committed under `samples/mod-archives/`, so the whole flow —
+fetch index, fetch manifest, download, install — works once `modpacks/` is
+pushed. Replace it (or add your own) with real packs when you have archives
+hosted on Nexus or an author's URL.
+
 The index points at each pack's logo and manifest by **repo-relative path**.
 The app resolves those to `raw.githubusercontent.com` URLs from one hardcoded
 base (the index URL itself), so there's a single place to change if the repo

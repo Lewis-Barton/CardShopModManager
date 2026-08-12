@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "packs": [
+    {
+      "id": "essential-qol",
+      "name": "Essential QoL",
+      "shortDescription": "A starter pack: the Example Mod, shown here to demonstrate the installer end to end.",
+      "logo": "essential-qol/logo.png",
+      "manifest": "essential-qol/manifest.json",
+      "version": "1.0.0",
+      "updated": "2026-08-12"
+    }
+  ]
+}
