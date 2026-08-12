@@ -328,7 +328,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        Log($"Disabled {mod.ModName} (files moved to BepInEx/disabled).");
+        Log($"Disabled {mod.ModName} (files moved out of the game so BepInEx won't load them).");
         foreach (var warning in result.Warnings)
             Log($"  Warning: {warning}");
 
@@ -374,15 +374,20 @@ public sealed partial class MainWindow : Window
     private async Task OnUninstallAsync()
     {
         var gameFolder = _gameBox.Text;
-        var modName = _uninstallBox.Text;
-        if (string.IsNullOrWhiteSpace(gameFolder) || string.IsNullOrWhiteSpace(modName))
+        var mod = SelectedMod();
+        if (string.IsNullOrWhiteSpace(gameFolder))
         {
-            Log($"Enter the game folder and a mod name to uninstall.");
+            Log($"Enter a game folder first.");
+            return;
+        }
+        if (mod is null)
+        {
+            Log($"Select a mod in the list first.");
             return;
         }
 
-        Log($"--- Uninstall {modName}");
-        var result = await RunUnderProgress(() => Task.Run(() => new ModInstaller(gameFolder).Uninstall(modName)));
+        Log($"--- Uninstall {mod.ModName}");
+        var result = await RunUnderProgress(() => Task.Run(() => new ModInstaller(gameFolder).Uninstall(mod.ModName)));
 
         if (!result.Success)
         {
@@ -390,7 +395,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        Log($"Uninstalled {modName}.");
+        Log($"Uninstalled {mod.ModName}.");
         foreach (var warning in result.Warnings)
             Log($"  Warning: {warning}");
 

@@ -18,7 +18,7 @@ public sealed class ModInstallerTests : IDisposable
         _sourceDir = Path.Combine(_testRoot, "source");
         Directory.CreateDirectory(_gameFolder);
         Directory.CreateDirectory(_sourceDir);
-        _installer = new ModInstaller(_gameFolder);
+        _installer = new ModInstaller(_gameFolder, Path.Combine(_testRoot, "disabled"));
     }
 
     public void Dispose()
@@ -96,7 +96,7 @@ public sealed class ModInstallerTests : IDisposable
 
         var mod = AddLooseFile("ExampleMod.dll", "dll-bytes");
 
-        var result = new ModInstaller(gameFolderWithSpaces).Install(mod, _sourceDir);
+        var result = new ModInstaller(gameFolderWithSpaces, Path.Combine(_testRoot, "disabled")).Install(mod, _sourceDir);
 
         Assert.True(result.Success, result.Error);
         Assert.True(File.Exists(Path.Combine(gameFolderWithSpaces, "BepInEx", "plugins", "Example Mod", "ExampleMod.dll")));

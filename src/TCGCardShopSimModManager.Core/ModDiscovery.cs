@@ -26,10 +26,10 @@ public sealed record DiscoveredMod(
 public static class ModDiscovery
 {
     private static readonly string[] ActiveRoots = { "BepInEx/plugins", "BepInEx/patchers" };
-    private const string DisabledRoot = "BepInEx/disabled";
 
-    public static List<DiscoveredMod> Discover(string gameFolderPath)
+    public static List<DiscoveredMod> Discover(string gameFolderPath, string? disabledRoot = null)
     {
+        disabledRoot ??= ModInstaller.DisabledRoot;
         var journal = new JournalStore(gameFolderPath).Load();
         var mods = new Dictionary<string, (ModInventoryState State, int Count, string? Root)>(
             StringComparer.OrdinalIgnoreCase);
@@ -50,7 +50,7 @@ public static class ModDiscovery
             }
         }
 
-        var disabledFull = Path.Combine(gameFolderPath, DisabledRoot.Replace('/', Path.DirectorySeparatorChar));
+        var disabledFull = disabledRoot;
         if (Directory.Exists(disabledFull))
         {
             foreach (var folder in Directory.EnumerateDirectories(disabledFull))
@@ -68,7 +68,7 @@ public static class ModDiscovery
                 if (mods.ContainsKey(name))
                     mods[name] = (ModInventoryState.Disabled, count, mods[name].Root);
                 else
-                    mods[name] = (ModInventoryState.Disabled, count, DisabledRoot);
+                    mods[name] = (ModInventoryState.Disabled, count, disabledRoot);
             }
         }
 

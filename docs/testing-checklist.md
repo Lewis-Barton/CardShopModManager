@@ -46,7 +46,7 @@ unit test already covers it, **[manual]** where it needs a real environment.
 
 - [ ] **[auto]** A mod placed in `BepInEx/plugins` by hand (no journal) is listed
       as Unknown (`Discover_HandInstalledMod_IsUnknown`).
-- [ ] **[auto]** Disabling moves files to `BepInEx/disabled` and enabling moves
+- [ ] **[auto]** Disabling moves files out of the game into the manager's disabled folder and enabling moves
       them back (`Disable_MovesFilesToDisabledAndReportsDisabled`,
       `Enable_MovesFilesBackAndReportsInstalled`).
 - [ ] **[auto]** A modified file is left in place, not moved, when disabling

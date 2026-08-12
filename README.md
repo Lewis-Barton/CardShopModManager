@@ -31,7 +31,7 @@ library folders automatically and fills the game folder; if not found, use
 Browse. **List mods** reads what is actually in `BepInEx/plugins`, `patchers`
 and `disabled` and labels it with the journal (installed / modified / disabled /
 unknown; a mod placed in the folder by hand is shown as unknown). Select a mod and use **Enable** /
-**Disable** to move it between the game and `BepInEx/disabled` — nothing is
+**Disable** to move it out of the game into the manager's own disabled folder (beside the executable) — nothing is
 deleted, and a modified file is left alone with a warning. **Update check** and
 **Export bundle** round out the utilities. The title shows the version.
 
@@ -65,7 +65,7 @@ dotnet run --project src/TCGCardShopSimModManager.Cli -- mods     <list <gameFol
 - `support-bundle` — zips environment info and recent diagnostics for sharing. Never includes the API key.
 - `install`   — resolve the enabled list, verify order, pre-flight file conflicts, then hash-verify, extract, plan, stage, copy, journal.
 - `uninstall` — removes only files whose hashes still match the journal; a modified file is warned about and left alone.
-- `mods`      — list what's actually on disk (`BepInEx/plugins`, `patchers`, `disabled`) with journal-backed state, and disable/enable a mod by moving its files to/from `BepInEx/disabled`.
+- `mods`      — list what's actually on disk (`BepInEx/plugins`, `patchers`) with journal-backed state; disable moves a mod's files out of the game into the manager's disabled folder, enable moves them back.
 - `profile`   — named sets of enabled mods:
 
 ```

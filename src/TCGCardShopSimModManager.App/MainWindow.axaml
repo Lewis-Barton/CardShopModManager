@@ -81,10 +81,7 @@
             <Button Grid.Column="1" Margin="8,0,0,0" Content="Browse…" Click="OnPickGameFolder" />
           </Grid>
 
-          <!-- Mod name to uninstall -->
-          <TextBox Grid.Row="1" Margin="0,6,0,0" x:Name="_uninstallBox" Watermark="mod name to uninstall" />
-
-          <!-- Primary actions -->
+          <!-- Primary actions: operate on the mod selected in the list below -->
           <StackPanel Grid.Row="2" Margin="0,6,0,0" Orientation="Horizontal" Spacing="8">
             <Button Content="Uninstall" Click="OnUninstallClick" />
           </StackPanel>

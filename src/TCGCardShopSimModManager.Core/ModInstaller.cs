@@ -1,3 +1,4 @@
+using System;
 using System.Security.Cryptography;
 
 namespace TCGCardShopSimModManager.Core;
@@ -6,12 +7,30 @@ public sealed class ModInstaller
 {
     private readonly JournalStore _journal;
     private readonly string _gameFolderPath;
+    private readonly string _disabledRoot;
 
-    public ModInstaller(string gameFolderPath)
+    /// <summary>
+    /// Where disabled mods are parked while turned off. Lives beside the mod
+    /// manager's own executable — NOT inside the game folder — so the game stays
+    /// clean and BepInEx never loads the files. The folder is created on demand
+    /// when a mod is first disabled. Defaults to <see cref="DisabledRoot"/>.
+    /// Tests pass an explicit path so disabled mods stay inside the test's
+    /// scratch folder and never touch the real install.
+    /// </summary>
+    public ModInstaller(string gameFolderPath, string? disabledRoot = null)
     {
         _gameFolderPath = gameFolderPath;
         _journal = new JournalStore(gameFolderPath);
+        _disabledRoot = disabledRoot ?? DisabledRoot;
     }
+
+    /// <summary>
+    /// The default home for disabled mods: a folder next to this executable.
+    /// Returning an absolute path means discovery and the installer agree on
+    /// where disabled files live without the game folder being involved.
+    /// </summary>
+    public static string DisabledRoot =>
+        Path.Combine(AppContext.BaseDirectory, "cardshopmodmanager-disabled");
 
     /// <summary>
     /// Build the file-by-file plan for a mod: verify the source hash, extract it
@@ -142,9 +161,10 @@ public sealed class ModInstaller
 
     /// <summary>
 /// Disable a mod without deleting anything: move every journaled file that sits
-/// under BepInEx/plugins or BepInEx/patchers into BepInEx/disabled, preserving
-/// the tree. The move is reversible via <see cref="Enable"/>. Files that were
-/// modified since install are left in place with a warning rather than touched.
+/// under BepInEx/plugins or BepInEx/patchers into the manager's disabled
+/// folder (beside the executable), preserving the tree. The move is reversible
+/// via <see cref="Enable"/>. Files that were modified since install are left in
+/// place with a warning rather than touched.
 /// </summary>
 public DisableResult Disable(string modName)
 {
@@ -174,7 +194,7 @@ public DisableResult Disable(string modName)
             continue;
         }
 
-        var disabledPath = Path.Combine(_gameFolderPath, "BepInEx", "disabled");
+        var disabledPath = _disabledRoot;
         foreach (var segment in sections)
             disabledPath = Path.Combine(disabledPath, segment);
 
@@ -187,8 +207,8 @@ public DisableResult Disable(string modName)
 }
 
 /// <summary>
-/// Reverse of <see cref="Disable"/>: move journaled files that sit in
-/// BepInEx/disabled back to their original paths. Refuses the restore if
+/// Reverse of <see cref="Disable"/>: move journaled files that sit in the
+/// disabled folder back to their original paths. Refuses the restore if
 /// something already occupies the destination.
 /// </summary>
 public EnableResult Enable(string modName)
@@ -207,7 +227,7 @@ public EnableResult Enable(string modName)
             continue;
         }
 
-        var disabledPath = Path.Combine(_gameFolderPath, "BepInEx", "disabled");
+        var disabledPath = _disabledRoot;
         foreach (var segment in sections)
             disabledPath = Path.Combine(disabledPath, segment);
 
@@ -233,8 +253,8 @@ public EnableResult Enable(string modName)
 
 /// <summary>
 /// The part of a journaled path that lives under a managed root (plugins or
-/// patchers), e.g. ["ModName", "lib", "file.dll"], so it can be relocated under
-/// BepInEx/disabled and back. Null when the file isn't one we manage.
+/// patchers), e.g. ["ModName", "lib", "file.dll"], so it can be relocated to the
+/// disabled folder and back. Null when the file isn't one we manage.
 /// </summary>
 private string[]? ManagedSections(string filePath)
 {
@@ -264,7 +284,7 @@ private bool HashMatchesCurrent(string path, string expectedSha256) =>
 
 private void PruneEmptyDisabledFolders()
 {
-    var disabledRoot = Path.Combine(_gameFolderPath, "BepInEx", "disabled");
+    var disabledRoot = _disabledRoot;
     if (!Directory.Exists(disabledRoot))
         return;
 
