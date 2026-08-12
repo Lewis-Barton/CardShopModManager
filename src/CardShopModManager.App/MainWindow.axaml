@@ -77,10 +77,13 @@
       </Border>
 
       <Border Classes="card" Grid.Column="1">
-        <StackPanel Spacing="4">
-          <TextBlock Classes="header" FontSize="14" Text="Installed mods" />
+        <!-- DockPanel bounds the ListBox height: the header docks to the top and
+             the ListBox fills the rest, so its scrollbar appears only when the
+             mod list overflows the card. -->
+        <DockPanel LastChildFill="True">
+          <TextBlock DockPanel.Dock="Top" Classes="header" FontSize="14" Text="Installed mods" />
           <ListBox x:Name="_modsList" />
-        </StackPanel>
+        </DockPanel>
       </Border>
     </Grid>
 
