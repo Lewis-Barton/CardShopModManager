@@ -76,10 +76,6 @@ public static class PlanCommand
         {
             if (Directory.Exists(planRoot))
                 Directory.Delete(planRoot, recursive: true);
-
-            var planRootFolder = Path.Combine(Path.GetTempPath(), "cardshopmodmanager-plan");
-            if (Directory.Exists(planRootFolder) && !Directory.EnumerateFileSystemEntries(planRootFolder).Any())
-                Directory.Delete(planRootFolder);
         }
     }
 }

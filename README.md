@@ -8,8 +8,9 @@ Two front-ends share the same engine: the CLI and the desktop app both work
 through `DeploymentService` in the Core project, so the app always does exactly
 what the CLI does.
 
-Status: engine, CLI, desktop UI, downloads and Nexus integration are working.
-Publishing/installer work is next.
+Status: engine, CLI, desktop UI, downloads, Nexus integration, Steam
+auto-detection and in-app mod enable/disable are working. Release tooling and
+docs are in place; publishing/testing to real hardware is next.
 
 ## Desktop app
 
@@ -23,10 +24,14 @@ Pick a game folder, a manifest and the archive folder, then **Validate** (instal
 order, or why the list can't be installed), **Plan** (file-by-file preview),
 **Install** (progress bar while it works), or type a mod name and **Uninstall**.
 
-Also on the window: **Detect game** (finds TCG Card Shop Simulator through your
-Steam library folders automatically), **List mods** (shows what the journal says
-is installed), **Update check**, and **Export bundle** (the support bundle). The
-title shows the version.
+On open, the window tries to find TCG Card Shop Simulator through your Steam
+library folders automatically and fills the game folder; if not found, use
+Browse. **List mods** reads what is actually in `BepInEx/plugins`, `patchers`
+and `disabled` and labels it with the journal (installed / modified / disabled /
+unknown — mods placed in the folder by hand are shown as unknown). Select a mod and use **Enable** /
+**Disable** to move it between the game and `BepInEx/disabled` — nothing is
+deleted, and a modified file is left alone with a warning. **Update check** and
+**Export bundle** round out the utilities. The title shows the version.
 
 ## Commands
 
@@ -44,7 +49,8 @@ dotnet run --project src/CardShopModManager.Cli -- support-bundle [outDir]
 dotnet run --project src/CardShopModManager.Cli -- --version
 dotnet run --project src/CardShopModManager.Cli -- install  <manifest.json> <sourceDir> <gameFolder>
 dotnet run --project src/CardShopModManager.Cli -- uninstall <modName> <gameFolder>
-dotnet run --project src/CardShopModManager.Cli -- profile <list|use|enable|disable> ...
+dotnet run --project src/CardShopModManager.Cli -- profile  <list|use|enable|disable> ...
+dotnet run --project src/CardShopModManager.Cli -- mods     <list <gameFolder> | disable <name> <gameFolder> | enable <name> <gameFolder>>
 ```
 
 - `detect`    — with a path, check it's a game install. With no path, auto-detect the game through Steam (reads the Steam library folders — no API key needed).
@@ -53,10 +59,11 @@ dotnet run --project src/CardShopModManager.Cli -- profile <list|use|enable|disa
 - `download`  — fetch every archive into `outDir` through the download pipeline. Source is an http(s) base URL, a local folder, or `nexus`.
 - `serve`     — host a folder over HTTP with Range support (in-process server, mainly for demos). `demo` is the one-command version: serve + download + install for you.
 - `nexus`     — manage the Nexus API key (`set-key`/`status`/`clear`). `nexus-demo` runs the whole Nexus path against a mock API.
-- `update-check` — compares the running version with the latest GitHub release (runs only when you ask — no phoning home otherwise).
+- `update-check` — compares the running version with the latest GitHub release (runs only when you ask).
 - `support-bundle` — zips environment info and recent diagnostics for sharing. Never includes the API key.
 - `install`   — resolve the enabled list, verify order, pre-flight file conflicts, then hash-verify, extract, plan, stage, copy, journal.
 - `uninstall` — removes only files whose hashes still match the journal; a modified file is warned about and left alone.
+- `mods`      — list what's actually on disk (`BepInEx/plugins`, `patchers`, `disabled`) with journal-backed state, and disable/enable a mod by moving its files to/from `BepInEx/disabled`.
 - `profile`   — named sets of enabled mods:
 
 ```
@@ -136,9 +143,9 @@ are skipped, and the plan tells you what it skipped.
 
 ## Downloads
 
-The downloader doesn't care where files come from: an `IModSource` only opens
-the file's bytes starting at a given offset (`HttpModSource`, `LocalFileSource`,
-`NexusModSource`). One `ModDownloader` owns the safety side:
+The downloader works with any source: an `IModSource` only opens the file's
+bytes from a given offset (`HttpModSource`, `LocalFileSource`,
+`NexusModSource`). The `ModDownloader` applies the safety rules:
 
 - bytes are written to `<name>.partial` and only renamed to the final name after
   the whole file passes its SHA-256 check — a cancelled or corrupt download can't

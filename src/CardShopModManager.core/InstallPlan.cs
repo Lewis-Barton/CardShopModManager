@@ -20,3 +20,13 @@ public sealed record UninstallResult(
     bool Success,
     string? Error,
     List<string> Warnings);
+
+public sealed record DisableResult(
+    bool Success,
+    string? Error,
+    List<string> Warnings);
+
+public sealed record EnableResult(
+    bool Success,
+    string? Error,
+    List<string> Warnings);

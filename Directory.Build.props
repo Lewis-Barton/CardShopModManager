@@ -1,7 +1,7 @@
 <Project>
   <!-- Shared version + product metadata for every project in the repo. -->
   <PropertyGroup>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>Lewis Barton</Authors>
     <Product>Card Shop Mod Manager</Product>
     <Company>Lewis Barton</Company>

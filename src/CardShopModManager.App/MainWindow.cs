@@ -31,6 +31,7 @@ public sealed class MainWindow : Window
         Text = "Card Shop Mod Manager\n"
     };
     private readonly ListBox _modsList = new() { };
+    private List<DiscoveredMod> _discovered = new();
     private readonly ProgressBar _progress = new()
     {
         IsIndeterminate = true,
@@ -47,6 +48,8 @@ public sealed class MainWindow : Window
         Width = 980;
         Height = 640;
         Content = BuildLayout();
+
+        Opened += async (_, _) => await WelcomeDetectAsync();
     }
 
     private Control BuildLayout()
@@ -69,8 +72,9 @@ public sealed class MainWindow : Window
         grid.Children.Add(actions);
 
         var utilities = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        utilities.Children.Add(Button("Detect game", OnDetectAsync));
         utilities.Children.Add(Button("List mods", OnListModsAsync));
+        utilities.Children.Add(Button("Enable", OnEnableAsync));
+        utilities.Children.Add(Button("Disable", OnDisableAsync));
         utilities.Children.Add(Button("Update check", OnUpdateCheckAsync));
         utilities.Children.Add(Button("Export bundle", OnExportBundleAsync));
         Grid.SetRow(utilities, 4);
@@ -134,18 +138,21 @@ public sealed class MainWindow : Window
 
     // --- actions -----------------------------------------------------------
 
-    private async Task OnDetectAsync()
+    /// <summary>Runs once, when the window opens: fill the game folder from Steam.</summary>
+    private async Task WelcomeDetectAsync()
     {
-        Log("--- Detect game via Steam");
+        Log("Looking for TCG Card Shop Simulator through Steam...");
+
         var path = await Task.Run(() =>
             new SteamLocator().FindGameInstallPath(SteamLocator.GameAppId));
 
         if (path is null)
-            Log("Could not find TCG Card Shop Simulator through Steam.");
+            Log("Not found. Pick the game folder manually with Browse, then List mods.");
         else
         {
             _gameBox.Text = path;
             Log($"Detected: {path}");
+            await OnListModsAsync();
         }
     }
 
@@ -158,13 +165,84 @@ public sealed class MainWindow : Window
             return;
         }
 
-        var names = await Task.Run(() =>
-            new JournalStore(gameFolder).Load().Select(e => e.ModName).OrderBy(n => n).ToList());
+        _discovered = await Task.Run(() => ModDiscovery.Discover(gameFolder));
 
-        _modsList.ItemsSource = names;
-        Log($"Installed mods ({names.Count}):");
-        foreach (var name in names)
-            Log($"  {name}");
+        _modsList.ItemsSource = _discovered
+            .Select(m => $"  {m.ModName}   [{m.State}]  ({m.FileCount})")
+            .ToList();
+
+        Log($"Mods found on disk ({_discovered.Count}):");
+        foreach (var mod in _discovered)
+            Log($"  {mod.ModName,-35} {mod.State} ({mod.FileCount} file(s))");
+    }
+
+    private async Task OnEnableAsync()
+    {
+        var gameFolder = _gameBox.Text;
+        var mod = SelectedMod();
+        if (string.IsNullOrWhiteSpace(gameFolder))
+        {
+            Log($"Enter a game folder first.");
+            return;
+        }
+        if (mod is null)
+        {
+            Log($"Select a mod in the list first.");
+            return;
+        }
+
+        Log($"--- Enable {mod.ModName}");
+        var result = await Task.Run(() => new ModInstaller(gameFolder).Enable(mod.ModName));
+
+        if (!result.Success)
+        {
+            Log(result.Error ?? "Enable failed.");
+            return;
+        }
+
+        Log($"Enabled {mod.ModName}.");
+        foreach (var warning in result.Warnings)
+            Log($"  Warning: {warning}");
+
+        await OnListModsAsync();
+    }
+
+    private async Task OnDisableAsync()
+    {
+        var gameFolder = _gameBox.Text;
+        var mod = SelectedMod();
+        if (string.IsNullOrWhiteSpace(gameFolder))
+        {
+            Log($"Enter a game folder first.");
+            return;
+        }
+        if (mod is null)
+        {
+            Log($"Select a mod in the list first.");
+            return;
+        }
+
+        Log($"--- Disable {mod.ModName}");
+        var result = await Task.Run(() => new ModInstaller(gameFolder).Disable(mod.ModName));
+
+        if (!result.Success)
+        {
+            Log(result.Error ?? "Disable failed.");
+            return;
+        }
+
+        Log($"Disabled {mod.ModName} (files moved to BepInEx/disabled).");
+        foreach (var warning in result.Warnings)
+            Log($"  Warning: {warning}");
+
+        await OnListModsAsync();
+    }
+
+    private DiscoveredMod? SelectedMod()
+    {
+        if (_modsList.SelectedIndex < 0 || _modsList.SelectedIndex >= _discovered.Count)
+            return null;
+        return _discovered[_modsList.SelectedIndex];
     }
 
     private async Task OnUpdateCheckAsync()

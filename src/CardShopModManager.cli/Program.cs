@@ -79,6 +79,9 @@ try
                 args.ElementAtOrDefault(4),
                 args.ElementAtOrDefault(5));
             break;
+        case "mods":
+            ModsCommand.Run(args.ElementAtOrDefault(1), args.ElementAtOrDefault(2), args.ElementAtOrDefault(3));
+            break;
         case "help" when args.Length == 1:
             PrintUsage();
             break;

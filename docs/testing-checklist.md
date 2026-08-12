@@ -43,6 +43,22 @@ unit test already covers it, **[manual]** where it needs a real environment.
 - [ ] **[auto]** Two mods claiming the same file are refused at pre-flight
       (`SameDestinationAcrossMods_IsReportedOnce`).
 
+## Mod inventory and enable/disable
+
+- [ ] **[auto]** A mod placed in `BepInEx/plugins` by hand (no journal) is listed
+      as Unknown, not hidden (`Discover_HandInstalledMod_IsUnknown`).
+- [ ] **[auto]** Disabling moves files to `BepInEx/disabled` and enabling moves
+      them back (`Disable_MovesFilesToDisabledAndReportsDisabled`,
+      `Enable_MovesFilesBackAndReportsInstalled`).
+- [ ] **[auto]** A modified file is left in place, not moved, when disabling
+      (`Disable_LeavesModifiedFileInPlaceWithWarning`).
+- [ ] **[manual]** Disable + enable a mod on the real install and confirm the
+      game stops/starts loading it.
+- [ ] **[fixed]** A transient test failure turned out to be a real concurrency
+      bug: installs shared a temp work-root and deleted it when momentarily
+      empty, racing parallel installs. Fixed by never deleting the shared root
+      (only per-run subfolders).
+
 ## Shipping
 
 - [ ] `dotnet build` — 0 warnings.

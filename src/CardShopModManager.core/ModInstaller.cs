@@ -126,8 +126,6 @@ public sealed class ModInstaller
         {
             if (Directory.Exists(workDir))
                 Directory.Delete(workDir, recursive: true);
-
-            DeleteEmptyWorkRoot("cardshopmodmanager-work");
         }
     }
 
@@ -142,7 +140,172 @@ public sealed class ModInstaller
         return entry is not null && entry.Files.All(f => File.Exists(f.Path));
     }
 
-    public UninstallResult Uninstall(string modName)
+    /// <summary>
+/// Disable a mod without deleting anything: move every journaled file that sits
+/// under BepInEx/plugins or BepInEx/patchers into BepInEx/disabled, preserving
+/// the tree. The move is reversible via <see cref="Enable"/>. Files that were
+/// modified since install are left in place with a warning rather than touched.
+/// </summary>
+public DisableResult Disable(string modName)
+{
+    var warnings = new List<string>();
+    var entry = _journal.Load().FirstOrDefault(e => e.ModName == modName);
+    if (entry is null)
+        return new DisableResult(false, $"No journal entry found for {modName}", warnings);
+
+    foreach (var file in entry.Files)
+    {
+        var sections = ManagedSections(file.Path);
+        if (sections is null)
+        {
+            warnings.Add($"Not a managed BepInEx file, skipping: {file.Path}");
+            continue;
+        }
+
+        if (!File.Exists(file.Path))
+        {
+            warnings.Add($"Already missing, skipping: {file.Path}");
+            continue;
+        }
+
+        if (!HashMatchesCurrent(file.Path, file.Sha256))
+        {
+            warnings.Add($"Modified since install, keeping in place: {file.Path}");
+            continue;
+        }
+
+        var disabledPath = Path.Combine(_gameFolderPath, "BepInEx", "disabled");
+        foreach (var segment in sections)
+            disabledPath = Path.Combine(disabledPath, segment);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(disabledPath)!);
+        File.Move(file.Path, disabledPath);
+    }
+
+    PruneEmptyActiveFolders();
+    return new DisableResult(true, null, warnings);
+}
+
+/// <summary>
+/// Reverse of <see cref="Disable"/>: move journaled files that sit in
+/// BepInEx/disabled back to their original paths. Refuses the restore if
+/// something already occupies the destination.
+/// </summary>
+public EnableResult Enable(string modName)
+{
+    var warnings = new List<string>();
+    var entry = _journal.Load().FirstOrDefault(e => e.ModName == modName);
+    if (entry is null)
+        return new EnableResult(false, $"No journal entry found for {modName}", warnings);
+
+    foreach (var file in entry.Files)
+    {
+        var sections = ManagedSections(file.Path);
+        if (sections is null)
+        {
+            warnings.Add($"Not a managed BepInEx file, skipping: {file.Path}");
+            continue;
+        }
+
+        var disabledPath = Path.Combine(_gameFolderPath, "BepInEx", "disabled");
+        foreach (var segment in sections)
+            disabledPath = Path.Combine(disabledPath, segment);
+
+        if (!File.Exists(disabledPath))
+        {
+            warnings.Add($"Not in the disabled folder, skipping: {Path.GetFileName(file.Path)}");
+            continue;
+        }
+
+        if (File.Exists(file.Path))
+        {
+            warnings.Add($"Destination already exists, leaving disabled: {file.Path}");
+            continue;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(file.Path)!);
+        File.Move(disabledPath, file.Path);
+    }
+
+    PruneEmptyDisabledFolders();
+    return new EnableResult(true, null, warnings);
+}
+
+/// <summary>
+/// The part of a journaled path that lives under a managed root (plugins or
+/// patchers), e.g. ["ModName", "lib", "file.dll"], so it can be relocated under
+/// BepInEx/disabled and back. Null when the file isn't one we manage.
+/// </summary>
+private string[]? ManagedSections(string filePath)
+{
+    var relative = RelativeToGame(filePath);
+    if (relative is null)
+        return null;
+
+    var sections = relative.Replace('\\', '/').Split('/');
+    if (sections.Length < 3 ||
+        !sections[0].Equals("BepInEx", StringComparison.OrdinalIgnoreCase) ||
+        !(sections[1].Equals("plugins", StringComparison.OrdinalIgnoreCase) ||
+          sections[1].Equals("patchers", StringComparison.OrdinalIgnoreCase)))
+        return null;
+
+    return sections.Skip(2).ToArray();
+}
+
+private string? RelativeToGame(string filePath)
+{
+    var full = Path.GetFullPath(filePath);
+    var game = Path.GetFullPath(_gameFolderPath).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+    return full.StartsWith(game, StringComparison.OrdinalIgnoreCase) ? full[game.Length..] : null;
+}
+
+private bool HashMatchesCurrent(string path, string expectedSha256) =>
+    ComputeSha256(path).Equals(expectedSha256, StringComparison.OrdinalIgnoreCase);
+
+private void PruneEmptyDisabledFolders()
+{
+    var disabledRoot = Path.Combine(_gameFolderPath, "BepInEx", "disabled");
+    if (!Directory.Exists(disabledRoot))
+        return;
+
+    try
+    {
+        foreach (var folder in Directory.EnumerateDirectories(disabledRoot))
+        {
+            if (!Directory.EnumerateFileSystemEntries(folder).Any())
+                Directory.Delete(folder);
+        }
+    }
+    catch
+    {
+        // Best effort cleanup of emptied folders.
+    }
+}
+
+private void PruneEmptyActiveFolders()
+{
+    foreach (var root in new[] { "BepInEx/plugins", "BepInEx/patchers" })
+    {
+        var fullRoot = Path.Combine(_gameFolderPath, root.Replace('/', Path.DirectorySeparatorChar));
+        if (!Directory.Exists(fullRoot))
+            continue;
+
+        foreach (var folder in Directory.EnumerateDirectories(fullRoot))
+        {
+            try
+            {
+                if (!Directory.EnumerateFileSystemEntries(folder).Any())
+                    Directory.Delete(folder);
+            }
+            catch
+            {
+                // Best effort cleanup of emptied folders.
+            }
+        }
+    }
+}
+
+public UninstallResult Uninstall(string modName)
     {
         var entries = _journal.Load();
         var entry = entries.FirstOrDefault(e => e.ModName == modName);
@@ -181,13 +344,6 @@ public sealed class ModInstaller
     /// </summary>
     private static string PhysicalPath(string gameFolderPath, string relativePath) =>
         Path.Combine(gameFolderPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
-
-    private static void DeleteEmptyWorkRoot(string rootName)
-    {
-        var root = Path.Combine(Path.GetTempPath(), rootName);
-        if (Directory.Exists(root) && !Directory.EnumerateFileSystemEntries(root).Any())
-            Directory.Delete(root);
-    }
 
     private static string ComputeSha256(string filePath)
     {

@@ -164,7 +164,8 @@ public sealed class ModInstallerTests : IDisposable
         Assert.True(_installer.Install(mod, _sourceDir).Success);
 
         var installed = Path.Combine(_gameFolder, "BepInEx", "plugins", "Example Mod", "ExampleMod.dll");
-        File.WriteAllText(installed, "tampered");
+        File.WriteAllText(installed, "tampered-with-a-different-length");
+        Assert.Equal("tampered-with-a-different-length", File.ReadAllText(installed)); // prove the tamper landed before uninstalling
 
         var result = _installer.Uninstall(mod.Name);
 
