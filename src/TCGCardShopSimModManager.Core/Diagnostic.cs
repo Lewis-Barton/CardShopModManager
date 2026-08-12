@@ -5,7 +5,7 @@ namespace TCGCardShopSimModManager.Core;
 /// <summary>
 /// Structured diagnostic logging. Writes one JSON line per event to a session
 /// log under %LOCALAPPDATA%\TCGCardShopSimModManager\logs (override with CSMM_LOG_DIR).
-/// Local only — nothing is ever sent anywhere, by design.
+/// Local-only debugging log written under %LOCALAPPDATA%.
 /// </summary>
 public static class Diagnostic
 {

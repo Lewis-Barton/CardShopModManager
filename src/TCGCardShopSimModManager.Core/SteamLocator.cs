@@ -58,8 +58,8 @@ public sealed class SteamLocator
 
     public string? ReadRegistrySteamPath()
     {
-        // The registry read is Windows-only; Steam detection simply cannot
-        // happen elsewhere.
+        // The registry read is Windows-only; Steam detection can only happen
+        // on Windows.
         if (!OperatingSystem.IsWindows())
             return null;
 

@@ -1,8 +1,8 @@
 # TCG Card Shop Sim Mod Manager
 
-A mod installer/manager for **TCG Card Shop Simulator** (Windows). You list the
-mods you want in a JSON manifest; the tool verifies, extracts, plans, installs,
-journals and uninstalls them, and it refuses to silently overwrite anything.
+This is a mod installer/manager for **TCG Card Shop Simulator** (Windows). You
+list the mods you want in a JSON manifest; we verify, extract, plan, install,
+journal and uninstall them, and we never silently overwrite anything.
 
 Two front-ends share the same engine: the CLI and the desktop app both work
 through `DeploymentService` in the Core project, so the app always does exactly
@@ -178,8 +178,8 @@ HTTP source fetches the bytes. Notes:
   only) in `%LOCALAPPDATA%\TCGCardShopSimModManager\nexus-key.bin`.
 - **No secrets in the repo.** The API key never lives in the project directory,
   and `.gitignore` excludes anything that would hold or reference a key
-  (`nexus-key*`, `*.key`, `*apikey*`, ...). You can verify yourself: no key
-  material exists anywhere under the repository, and the ignore rules are
+  (`nexus-key*`, `*.key`, `*apikey*`, ...). No key material exists anywhere in
+  the repository, and the ignore rules are
   visible in `.gitignore`.
 - Premium accounts download automatically. Free accounts get the mod page and a
   note to place the file manually — Nexus only hands premium users direct URIs.

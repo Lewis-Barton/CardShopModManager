@@ -13,7 +13,7 @@ public sealed record UpdateCheckResult(
 
 /// <summary>
 /// Compares the running version against the newest GitHub release tag for this
-/// project. Only runs when asked — the app never phones home on its own.
+/// project. Runs only when explicitly invoked.
 /// </summary>
 public sealed class UpdateChecker
 {

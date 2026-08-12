@@ -7,7 +7,7 @@ namespace TCGCardShopSimModManager.Core;
 /// source dispatcher) into a cache folder, then run the standard install
 /// pipeline against that folder. The install half is exactly
 /// <see cref="DeploymentService.Install"/> — validate, plan, refuse conflicts,
-/// then copy — so a hosted pack is installed with the same safety as a local one.
+/// then copy.
 /// </summary>
 public sealed class ModpackInstaller
 {

@@ -45,7 +45,7 @@ unit test already covers it, **[manual]** where it needs a real environment.
 ## Mod inventory and enable/disable
 
 - [ ] **[auto]** A mod placed in `BepInEx/plugins` by hand (no journal) is listed
-      as Unknown, not hidden (`Discover_HandInstalledMod_IsUnknown`).
+      as Unknown (`Discover_HandInstalledMod_IsUnknown`).
 - [ ] **[auto]** Disabling moves files to `BepInEx/disabled` and enabling moves
       them back (`Disable_MovesFilesToDisabledAndReportsDisabled`,
       `Enable_MovesFilesBackAndReportsInstalled`).

@@ -101,7 +101,7 @@ try
 }
 catch (Exception ex)
 {
-    // Local-only crash capture. Nothing is uploaded anywhere, ever.
+    // Crashes are written to the local diagnostic log.
     Diagnostic.Write($"unhandled exception: {ex.Message}", "error");
     Console.Error.WriteLine($"Unexpected error: {ex.Message}");
     Console.Error.WriteLine("Details were written to the diagnostic log. Export it with: support-bundle");
