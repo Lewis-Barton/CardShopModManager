@@ -28,7 +28,10 @@
     <TabControl Grid.Row="1" Margin="0,8,0,0">
 
       <!-- Modpacks: pick a hosted pack, see what's in it, install in one click -->
-      <TabItem Header="Modpacks">
+      <TabItem>
+        <TabItem.Header>
+          <TextBlock Text="Modpacks" Foreground="{DynamicResource TextBrush}" />
+        </TabItem.Header>
         <Grid ColumnDefinitions="*,300" RowDefinitions="*,Auto,Auto">
           <!-- Gallery of pack cards -->
           <ScrollViewer Grid.Column="0" Grid.Row="0" VerticalScrollBarVisibility="Auto">
@@ -63,7 +66,10 @@
       </TabItem>
 
       <!-- Local / Manage: the manual manifest + source flow and day-to-day care -->
-      <TabItem Header="Local / Manage">
+      <TabItem>
+        <TabItem.Header>
+          <TextBlock Text="Local / Manage" Foreground="{DynamicResource TextBrush}" />
+        </TabItem.Header>
         <Grid Margin="0,8,0,0" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*">
 
           <!-- Game folder -->
