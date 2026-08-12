@@ -65,6 +65,5 @@ public static class NexusCommand
         }
     }
 
-    internal static string ApiBaseUrl() =>
-        Environment.GetEnvironmentVariable("NEXUS_API_BASE") ?? "https://api.nexusmods.com/v1";
+    internal static string ApiBaseUrl() => NexusApi.ApiBaseUrl();
 }

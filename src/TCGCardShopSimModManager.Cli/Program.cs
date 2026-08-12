@@ -82,6 +82,12 @@ try
         case "mods":
             ModsCommand.Run(args.ElementAtOrDefault(1), args.ElementAtOrDefault(2), args.ElementAtOrDefault(3));
             break;
+        case "modpack":
+            await ModpackCommand.Run(
+                args.ElementAtOrDefault(1),
+                args.ElementAtOrDefault(2),
+                args.ElementAtOrDefault(3));
+            break;
         case "help" when args.Length == 1:
             PrintUsage();
             break;
@@ -118,6 +124,8 @@ static void PrintUsage()
         "  install <manifest> <src> <game>   verify, plan, install, journal\n" +
         "  uninstall <modName> <game>    remove a mod's files if they still match the journal\n" +
         "  profile list|use|enable|disable ...\n" +
+        "  modpack list                  show modpacks hosted on GitHub\n" +
+        "  modpack install <id> [game]   download + install a hosted modpack\n" +
         "  --version                     print the version");
 }
 
