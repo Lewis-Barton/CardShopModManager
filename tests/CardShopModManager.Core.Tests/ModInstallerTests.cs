@@ -87,6 +87,22 @@ public sealed class ModInstallerTests : IDisposable
     }
 
     [Fact]
+    public void Install_WorksWithSpacesInGamePath()
+    {
+        // The real-world matrix: a library path containing spaces must behave
+        // exactly like any other path.
+        var gameFolderWithSpaces = Path.Combine(_testRoot, "my game folder");
+        Directory.CreateDirectory(gameFolderWithSpaces);
+
+        var mod = AddLooseFile("ExampleMod.dll", "dll-bytes");
+
+        var result = new ModInstaller(gameFolderWithSpaces).Install(mod, _sourceDir);
+
+        Assert.True(result.Success, result.Error);
+        Assert.True(File.Exists(Path.Combine(gameFolderWithSpaces, "BepInEx", "plugins", "Example Mod", "ExampleMod.dll")));
+    }
+
+    [Fact]
     public void Install_RejectsArchiveHashMismatch()
     {
         var mod = AddLooseFile("ExampleMod.dll", "dll-bytes") with { Sha256 = new string('0', 64) };

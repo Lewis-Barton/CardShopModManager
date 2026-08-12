@@ -1,0 +1,10 @@
+<Project>
+  <!-- Shared version + product metadata for every project in the repo. -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <Authors>Lewis Barton</Authors>
+    <Product>Card Shop Mod Manager</Product>
+    <Company>Lewis Barton</Company>
+    <Copyright>Copyright (c) 2026 Lewis Barton</Copyright>
+  </PropertyGroup>
+</Project>

@@ -108,6 +108,7 @@ public sealed class ModDownloader
             catch (DownloadException ex) when (!ex.Retryable)
             {
                 TryDelete(partialPath);
+                Diagnostic.Write($"download failed for {mod.Id}: {ex.Message}", "download");
                 return new DownloadResult(false, null, ex.Message, FromCache: false);
             }
             catch (Exception ex) when (attempt < _options.MaxAttempts)

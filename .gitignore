@@ -22,3 +22,6 @@ nexus-key*
 *api-key*
 *apikey*
 secrets.json
+
+# publish output
+/dist/

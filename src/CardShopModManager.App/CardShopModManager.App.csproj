@@ -6,7 +6,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>CardShopModManager.App</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Description>Desktop mod manager for TCG Card Shop Simulator.</Description>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="app.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.2.3" />

@@ -29,6 +29,7 @@ public sealed class DeploymentService
 {
     public DeploymentReport Validate(string manifestPath, string? gameFolderPath)
     {
+        Diagnostic.Write($"DeploymentService.Validate({manifestPath})");
         var lines = new List<string>();
 
         if (!File.Exists(manifestPath))
@@ -63,6 +64,7 @@ public sealed class DeploymentService
 
     public DeploymentReport Install(string manifestPath, string sourceDirectory, string gameFolderPath)
     {
+        Diagnostic.Write($"DeploymentService.Install({manifestPath})");
         var lines = new List<string>();
 
         if (!File.Exists(manifestPath))
@@ -130,6 +132,9 @@ public sealed class DeploymentService
             lines.Add(result.Success
                 ? $"Installed {Label(mod)}: {result.InstalledPaths!.Count} file(s)."
                 : $"Failed to install {Label(mod)}: {result.Error}");
+
+            if (!result.Success)
+                Diagnostic.Write($"install failed for {mod.Id}: {result.Error}", "install");
         }
 
         return DeploymentReport.Ok(lines);

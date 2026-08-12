@@ -34,6 +34,9 @@ dotnet run --project src/CardShopModManager.Cli -- serve     <folder> [port]
 dotnet run --project src/CardShopModManager.Cli -- demo
 dotnet run --project src/CardShopModManager.Cli -- nexus     <set-key <apikey>|status|clear>
 dotnet run --project src/CardShopModManager.Cli -- nexus-demo
+dotnet run --project src/CardShopModManager.Cli -- update-check
+dotnet run --project src/CardShopModManager.Cli -- support-bundle [outDir]
+dotnet run --project src/CardShopModManager.Cli -- --version
 dotnet run --project src/CardShopModManager.Cli -- install  <manifest.json> <sourceDir> <gameFolder>
 dotnet run --project src/CardShopModManager.Cli -- uninstall <modName> <gameFolder>
 dotnet run --project src/CardShopModManager.Cli -- profile <list|use|enable|disable> ...
@@ -45,6 +48,8 @@ dotnet run --project src/CardShopModManager.Cli -- profile <list|use|enable|disa
 - `download`  — fetch every archive into `outDir` through the download pipeline. Source is an http(s) base URL, a local folder, or `nexus`.
 - `serve`     — host a folder over HTTP with Range support (in-process server, mainly for demos). `demo` is the one-command version: serve + download + install for you.
 - `nexus`     — manage the Nexus API key (`set-key`/`status`/`clear`). `nexus-demo` runs the whole Nexus path against a mock API.
+- `update-check` — compares the running version with the latest GitHub release (runs only when you ask — no phoning home otherwise).
+- `support-bundle` — zips environment info and recent diagnostics for sharing. Never includes the API key.
 - `install`   — resolve the enabled list, verify order, pre-flight file conflicts, then hash-verify, extract, plan, stage, copy, journal.
 - `uninstall` — removes only files whose hashes still match the journal; a modified file is warned about and left alone.
 - `profile`   — named sets of enabled mods:
@@ -193,6 +198,16 @@ must not be embedded in it.
 
 ZIP, using the built-in .NET support. 7z/RAR are planned; the `IArchiveExtractor`
 interface makes them drop-in additions.
+
+## Diagnostics and privacy
+
+Every command writes a structured JSON-lines log to
+`%LOCALAPPDATA%\CardShopModManager\logs` (override with `CSMM_LOG_DIR`). An
+unexpected error is captured there locally; nothing is ever uploaded. Export a
+bundle with `support-bundle` when sharing a problem. See `PRIVACY.md`, the
+`LICENSE`, and `THIRD-PARTY-NOTICES.md`. Docs for list authors and the release
+testing checklist live in `docs/`, and `publish.ps1` produces a self-contained
+win-x64 build into `dist/`.
 
 ## Running the tests
 
