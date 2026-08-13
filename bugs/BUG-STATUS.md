@@ -8,10 +8,10 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 1 |
-| High     | 1 | 12 |
-| Medium   | 1 | 16 |
-| Low      | 1 | 8 |
-| **Total**| **3** | **37** |
+| High     | 0 | 13 |
+| Medium   | 0 | 17 |
+| Low      | 0 | 9 |
+| **Total**| **0** | **40** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |
@@ -21,8 +21,8 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 | BUG-003 | High | update detection | GUI never records pack journal -> feature dead in app | Fixed | MainWindow.cs, ModpackInstaller.cs | GUI now forwards the selected pack into `InstallAsync(manifest, fallback, pack: pack)` so the `ModpackJournalStore.Record` call on success writes `cardshopmodmanager.modpacks.json` | BUG-003: the update badge/button depend on the journal; without it the feature was dead in the app | Verified (build + source trace) |
 | BUG-004 | High | pack journal | Corrupt modpacks.json throws unhandled, blocks all install/upgrade | Fixed | ModpackJournalStore.cs | `Load()` now catches `JsonException`, backs the bad file up to `.corrupt`, and returns an empty list | BUG-004: a corrupt pack journal must never abort an otherwise-successful install/upgrade | Verified (unit + suite) |
 | BUG-005 | High | pack journal | Uninstall never clears pack journal -> stale "Update available" | Fixed | ModpackJournalStore.cs, ModInstaller.cs | Added `ModpackJournalStore.Remove(packId)`; `Install` now records `PackId` on the per-mod journal entry, and `Uninstall` drops the pack entry when no journaled mod still belongs to it | BUG-005: a pack's last mod being uninstalled must clear the stale "Update available" badge | Verified (unit + suite) |
-| BUG-006 | High | update detection | v-prefixed / pre-release versions never detected as updates | Open | ModpackVersion.cs | | | |
-| BUG-007 | Medium | update detection | Spurious "Update available" on component-count change (1.0 vs 1.0.0) | Open | ModpackVersion.cs | | | |
+| BUG-006 | High | update detection | v-prefixed / pre-release versions never detected as updates | Fixed | ModpackVersion.cs | `IsNewer` now normalizes versions: it strips a leading `v` and a trailing `-prerelease`/`+build` label and parses the numeric components (missing default to 0), so a genuinely newer `v1.3.0` / `1.3.0-beta` is detected | BUG-006: v-prefixed / pre-release versions must be recognized as newer when the numeric base is higher | Verified (unit + suite) |
+| BUG-007 | Medium | update detection | Spurious "Update available" on component-count change (1.0 vs 1.0.0) | Fixed | ModpackVersion.cs | Normalization pads the four numeric components to 0, so `1.0` and `1.0.0` compare identical and no longer spuriously flag an update | BUG-007: `1.0` and `1.0.0` are the same version and must not show "Update available" | Verified (unit + suite) |
 | BUG-008 | Medium | UI | Corrupt journal wipes entire Modpacks gallery | Fixed | MainWindow.cs | `ReadInstalledPacks()` is now wrapped in its own try/catch inside `LoadPacksAsync`, so a corrupt/unreadable pack journal only suppresses update badges (with a warning) and the index gallery still renders | BUG-008: a bad pack journal must never abort gallery rendering | Verified (build + source analysis) |
 | BUG-009 | Medium | pack journal | Pack id rename orphans journal entry / breaks tracking | Fixed | ModpackIndex.cs, ModpackJournalStore.cs, MainWindow.cs | `ModpackSummary` gained `FormerIds` + `IsId()`; `IsUpdateAvailable` matches the canonical id or any legacy `FormerId`, and `ReadInstalledPacks` rewrites a legacy stored `PackId` to its canonical id (persisted) so the entry is not orphaned and the next `Record` can cleanly replace it | BUG-009: a pack-id rename must not break update detection or leave the old journal entry lingering | Verified (unit: IsId + build + source) |
 | BUG-010 | Medium | pack journal | Journal write non-atomic, no backup -> self-perpetuating corruption | Fixed | ModpackJournalStore.cs, JournalStore.cs | Both stores now write via temp-file + rename with a `.bak` of the previous good content | BUG-010: a crash mid-write must not leave an unreadable journal | Verified (unit + suite) |
@@ -54,7 +54,7 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 | BUG-036 | Medium | CLI UX | missing/bad args collapse into generic "Unexpected error" | Fixed | PlanCommand.cs, DeploymentService.cs | `PlanCommand` now validates the manifest's existence and JSON at the CLI boundary with clear messages and non-zero exit codes; `DeploymentService` already returns friendly not-found/invalid-JSON errors, so bad arguments no longer reach the generic top-level handler | BUG-036: argument *values* must be validated where they enter, reserving "Unexpected error" for genuine crashes | Verified (CLI smoke + suite) |
 | BUG-037 | Medium | UI | RunHandler swallows exceptions -> stale UI state on thrown failure | Fixed | MainWindow.cs | `RunHandler` now logs the full exception type + message to the screen and writes the stack to the diagnostic log, instead of swallowing only `ex.Message` | BUG-037: a thrown failure must be diagnosable, not silently swallowed | Verified (build + source analysis) |
 | BUG-038 | Medium | UI | WelcomeDetectAsync not wrapped -> unobserved exception at startup risk | Fixed | MainWindow.cs | `Opened` now routes `WelcomeDetectAsync` through `RunHandler` (try/catch + log) instead of an unguarded `async void` lambda | BUG-038: a startup-detection failure must be caught and logged, never an unobserved async-void exception | Verified (build + source analysis) |
-| BUG-039 | Low | CLI | serve ignores SIGINT headless; no clean shutdown | Open | ServeCommand.cs, LocalHttpServer.cs | | | |
+| BUG-039 | Low | CLI | serve ignores SIGINT headless; no clean shutdown | Fixed | ServeCommand.cs | `ServeCommand` now also watches for stdin EOF and `AppDomain.ProcessExit` (alongside Ctrl+C) and disposes the server on each, so a headless/terminated run releases the listener cleanly | BUG-039: a server run with no console must still shut down cleanly on termination signal or stdin EOF | Verified (build + source analysis) |
 | BUG-040 | Low | CLI | uninstall on non-existent game folder -> misleading "No journal entry" | Fixed | ModInstaller.cs, UninstallCommand.cs | `Uninstall` returns a distinct "Game folder not found" error; `UninstallCommand` validates the folder up front | BUG-040: a missing game folder must be distinguished from a missing journal entry | Verified (unit + suite) |
 
 ## Fix log
@@ -134,6 +134,16 @@ Detailed entries are appended here as bugs are resolved (files changed, what/why
   - BUG-038 (Medium): `Opened` now routes `WelcomeDetectAsync` through `RunHandler` instead of an unguarded `async void` lambda.
 - **Why:** These were GUI robustness holes — a corrupt journal wiping the gallery, a rename orphaning tracking, and unobserved/swallowed exceptions.
 - **Verification:** New tests `ModpackSummaryTests.IsId_MatchesCanonicalAndFormerIds_Bug009`, `IsId_WithoutFormerIds_MatchesOnlyCanonical`; full Core suite 134/134; solution builds clean (incl. GUI). BUG-008/037/038 verified by build + source analysis (GUI-only, no automated harness).
+
+### BUG-006, BUG-007, BUG-039 — remaining update-detection & CLI lifecycle
+- **Files:** `ModpackVersion.cs`, `ServeCommand.cs` (+ tests `ModpackTests.cs`)
+- **What:**
+  - BUG-006 (High): `ModpackVersion.IsNewer` now normalizes versions — strips a leading `v` and any `-prerelease`/`+build` label, parses the numeric components (missing default to 0) — so a genuinely newer `v1.3.0` / `1.3.0-beta` is detected as an update.
+  - BUG-007 (Medium): the same normalization pads the four components to 0, so `1.0` and `1.0.0` compare identical and no longer spuriously flag "Update available".
+  - BUG-039 (Low): `ServeCommand` now also watches for stdin EOF and `AppDomain.ProcessExit` (in addition to Ctrl+C) and disposes the server on each, so a headless or terminated run releases the listener cleanly.
+- **Why:** These were the last open holes — update detection ignoring real version formats / false-positiving on component counts, and a demo server that wouldn't shut down cleanly headless.
+- **Verification:** New test `ModpackTests.ModpackVersion_IsNewer_ToleratesPrefixesAndComponentCounts_Bug006_Bug007`; full Core suite 135/135; solution builds clean. BUG-039 verified by build + source analysis. **All 40 known bugs are now fixed.**
+
 
 
 

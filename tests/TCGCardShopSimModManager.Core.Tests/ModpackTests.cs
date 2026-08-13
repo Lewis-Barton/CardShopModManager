@@ -237,6 +237,24 @@ public sealed class ModpackTests : IDisposable
     }
 
     [Fact]
+    public void ModpackVersion_IsNewer_ToleratesPrefixesAndComponentCounts_Bug006_Bug007()
+    {
+        // BUG-006: v-prefixed and pre-release versions must be detected when newer.
+        Assert.True(ModpackVersion.IsNewer("1.2.0", "v1.3.0"));
+        Assert.True(ModpackVersion.IsNewer("1.2.0", "1.3.0-beta"));
+        Assert.True(ModpackVersion.IsNewer("v1.2.0", "v1.3.0"));
+        Assert.False(ModpackVersion.IsNewer("v1.2.0", "v1.2.0")); // equal despite prefix
+
+        // BUG-007: differing component counts must not spuriously flag an update.
+        Assert.False(ModpackVersion.IsNewer("1.0", "1.0.0"));
+        Assert.False(ModpackVersion.IsNewer("1.0.0", "1.0"));
+
+        // Garbled versions are never "newer".
+        Assert.False(ModpackVersion.IsNewer("garbage", "1.0.0"));
+        Assert.False(ModpackVersion.IsNewer("1.0.0", "garbage"));
+    }
+
+    [Fact]
     public void ModpackJournalStore_RecordsAndReadsBack_ReplacingOnRerecord()
     {
         var gameFolder = Path.Combine(_root, "game");
