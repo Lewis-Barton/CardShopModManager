@@ -64,6 +64,9 @@ unit test already covers it, **[manual]** where it needs a real environment.
 - [ ] **[auto]** Profile changes save only after file operations succeed and
       leave the previous profile intact on install, dependency, or modified-file
       failures (`ProfileServiceTests`).
+- [ ] **[auto]** Concurrent journal, modpack and profile updates retain every
+      entry and leave valid JSON; replacement keeps a backup and no temporary
+      files (`PersistenceStoreTests`).
 - [ ] **[manual]** Disable + enable a mod on the real install and confirm the
       game stops/starts loading it.
 - [ ] **[fixed]** A transient test failure turned out to be a real concurrency

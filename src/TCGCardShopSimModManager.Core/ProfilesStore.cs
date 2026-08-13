@@ -31,10 +31,12 @@ public sealed class ProfilesStore
     };
 
     private readonly string _path;
+    private readonly AtomicJsonFile<ProfilesState> _file;
 
     public ProfilesStore(string gameFolderPath)
     {
         _path = Path.Combine(gameFolderPath, FileName);
+        _file = new AtomicJsonFile<ProfilesState>(_path, Options, Empty, recoverCorrupt: false);
     }
 
     public string FilePath => _path;
@@ -43,61 +45,46 @@ public sealed class ProfilesStore
 
     public ProfilesState Load()
     {
-        if (!File.Exists(_path))
-            return new ProfilesState(null, new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase));
-
-        var json = File.ReadAllText(_path);
-        return JsonSerializer.Deserialize<ProfilesState>(json, Options)
-               ?? new ProfilesState(null, new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase));
+        return _file.Read();
     }
 
     public void Save(ProfilesState state)
     {
-        var json = JsonSerializer.Serialize(state, Options);
-        File.WriteAllText(_path, json);
+        _file.Write(state);
     }
 
     /// <summary>Add an id to the active profile, creating one if needed.</summary>
     public void Enable(string modId)
     {
-        var state = Load();
-        var active = state.ActiveProfile ?? "default";
-
-        state.Profiles.TryGetValue(active, out var ids);
-        ids ??= new List<string>();
-        if (!ids.Contains(modId, StringComparer.OrdinalIgnoreCase))
-            ids.Add(modId);
-
-        state.Profiles[active] = ids;
-        state = state with { ActiveProfile = active };
-        Save(state);
+        _file.Update(state =>
+        {
+            var active = state.ActiveProfile ?? "default";
+            state.Profiles.TryGetValue(active, out var ids);
+            ids ??= new List<string>();
+            if (!ids.Contains(modId, StringComparer.OrdinalIgnoreCase))
+                ids.Add(modId);
+            state.Profiles[active] = ids;
+            return (state with { ActiveProfile = active }, true);
+        });
     }
 
     /// <summary>Remove an id from the active profile.</summary>
     public void Disable(string modId)
     {
-        var state = Load();
-        if (state.ActiveProfile is null)
-            return;
-
-        if (state.Profiles.TryGetValue(state.ActiveProfile, out var ids))
+        _file.Update(state =>
         {
-            ids.RemoveAll(id => id.Equals(modId, StringComparison.OrdinalIgnoreCase));
-        }
-
-        Save(state);
+            if (state.ActiveProfile is not null && state.Profiles.TryGetValue(state.ActiveProfile, out var ids))
+                ids.RemoveAll(id => id.Equals(modId, StringComparison.OrdinalIgnoreCase));
+            return (state, true);
+        });
     }
 
     /// <summary>Switch the active profile. Returns false if the name is unknown.</summary>
     public bool Use(string profileName)
     {
-        var state = Load();
-        if (!state.Profiles.ContainsKey(profileName))
-            return false;
-
-        state = state with { ActiveProfile = profileName };
-        Save(state);
-        return true;
+        return _file.Update(state => state.Profiles.ContainsKey(profileName)
+            ? (state with { ActiveProfile = profileName }, true)
+            : (state, false));
     }
 
     /// <summary>
@@ -114,4 +101,7 @@ public sealed class ProfilesStore
             ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase);
     }
+
+    private static ProfilesState Empty() => new(null,
+        new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase));
 }

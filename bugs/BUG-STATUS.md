@@ -48,15 +48,21 @@ design review found three additional safety issues, now fixed:
   back mods installed by that operation; a save failure after disable attempts
   to restore the removed mod. Uninstall now preflights every tracked file so a
   modified file stops removal before any sibling file is deleted.
+- **BUG-048 — overlapping persistence loses journal and profile updates (Medium):**
+  the three game-state stores now share one atomic JSON writer. A path-scoped
+  cross-process lock covers each complete read-modify-write operation, temporary
+  files are unique, and replacement keeps the previous version as a backup.
+  Corrupt journals retain their existing recovery behavior; corrupt profiles
+  still fail closed instead of being treated as "enable everything".
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
-| Critical | 0 | 1 |
-| High     | 0 | 13 |
-| Medium   | 0 | 17 |
+| Critical | 0 | 2 |
+| High     | 0 | 16 |
+| Medium   | 0 | 21 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **40** |
+| **Total**| **0** | **48** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |
