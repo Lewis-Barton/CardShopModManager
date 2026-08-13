@@ -147,4 +147,28 @@ public sealed class ModListResolverTests
         Assert.True(result.IsValid);
         Assert.Empty(result.OrderedMods);
     }
+
+    [Fact]
+    public void RejectsDependencyThatMatchesOnlyByCase_Bug021()
+    {
+        // A dependency reference differing only by case from the target id must be
+        // flagged, not silently matched to the case-variant entry (BUG-021).
+        var manifest = List(Mod("mod-a"), Mod("mod-b", dependencies: new[] { "mod-A" }));
+
+        var result = new ModListResolver().Resolve(manifest, All(manifest));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("only by case"));
+    }
+
+    [Fact]
+    public void RejectsConflictThatMatchesOnlyByCase_Bug021()
+    {
+        var manifest = List(Mod("mod-a", conflicts: new[] { "mod-B" }), Mod("mod-b"));
+
+        var result = new ModListResolver().Resolve(manifest, All(manifest));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("only by case"));
+    }
 }

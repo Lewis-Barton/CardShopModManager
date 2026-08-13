@@ -31,6 +31,14 @@ public sealed class ModListResolver
                 errors.Add($"Duplicate mod id: {mod.Id}");
         }
 
+        // An exact-case index. The case-insensitive map above stays the source of
+        // truth for uniqueness and existence, but resolving a *reference* must be
+        // exact: a dependency on "mod-A" that only matches "mod-a" by case is a
+        // defect the author should fix, not something to silently accept (BUG-021).
+        var allByIdExact = new Dictionary<string, ModEntry>(StringComparer.Ordinal);
+        foreach (var mod in manifest.Mods)
+            allByIdExact.TryAdd(mod.Id, mod);
+
         var enabled = new Dictionary<string, ModEntry>(StringComparer.OrdinalIgnoreCase);
         foreach (var mod in manifest.Mods)
         {
@@ -42,16 +50,30 @@ public sealed class ModListResolver
         {
             foreach (var dependencyId in mod.Dependencies)
             {
-                if (!allById.TryGetValue(dependencyId, out var dependency))
-                    errors.Add($"{mod.Name}: depends on '{dependencyId}', which is not in the mod list.");
-                else if (!enabled.ContainsKey(dependencyId))
+                if (!allByIdExact.TryGetValue(dependencyId, out var dependency))
+                {
+                    if (allById.TryGetValue(dependencyId, out var caseMatch))
+                        errors.Add($"{mod.Name}: depends on '{dependencyId}', which matches '{caseMatch.Id}' only by case.");
+                    else
+                        errors.Add($"{mod.Name}: depends on '{dependencyId}', which is not in the mod list.");
+                    continue;
+                }
+
+                if (!enabled.ContainsKey(dependencyId))
                     errors.Add($"{mod.Name}: depends on '{dependencyId}' ({dependency.Name}), which is not enabled in this profile.");
             }
 
             foreach (var conflictId in mod.Conflicts)
             {
+                // A conflict only matters when the other mod is also enabled. If the
+                // reference matches the real id only by case, call that out (BUG-021).
                 if (enabled.TryGetValue(conflictId, out var conflicted))
-                    errors.Add($"{mod.Name} and {conflicted.Name} ('{conflictId}') conflict and cannot both be enabled.");
+                {
+                    if (!allByIdExact.ContainsKey(conflictId))
+                        errors.Add($"{mod.Name}: conflict with '{conflictId}', which matches '{conflicted.Id}' only by case.");
+                    else
+                        errors.Add($"{mod.Name} and {conflicted.Name} ('{conflictId}') conflict and cannot both be enabled.");
+                }
             }
         }
 

@@ -83,11 +83,80 @@ public sealed class DeploymentServiceTests : IDisposable
         Assert.Single(new JournalStore(gameFolder).Load());
     }
 
+    [Fact]
+    public void Install_ReportsFailureWhenAModInstallsNothing_Bug017()
+    {
+        // A mod whose only content is a refused DLL yields zero installable files:
+        // it passes validation and pre-flight planning, then fails inside the
+        // install loop. The whole command must still fail (BUG-017) rather than
+        // report success because the other mod installed.
+        WriteZip(Path.Combine(_sourceDir, "good.zip"), ("BepInEx/plugins/Good.dll", "g"));
+        WriteZip(Path.Combine(_sourceDir, "empty.zip"), ("winhttp.dll", "x"));
+        var manifestPath = WriteManifest(new[]
+        {
+            MakeModJson("good-mod", archive: "good.zip", sha: ShaOf(Path.Combine(_sourceDir, "good.zip"))),
+            MakeModJson("empty-mod", archive: "empty.zip", sha: ShaOf(Path.Combine(_sourceDir, "empty.zip")))
+        });
+        var gameFolder = Path.Combine(_root, "game");
+        Directory.CreateDirectory(gameFolder);
+
+        var report = new DeploymentService().Install(manifestPath, _sourceDir, gameFolder);
+
+        Assert.False(report.Success);
+        Assert.Contains(report.Lines, l => l.Contains("Failed to install empty-mod"));
+        Assert.True(File.Exists(Path.Combine(gameFolder, "BepInEx", "plugins", "Good.dll")));
+    }
+
+    [Fact]
+    public void Install_RefusesConflictWithInstalledMod_Bug019()
+    {
+        // BUG-019: a second mod that would overwrite a file already owned by an
+        // installed mod must be refused at pre-flight, not mid-install.
+        WriteZip(Path.Combine(_sourceDir, "a.zip"), ("BepInEx/plugins/Shared/common.dll", "a"));
+        WriteZip(Path.Combine(_sourceDir, "b.zip"), ("BepInEx/plugins/Shared/common.dll", "b"));
+        var gameFolder = Path.Combine(_root, "game");
+        Directory.CreateDirectory(gameFolder);
+
+        var manifestA = WriteManifest(new[] { MakeModJson("mod-a", archive: "a.zip", sha: ShaOf(Path.Combine(_sourceDir, "a.zip"))) },
+            "manifestA.json");
+        Assert.True(new DeploymentService().Install(manifestA, _sourceDir, gameFolder).Success);
+        Assert.True(File.Exists(Path.Combine(gameFolder, "BepInEx", "plugins", "Shared", "common.dll")));
+
+        var manifestB = WriteManifest(new[] { MakeModJson("mod-b", archive: "b.zip", sha: ShaOf(Path.Combine(_sourceDir, "b.zip"))) },
+            "manifestB.json");
+        var report = new DeploymentService().Install(manifestB, _sourceDir, gameFolder);
+
+        Assert.False(report.Success);
+        Assert.Contains(report.Lines, l => l.Contains("File conflicts detected") || l.Contains("common.dll"));
+    }
+
+    [Fact]
+    public void Validate_EnforcesBepInExFirst_Bug020()
+    {
+        // BUG-020: the local validate path must order BepInEx before plugins even
+        // when the manifest lists it last and a plugin does not depend on it.
+        var manifestPath = WriteManifest(new[]
+        {
+            MakeModJson("plugin1", archive: "p1.zip", dependencies: new[] { "core-library" }),
+            MakeModJson("core-library", archive: "l.zip"),
+            MakeModJson("bepinex", archive: "b.zip", installType: "BepInEx")
+        });
+
+        var report = new DeploymentService().Validate(manifestPath, null);
+
+        Assert.True(report.Success);
+        var text = string.Join('\n', report.Lines);
+        var bepinexIdx = text.IndexOf("bepinex", StringComparison.OrdinalIgnoreCase);
+        var pluginIdx = text.IndexOf("plugin1", StringComparison.OrdinalIgnoreCase);
+        Assert.True(bepinexIdx >= 0 && pluginIdx >= 0, text);
+        Assert.True(bepinexIdx < pluginIdx, $"BepInEx must be ordered before plugins.\n{text}");
+    }
+
     // --- helpers -----------------------------------------------------------
 
-    private string WriteManifest(string[] modJsons)
+    private string WriteManifest(string[] modJsons, string fileName = "manifest.json")
     {
-        var path = Path.Combine(_root, "manifest.json");
+        var path = Path.Combine(_root, fileName);
         var json = $$"""
             {
               "manifestVersion": 1,
@@ -107,10 +176,11 @@ public sealed class DeploymentServiceTests : IDisposable
         string archive = "x.zip",
         string sha = "0000000000000000000000000000000000000000000000000000000000000000",
         string[]? dependencies = null,
-        string[]? conflicts = null)
+        string[]? conflicts = null,
+        string installType = "BepInExPlugin")
     {
         var json = new System.Text.StringBuilder($$"""
-              { "id": "{{id}}", "name": "{{id}}", "version": "1.0.0", "archive": "{{archive}}", "sha256": "{{sha}}", "installType": "BepInExPlugin"
+              { "id": "{{id}}", "name": "{{id}}", "version": "1.0.0", "archive": "{{archive}}", "sha256": "{{sha}}", "installType": "{{installType}}"
             """);
         if (dependencies is { Length: > 0 })
             json.Append($", \"dependencies\": {JsonSerializer.Serialize(dependencies)}");

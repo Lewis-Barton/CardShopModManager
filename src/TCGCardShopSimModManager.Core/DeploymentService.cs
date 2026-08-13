@@ -35,7 +35,7 @@ public sealed class DeploymentService
         if (!File.Exists(manifestPath))
             return DeploymentReport.Failure(lines, $"Manifest file not found: {manifestPath}");
 
-        var manifest = new ManifestReader().Read(manifestPath);
+        var manifest = ModpackInstaller.EnforceBepInExFirst(new ManifestReader().Read(manifestPath));
         var validation = new ManifestValidator().Validate(manifest);
         if (!validation.IsValid)
         {
@@ -82,6 +82,11 @@ public sealed class DeploymentService
     {
         Diagnostic.Write("DeploymentService.Install(manifest)");
         var lines = new List<string>();
+
+        // BUG-020: the local path must guarantee BepInEx sorts first just like the
+        // hosted-modpack path does. Enforce it here so both `install` (this
+        // overload) and `validate` resolve the same BepInEx-first order.
+        manifest = ModpackInstaller.EnforceBepInExFirst(manifest);
 
         var validation = new ManifestValidator().Validate(manifest);
         if (!validation.IsValid)
@@ -130,7 +135,9 @@ public sealed class DeploymentService
                 Directory.Delete(planRoot, recursive: true);
         }
 
-        var conflicts = DestinationConflictFinder.Find(plans);
+        // BUG-019: refuse pre-flight when a pending mod collides with a file
+        // already owned by an installed mod, not only when two pending mods clash.
+        var conflicts = DestinationConflictFinder.Find(plans, BuildInstalledPlans(gameFolderPath));
         if (conflicts.Count > 0)
         {
             lines.Add("File conflicts detected — refusing to install:");
@@ -138,6 +145,7 @@ public sealed class DeploymentService
             return DeploymentReport.Failure(lines, null);
         }
 
+        var anyFailure = false;
         foreach (var mod in toInstall)
         {
             var result = installer.Install(mod, sourceDirectory);
@@ -155,10 +163,18 @@ public sealed class DeploymentService
                 lines.AddRange(result.SkippedEntries.Select(s => $"  note: skipped {s}"));
 
             if (!result.Success)
+            {
+                anyFailure = true;
                 Diagnostic.Write($"install failed for {mod.Id}: {result.Error}", "install");
+            }
         }
 
-        return DeploymentReport.Ok(lines);
+        // BUG-017: a failed mod must make the whole command fail, not report
+        // success just because some other mod installed. The CLI reads
+        // report.Success to set the process exit code.
+        return anyFailure
+            ? DeploymentReport.Failure(lines, null)
+            : DeploymentReport.Ok(lines);
     }
 
     public IReadOnlyList<PlanPreview> Preview(string manifestPath, string sourceDirectory)
@@ -213,4 +229,37 @@ public sealed class DeploymentService
 
     private static string Label(ModEntry mod) =>
         mod.Version is null ? mod.Name : $"{mod.Name} {mod.Version}";
+
+    /// <summary>
+    /// Rebuilds pseudo install plans for mods already on disk, so the pre-flight
+    /// conflict check can also refuse a pending mod that would overwrite a file
+    /// owned by an installed one (BUG-019). The journal records each installed
+    /// file's full path; we turn that back into a relative destination so it
+    /// compares like a pending plan's destinations.
+    /// </summary>
+    private static IReadOnlyList<InstallPlan> BuildInstalledPlans(string gameFolderPath)
+    {
+        var plans = new List<InstallPlan>();
+        foreach (var entry in new JournalStore(gameFolderPath).Load())
+        {
+            if (entry.Files.Count == 0)
+                continue;
+
+            var files = entry.Files.Select(f =>
+            {
+                var relative = Path.GetRelativePath(gameFolderPath, f.Path).Replace('\\', '/');
+                return new ArchiveContentEntry(f.Path, relative, relative);
+            }).ToList();
+
+            plans.Add(new InstallPlan(
+                new ModEntry(entry.ModName, entry.ModName, null, "installed",
+                    new string('0', 64), "BepInExPlugin", new List<string>(), new List<string>()),
+                "installed",
+                files,
+                new List<string>(),
+                new List<string>()));
+        }
+
+        return plans;
+    }
 }

@@ -54,4 +54,21 @@ public sealed class DestinationConflictFinderTests
         Assert.Equal("mod-a", conflict.ModA);
         Assert.Equal("mod-a", conflict.ModB);
     }
+
+    [Fact]
+    public void PendingPlanCollidingWithInstalledMod_IsReported_Bug019()
+    {
+        // A pending plan that would overwrite a file already owned by an installed
+        // mod must be reported as a conflict, treating the installed mod as the
+        // first owner (BUG-019).
+        var installed = Plan("installed-mod", "BepInEx/plugins/shared.dll");
+        var pending = Plan("pending-mod", "BepInEx/plugins/shared.dll");
+
+        var conflicts = DestinationConflictFinder.Find(new[] { pending }, new[] { installed });
+
+        var conflict = Assert.Single(conflicts);
+        Assert.Equal("BepInEx/plugins/shared.dll", conflict.Destination);
+        Assert.Equal("installed-mod", conflict.ModA);
+        Assert.Equal("pending-mod", conflict.ModB);
+    }
 }

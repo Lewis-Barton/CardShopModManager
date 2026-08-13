@@ -252,7 +252,7 @@ public sealed partial class MainWindow : Window
         PackLog($"--- Install {pack.Name} into {gameFolder}");
         var fallback = BuildFallback(pack);
         var report = await RunUnderPack(() =>
-            new ModpackInstaller(gameFolder, _http).InstallAsync(manifest, fallback));
+            new ModpackInstaller(gameFolder, _http).InstallAsync(manifest, fallback, pack: pack));
 
         foreach (var line in report.Lines)
             PackLog(line);
