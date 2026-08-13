@@ -58,10 +58,38 @@ unit test already covers it, **[manual]** where it needs a real environment.
       empty, racing parallel installs. Fixed by never deleting the shared root
       (only per-run subfolders).
 
+## Hosted modpacks (modpacks/)
+
+- [ ] **[auto]** BepInEx is ordered first when a pack includes it
+      (`EnforceBepInExFirst_MakesBepInExAResolverDependency`,
+      `ModpackInstaller_InstallsBepInExFirstAndRecordsPack`).
+- [ ] **[manual]** Install a hosted pack and confirm BepInEx lands first: the
+      `BepInEx/` folder exists and the game launches with plugins loaded.
+- [ ] **[auto]** The installed pack version is recorded and re-read back
+      (`ModpackJournalStore_RecordsAndReadsBack_ReplacingOnRerecord`).
+- [ ] **[auto]** A newer published version is flagged, an equal/older one is not
+      (`ModpackVersion_IsNewer_Cases`, `UpdateDetection_FlagsNewerPublishedVersion`).
+- [ ] **[manual]** Install a pack, then bump `version` in `index.json`; the card
+      shows "Update available" and the button reads "Update". Running it should
+      not corrupt the existing install.
+- [ ] **[auto]** `modpack validate` passes a well-formed pack and fails one
+      missing the `bepinex` entry, a mod with no source, or a missing logo
+      (`ModpackSubmissionTests`).
+- [ ] **[manual]** From the repo root, `dotnet run --project
+      src/TCGCardShopSimModManager.Cli -- modpack validate` reports
+      `[VALID] essential-qol`.
+- [ ] **[manual]** Disable + enable a *plugin* mod from an installed pack and
+      confirm the game stops/starts loading it. (BepInEx is the framework and is
+      intentionally not toggled.)
+- [ ] **[note]** The demo pack ships a placeholder BepInEx archive
+      (`bepinex-layout.zip`); real packs should point `bepinex`'s `downloadUrl`
+      at the official BepInEx release.
+
 ## Shipping
 
 - [ ] `dotnet build` — 0 warnings.
 - [ ] `dotnet test` — all tests pass.
+- [ ] `modpack validate` (no args) reports every pack valid from the repo root.
 - [ ] `update-check` reports correctly with no release, with a release, and
       offline.
 - [ ] `support-bundle` produces a zip that contains environment info + logs and
