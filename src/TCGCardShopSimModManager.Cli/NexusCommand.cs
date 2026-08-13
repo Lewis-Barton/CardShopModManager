@@ -18,7 +18,7 @@ public static class NexusCommand
 
                 ApiKeyStore.Save(arg1.Trim());
                 Console.WriteLine("API key stored (DPAPI, readable only by the current user).");
-                Console.WriteLine("(The classic API-key path is for development only — prefer 'nexus login' for real use.)");
+                Console.WriteLine("The classic API-key path is for development only. Prefer 'nexus login' for real use.");
                 break;
 
             case "set-client":
