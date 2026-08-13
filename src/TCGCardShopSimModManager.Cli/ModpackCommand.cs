@@ -57,7 +57,7 @@ public static class ModpackCommand
                 : new LocalFileSource(summary.Source);
 
         Console.WriteLine($"Installing {summary.Name} into {gameFolder}...");
-        var report = await new ModpackInstaller(gameFolder).InstallAsync(manifest, fallback);
+        var report = await new ModpackInstaller(gameFolder).InstallAsync(manifest, fallback, pack: summary);
 
         foreach (var line in report.Lines)
             Console.WriteLine(line);

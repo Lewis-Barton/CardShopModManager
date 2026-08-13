@@ -1,5 +1,24 @@
 namespace TCGCardShopSimModManager.Core;
 
+/// <summary>
+/// Shared conventions for modpack manifests. BepInEx is the mod framework every
+/// pack depends on; it is always installed first so plugins have something to
+/// load into. Packs declare it with this id and install type, and
+/// <see cref="ModpackInstaller"/> enforces the ordering at install time.
+/// </summary>
+public static class ModListConventions
+{
+    /// <summary>The reserved mod id for the BepInEx framework entry.</summary>
+    public const string BepInExModId = "bepinex";
+
+    /// <summary>
+    /// Install type for the BepInEx framework itself (as opposed to a plugin that
+    /// loads inside it). The classifier still decides the on-disk layout from the
+    /// archive contents; this type only tells the installer the entry is allowed.
+    /// </summary>
+    public const string BepInExInstallType = "BepInEx";
+}
+
 public sealed record ModListManifest(
     int ManifestVersion,
     string Name,

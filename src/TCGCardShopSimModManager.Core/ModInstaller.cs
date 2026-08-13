@@ -69,7 +69,7 @@ public sealed class ModInstaller
 
     public InstallResult Install(ModEntry mod, string sourceDirectory)
     {
-        if (mod.InstallType != "BepInExPlugin")
+        if (mod.InstallType != "BepInExPlugin" && mod.InstallType != ModListConventions.BepInExInstallType)
             return new InstallResult(false, $"Unsupported install type: {mod.InstallType}", null);
 
         var workDir = Path.Combine(Path.GetTempPath(), "cardshopmodmanager-work", Guid.NewGuid().ToString("N"));

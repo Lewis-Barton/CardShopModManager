@@ -1,9 +1,20 @@
 {
   "manifestVersion": 1,
   "name": "Essential QoL",
-  "totalSize": 267,
+  "totalSize": 400,
   "game": "tcgcardshopsimulator",
   "mods": [
+    {
+      "id": "bepinex",
+      "name": "BepInEx",
+      "version": "5.4.23",
+      "archive": "bepinex-layout.zip",
+      "sha256": "7d6655ef61592b8d51f7f72d9ee777bb43905859261f1f4dc699e2a407d2c1e1",
+      "installType": "BepInEx",
+      "dependencies": [],
+      "conflicts": [],
+      "downloadUrl": "https://raw.githubusercontent.com/Lewis-Barton/TCGCardShopSimModManager/main/samples/mod-archives/bepinex-layout.zip"
+    },
     {
       "id": "example-mod",
       "name": "Example Mod",
@@ -11,7 +22,7 @@
       "archive": "loose-plugin.zip",
       "sha256": "b8f2ab348a08112212408c88006eeb2455131907c55c661d7fc9ec35a822c10b",
       "installType": "BepInExPlugin",
-      "dependencies": [],
+      "dependencies": ["bepinex"],
       "conflicts": [],
       "downloadUrl": "https://raw.githubusercontent.com/Lewis-Barton/TCGCardShopSimModManager/main/samples/mod-archives/loose-plugin.zip"
     }

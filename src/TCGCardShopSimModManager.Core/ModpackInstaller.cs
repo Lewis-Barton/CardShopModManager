@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Net.Http;
 
 namespace TCGCardShopSimModManager.Core;
@@ -24,6 +25,7 @@ public sealed class ModpackInstaller
         ModListManifest manifest,
         IModSource? fallbackSource = null,
         string? cacheDirectory = null,
+        ModpackSummary? pack = null,
         CancellationToken cancellationToken = default)
     {
         cacheDirectory ??= Path.Combine(
@@ -62,14 +64,54 @@ public sealed class ModpackInstaller
                     new List<string>(), $"Failed to download {entry.Name}: {result.Error}");
         }
 
-        var report = new DeploymentService().Install(manifest, cacheDirectory, _gameFolderPath);
+        var report = new DeploymentService().Install(
+            EnforceBepInExFirst(manifest), cacheDirectory, _gameFolderPath);
 
         // The install copied what it needed out of the temp cache; drop it so a
         // finished modpack doesn't leave the downloaded archives on disk.
         if (report.Success)
+        {
             TryDeleteDirectory(cacheDirectory);
 
+            // Remember which pack version we just laid down, so the app can later
+            // tell the user a newer one is published.
+            if (pack is not null)
+                new ModpackJournalStore(_gameFolderPath).Record(pack.Id, pack.Version, pack.Name);
+        }
+
         return report;
+    }
+
+    /// <summary>
+    /// Guarantees the BepInEx framework is installed before any other mod, so
+    /// plugins always have a loader to drop into. When a BepInEx entry is present
+    /// (id <see cref="ModListConventions.BepInExModId"/>), every other mod that
+    /// doesn't already depend on it gets that dependency added. The resolver then
+    /// orders BepInEx first via Kahn's algorithm — pack authors can't
+    /// accidentally forget it. Packs without a BepInEx entry are returned
+    /// unchanged.
+    /// </summary>
+    public static ModListManifest EnforceBepInExFirst(ModListManifest manifest)
+    {
+        var hasBepInEx = manifest.Mods.Any(m =>
+            m.Id.Equals(ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase));
+        if (!hasBepInEx)
+            return manifest;
+
+        var mods = manifest.Mods.Select(m =>
+        {
+            if (m.Id.Equals(ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase))
+                return m;
+            if (m.Dependencies.Any(d =>
+                    d.Equals(ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase)))
+                return m;
+            return m with
+            {
+                Dependencies = new List<string>(m.Dependencies) { ModListConventions.BepInExModId }
+            };
+        }).ToList();
+
+        return manifest with { Mods = mods };
     }
 
     private static bool HasFreeSpace(string path, long neededBytes, out string message)

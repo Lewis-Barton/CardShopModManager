@@ -10,7 +10,8 @@ public sealed class ManifestValidator
 {
     private static readonly HashSet<string> KnownInstallTypes = new()
     {
-        "BepInExPlugin"
+        "BepInExPlugin",
+        "BepInEx"
     };
 
     public ValidationResult Validate(ModListManifest manifest)

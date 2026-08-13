@@ -60,8 +60,9 @@ Fields:
 - `id` — stable key; also the folder name under `modpacks/`.
 - `name`, `shortDescription` — shown on the card.
 - `logo`, `manifest` — repo-relative paths, resolved to raw GitHub URLs.
-- `version`, `updated` — shown on the card; `version` is what future update
-  detection will compare against the installed journal.
+- `version`, `updated` — shown on the card; `version` is compared against the
+  installed pack journal (`cardshopmodmanager.modpacks.json` in the game folder)
+  so the app can show "Update available" when a newer pack is published.
 
 ## manifest.json
 
@@ -90,6 +91,42 @@ declared total.
 
 The new `DownloadUrl` field and the optional top-level `totalSize` are the schema
 additions; `NexusModId`/`NexusFileId` already exist on `ModEntry`.
+
+Valid `installType` values are `BepInExPlugin` (a plugin that loads inside
+BepInEx) and `BepInEx` (the BepInEx framework itself — see below). The
+on-disk layout of every entry is decided by `ArchiveClassifier` from the
+archive's contents, not by `installType`.
+
+### BepInEx must come first
+
+Every modpack must include the **BepInEx framework** as a mod entry, with the
+reserved `id` `bepinex` and `installType` `BepInEx`:
+
+```json
+{
+  "id": "bepinex",
+  "name": "BepInEx",
+  "version": "5.4.23",
+  "archive": "bepinex.zip",
+  "sha256": "<sha256 of the BepInEx archive>",
+  "installType": "BepInEx",
+  "dependencies": [],
+  "conflicts": []
+}
+```
+
+BepInEx is the loader every plugin runs inside, so it has to be on disk before
+any plugin is copied in. `ModpackInstaller.EnforceBepInExFirst` guarantees this:
+at install time it makes **every other mod depend on `bepinex`** (if it doesn't
+already), and the resolver orders dependencies first — so pack authors can't
+forget it. A real BepInEx archive (a top-level `BepInEx/` folder, plus
+`winhttp.dll` / `doorstop_config.ini` at the root) is mirrored into the game's
+`BepInEx/` folder and game root automatically by the classifier.
+
+The demo pack points `bepinex`'s `downloadUrl` at the committed
+`samples/mod-archives/bepinex-layout.zip` placeholder so the flow is
+self-contained and testable; a real pack should point at the official BepInEx
+release archive instead.
 
 ## Download and install flow
 
@@ -121,7 +158,9 @@ folder the user picked.
   the full mod list (name + version, read from the manifest), a
   "View manifest on GitHub" link for transparency, and an **Install modpack**
   button.
-- **Install modpack** runs the download → install flow above.
+- **Install modpack** runs the download → install flow above. When a newer
+  version of an already-installed pack is published, its card shows an
+  **"Update available"** badge and the button reads **Update** instead.
 - The current manual **manifest + source boxes** stay, below the gallery, as a
   "Local pack" option for people who want to install from files on disk.
 
@@ -136,8 +175,5 @@ install wiring, and the optional `DownloadUrl` field.
 
 ## Deferred (not v1)
 
-- **Update detection** — compare a pack's `version` in `index.json` against the
-  installed journal and show "Update available". The install pipeline already
-  replaces newer/older archives correctly; this is just surfacing it in the UI.
 - **Pack-submission validation** — tooling to check a submitted `manifest.json`
   and logo before merge. For v1, review by eye in the PR is enough.

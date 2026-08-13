@@ -29,6 +29,7 @@ public sealed partial class MainWindow : Window
 
     // Modpack gallery state (the "Modpacks" tab).
     private List<ModpackSummary> _packs = new();
+    private List<InstalledModpack> _installedPacks = new();
     private ModpackSummary? _selectedPack;
     private ModListManifest? _selectedManifest;
     private readonly HttpClient _http = new();
@@ -126,9 +127,14 @@ public sealed partial class MainWindow : Window
         {
             var index = await _packReader.FetchIndexAsync();
             _packs = index.Packs;
+
+            // Which packs are already installed, and at what version, so we can
+            // flag updates? None until a game folder is known.
+            _installedPacks = ReadInstalledPacks();
+
             _packsPanel.Children.Clear();
             foreach (var pack in _packs)
-                _packsPanel.Children.Add(BuildPackCard(pack));
+                _packsPanel.Children.Add(BuildPackCard(pack, IsUpdateAvailable(pack)));
             PackLog($"Found {_packs.Count} modpack(s).");
         }
         catch (Exception ex)
@@ -137,7 +143,22 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private Border BuildPackCard(ModpackSummary pack)
+    private List<InstalledModpack> ReadInstalledPacks()
+    {
+        var gameFolder = _gameBox.Text;
+        if (string.IsNullOrWhiteSpace(gameFolder) || !Directory.Exists(gameFolder))
+            return new List<InstalledModpack>();
+        return new ModpackJournalStore(gameFolder).Load();
+    }
+
+    private bool IsUpdateAvailable(ModpackSummary pack)
+    {
+        var installed = _installedPacks.FirstOrDefault(p =>
+            p.PackId.Equals(pack.Id, StringComparison.OrdinalIgnoreCase));
+        return installed is not null && ModpackVersion.IsNewer(installed.PackVersion, pack.Version);
+    }
+
+    private Border BuildPackCard(ModpackSummary pack, bool updateAvailable)
     {
         var card = new Border
         {
@@ -166,6 +187,15 @@ public sealed partial class MainWindow : Window
             FontSize = 11
         });
 
+        if (updateAvailable)
+            stack.Children.Add(new TextBlock
+            {
+                Text = "Update available",
+                Foreground = new SolidColorBrush(Colors.Orange),
+                FontSize = 11,
+                FontWeight = FontWeight.Bold
+            });
+
         card.Child = stack;
         card.PointerPressed += (_, _) => _ = SelectPack(pack);
         return card;
@@ -193,6 +223,7 @@ public sealed partial class MainWindow : Window
                 .Select(m => $"  {m.Name} {m.Version ?? ""}".Trim())
                 .ToList();
             _packInstall.IsEnabled = true;
+            _packInstall.Content = IsUpdateAvailable(pack) ? "Update" : "Install modpack";
             _packStatus.Text = $"{manifest.Mods.Count} mod(s). Ready to install.";
         }
         catch (Exception ex)
@@ -229,6 +260,15 @@ public sealed partial class MainWindow : Window
         _packStatus.Text = report.Success
             ? $"Installed {pack.Name}."
             : "Install did not complete — see the log above.";
+
+        if (report.Success)
+        {
+            // Refresh the gallery and this pack's badge/button now that the
+            // installed version is recorded.
+            await LoadPacksAsync();
+            if (_selectedPack is not null)
+                await SelectPack(_selectedPack);
+        }
     }
 
     private static IModSource? BuildFallback(ModpackSummary pack)
@@ -426,7 +466,12 @@ public sealed partial class MainWindow : Window
         var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(
             new FolderPickerOpenOptions { Title = "Choose folder", AllowMultiple = false });
         if (folders.Count > 0)
+        {
             target.Text = folders[0].Path.LocalPath;
+            // The game folder is now known — reload the gallery so update badges
+            // can be shown for any already-installed packs.
+            await LoadPacksAsync();
+        }
     }
 
     private void Log(string line)

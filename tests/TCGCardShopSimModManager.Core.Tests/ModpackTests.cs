@@ -132,6 +132,121 @@ public sealed class ModpackTests : IDisposable
         Assert.False(Directory.Exists(cacheDir), "temp modpack cache should be deleted after install");
     }
 
+    [Fact]
+    public void EnforceBepInExFirst_MakesBepInExAResolverDependency()
+    {
+        var bepInEx = new ModEntry("bepinex", "BepInEx", "5.4.23", "bepinex.zip", "irrelevant",
+            ModListConventions.BepInExInstallType, new List<string>(), new List<string>());
+        var mod = new ModEntry("example-mod", "Example Mod", "1.0.0", "mod.zip", "irrelevant",
+            "BepInExPlugin", new List<string>(), new List<string>());
+        var manifest = new ModListManifest(1, "Pack", "tcgcardshopsimulator", new List<ModEntry> { bepInEx, mod });
+
+        var normalized = ModpackInstaller.EnforceBepInExFirst(manifest);
+        var allIds = new HashSet<string>(normalized.Mods.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
+        var ordered = new ModListResolver().Resolve(normalized, allIds);
+
+        Assert.True(ordered.IsValid);
+        Assert.Equal("bepinex", ordered.OrderedMods[0].Id);
+    }
+
+    [Fact]
+    public void EnforceBepInExFirst_LeavesPacksWithoutBepInExUnchanged()
+    {
+        var mod = new ModEntry("example-mod", "Example Mod", "1.0.0", "mod.zip", "irrelevant",
+            "BepInExPlugin", new List<string>(), new List<string>());
+        var manifest = new ModListManifest(1, "Pack", "tcgcardshopsimulator", new List<ModEntry> { mod });
+
+        var normalized = ModpackInstaller.EnforceBepInExFirst(manifest);
+        Assert.Single(normalized.Mods);
+        Assert.Empty(normalized.Mods[0].Dependencies);
+    }
+
+    [Fact]
+    public async Task ModpackInstaller_InstallsBepInExFirstAndRecordsPack()
+    {
+        var bepInExBytes = MakeZip(("BepInEx/core/doorstop.dll", "bepinex-bytes"));
+        var bepInExSha = Sha(bepInExBytes);
+        var modBytes = MakeZip(("ExampleMod.dll", "dll-bytes"));
+        var modSha = Sha(modBytes);
+
+        _server.Provider = request => request.Path switch
+        {
+            "/bepinex.zip" => new HttpResponse(200, bepInExBytes, null),
+            "/mod.zip" => new HttpResponse(200, modBytes, null),
+            _ => new HttpResponse(404, Array.Empty<byte>(), null)
+        };
+
+        var bepInEx = new ModEntry("bepinex", "BepInEx", "5.4.23", "bepinex.zip", bepInExSha,
+            ModListConventions.BepInExInstallType, new List<string>(), new List<string>(),
+            DownloadUrl: _server.Url("bepinex.zip"));
+        var mod = new ModEntry("example-mod", "Example Mod", "1.0.0", "mod.zip", modSha,
+            "BepInExPlugin", new List<string>(), new List<string>(),
+            DownloadUrl: _server.Url("mod.zip"));
+        var manifest = new ModListManifest(1, "Pack One", "tcgcardshopsimulator", new List<ModEntry> { bepInEx, mod });
+
+        var gameFolder = Path.Combine(_root, "game");
+        Directory.CreateDirectory(gameFolder);
+
+        var summary = new ModpackSummary("p1", "Pack One", "desc", "logo.png", "manifest.json", "1.0.0");
+        var report = await new ModpackInstaller(gameFolder).InstallAsync(manifest, pack: summary);
+        Assert.True(report.Success, string.Join("\n", report.Lines));
+
+        // BepInEx (the framework) landed under BepInEx/, and the plugin under plugins/.
+        Assert.True(File.Exists(Path.Combine(gameFolder, "BepInEx", "core", "doorstop.dll")));
+        Assert.True(File.Exists(Path.Combine(gameFolder, "BepInEx", "plugins", "Example Mod", "ExampleMod.dll")));
+
+        // The installed pack version is recorded so the app can flag updates.
+        var recorded = new ModpackJournalStore(gameFolder).Load();
+        var entry = Assert.Single(recorded);
+        Assert.Equal("p1", entry.PackId);
+        Assert.Equal("1.0.0", entry.PackVersion);
+    }
+
+    [Fact]
+    public void ModpackVersion_IsNewer_Cases()
+    {
+        Assert.True(ModpackVersion.IsNewer("1.0.0", "1.1.0"));
+        Assert.True(ModpackVersion.IsNewer("1.0", "1.0.1"));
+        Assert.False(ModpackVersion.IsNewer("1.0.0", "1.0.0"));
+        Assert.False(ModpackVersion.IsNewer("1.1.0", "1.0.0"));
+        Assert.False(ModpackVersion.IsNewer(null, "1.0.0")); // nothing installed -> no flag
+    }
+
+    [Fact]
+    public void ModpackJournalStore_RecordsAndReadsBack_ReplacingOnRerecord()
+    {
+        var gameFolder = Path.Combine(_root, "game");
+        Directory.CreateDirectory(gameFolder);
+        var store = new ModpackJournalStore(gameFolder);
+
+        store.Record("p1", "1.0.0", "Pack One");
+        store.Record("p2", "2.0.0", "Pack Two");
+        var loaded = store.Load();
+        Assert.Equal(2, loaded.Count);
+        Assert.Contains(loaded, e => e.PackId == "p1" && e.PackVersion == "1.0.0");
+        Assert.Contains(loaded, e => e.PackId == "p2" && e.PackVersion == "2.0.0");
+
+        // Re-recording the same pack replaces rather than duplicates.
+        store.Record("p1", "1.1.0", "Pack One");
+        loaded = store.Load();
+        Assert.Equal(2, loaded.Count);
+        Assert.Contains(loaded, e => e.PackId == "p1" && e.PackVersion == "1.1.0");
+    }
+
+    [Fact]
+    public void UpdateDetection_FlagsNewerPublishedVersion()
+    {
+        var gameFolder = Path.Combine(_root, "game");
+        Directory.CreateDirectory(gameFolder);
+        new ModpackJournalStore(gameFolder).Record("p1", "1.0.0", "Pack One");
+
+        var installed = new ModpackJournalStore(gameFolder).Load()
+            .FirstOrDefault(p => p.PackId == "p1");
+        Assert.NotNull(installed);
+        Assert.True(ModpackVersion.IsNewer(installed!.PackVersion, "1.1.0"));
+        Assert.False(ModpackVersion.IsNewer(installed.PackVersion, "1.0.0"));
+    }
+
     // --- helpers -----------------------------------------------------------
 
     private async Task<DownloadResult> Download(ModReference mod, IModSource source) =>
