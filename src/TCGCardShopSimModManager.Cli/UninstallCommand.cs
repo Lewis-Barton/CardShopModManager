@@ -9,6 +9,7 @@ public static class UninstallCommand
         if (modName is null || gameFolderPath is null)
         {
             Console.WriteLine("Usage: uninstall <modName> <gameFolder>");
+            Environment.ExitCode = 2;
             return;
         }
 

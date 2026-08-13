@@ -11,6 +11,7 @@ if (args.Length > 0 && args[0] is "--version" or "-v")
 if (args.Length == 0)
 {
     PrintUsage();
+    Environment.ExitCode = 2;
     return;
 }
 

@@ -14,13 +14,28 @@ public static class ServeCommand
 {
     public static void Run(string? folderPath, string? portArg)
     {
-        if (folderPath is null || !Directory.Exists(folderPath))
+        if (folderPath is null)
         {
             Console.WriteLine("Usage: serve <folder> [port]");
+            Environment.ExitCode = 2;
             return;
         }
 
-        var port = int.TryParse(portArg, out var parsed) ? parsed : (int?)null;
+        if (!Directory.Exists(folderPath))
+        {
+            Console.WriteLine($"Folder not found: {folderPath}");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        if (portArg is not null && (!int.TryParse(portArg, out var parsedPort) || parsedPort is < 1 or > 65535))
+        {
+            Console.WriteLine("Port must be a number from 1 to 65535.");
+            Environment.ExitCode = 2;
+            return;
+        }
+
+        int? port = portArg is null ? null : int.Parse(portArg);
         var server = new LocalHttpServer(port) { Provider = LocalHttpServer.FolderProvider(folderPath) };
 
         Console.WriteLine($"Serving {folderPath}");

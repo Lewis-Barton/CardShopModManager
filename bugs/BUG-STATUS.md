@@ -37,6 +37,11 @@ design review found three additional safety issues, now fixed:
   also checks the manager's disabled folder, removes verified parked files, and
   clears stale journal entries when every tracked file is already gone. Covered
   by disabled-mod and missing-file uninstall tests.
+- **BUG-046 — CLI failures exit successfully (Medium):** commands now use exit
+  code 2 for missing or unsupported arguments and code 1 for operational
+  failures. Downloads and demos aggregate per-mod failures, hosted-pack install
+  failures propagate, invalid single-pack validation fails, and Nexus/update
+  status errors no longer report process success.
 
 ## Summary
 | Severity | Open | Fixed |
@@ -177,4 +182,3 @@ Detailed entries are appended here as bugs are resolved (files changed, what/why
   - BUG-039 (Low): `ServeCommand` now also watches for stdin EOF and `AppDomain.ProcessExit` (in addition to Ctrl+C) and disposes the server on each, so a headless or terminated run releases the listener cleanly.
 - **Why:** These were the last open holes — update detection ignoring real version formats / false-positiving on component counts, and a demo server that wouldn't shut down cleanly headless.
 - **Verification:** New test `ModpackTests.ModpackVersion_IsNewer_ToleratesPrefixesAndComponentCounts_Bug006_Bug007`; full Core suite 135/135; solution builds clean. BUG-039 verified by build + source analysis. **All 40 known bugs are now fixed.**
-

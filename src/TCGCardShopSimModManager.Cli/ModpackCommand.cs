@@ -36,7 +36,9 @@ public static class ModpackCommand
                 return;
             }
 
-            PrintSubmission(arg1, validator.ValidatePack(arg1));
+            var submission = validator.ValidatePack(arg1);
+            PrintSubmission(arg1, submission);
+            Environment.ExitCode = submission.IsValid ? 0 : 1;
             return;
         }
 
@@ -46,6 +48,13 @@ public static class ModpackCommand
         if (sub is "install" && arg1 is null)
         {
             Console.WriteLine("Usage: modpack install <id> [game]");
+            Environment.ExitCode = 2;
+            return;
+        }
+
+        if (sub is not (null or "list" or "install"))
+        {
+            Console.WriteLine("Usage: modpack <list | install <id> [game] | validate [id] [root]>");
             Environment.ExitCode = 2;
             return;
         }
@@ -74,6 +83,7 @@ public static class ModpackCommand
         if (summary is null)
         {
             Console.WriteLine($"No pack named '{packId}'. Run 'modpack list' to see available packs.");
+            Environment.ExitCode = 1;
             return;
         }
 
@@ -81,6 +91,7 @@ public static class ModpackCommand
         if (gameFolder is null)
         {
             Console.WriteLine("Could not auto-detect the game folder. Pass it as the last argument.");
+            Environment.ExitCode = 1;
             return;
         }
 
@@ -97,6 +108,8 @@ public static class ModpackCommand
 
         foreach (var line in report.Lines)
             Console.WriteLine(line);
+        if (!report.Success)
+            Environment.ExitCode = 1;
     }
 
     private static void PrintSubmission(string packId, SubmissionResult result)

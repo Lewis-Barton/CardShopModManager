@@ -31,6 +31,7 @@ public static class DemoCommand
         {
             Console.WriteLine("Usage: demo [manifest.json] [archivesFolder] [cacheDir] [outDir] [gameFolder]");
             Console.WriteLine("  (defaults use samples/manifests/archive-demo.json + samples/mod-archives from the repo root)");
+            Environment.ExitCode = 1;
             return;
         }
 
@@ -45,6 +46,7 @@ public static class DemoCommand
             Console.WriteLine("Manifest is invalid:");
             foreach (var error in validation.Errors)
                 Console.WriteLine($"  - {error}");
+            Environment.ExitCode = 1;
             return;
         }
 
@@ -59,6 +61,7 @@ public static class DemoCommand
             new HttpModSource(mod => $"{baseUrl}/{Uri.EscapeDataString(mod.FileName)}"),
             new DownloadOptions { CacheDirectory = cacheDir });
 
+        var downloadFailed = false;
         foreach (var entry in manifest.Mods)
         {
             var mod = new ModReference(entry.Id, entry.Archive, entry.Sha256, entry.Version);
@@ -68,12 +71,25 @@ public static class DemoCommand
             Console.WriteLine(result.Success
                 ? $"  OK{(result.FromCache ? " (from cache)" : "")} -> {result.DestinationPath}"
                 : $"  FAILED: {result.Error}");
+            downloadFailed |= !result.Success;
+        }
+
+        if (downloadFailed)
+        {
+            Environment.ExitCode = 1;
+            return;
         }
 
         Console.WriteLine("\nInstalling into the game folder...");
         var report = new DeploymentService().Install(manifestPath, outDir, gameFolder);
         foreach (var line in report.Lines)
             Console.WriteLine($"  {line}");
+
+        if (!report.Success)
+        {
+            Environment.ExitCode = 1;
+            return;
+        }
 
         Console.WriteLine($"\nDone. Game folder: {gameFolder}");
         Console.WriteLine("Run the demo again to see the download cache skip the network.");

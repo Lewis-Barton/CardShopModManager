@@ -14,6 +14,7 @@ public static class DownloadCommand
         if (manifestPath is null || sourceSpec is null || cacheDir is null || outDir is null)
         {
             Console.WriteLine("Usage: download <manifest.json> <httpUrlBase|localFolder> <cacheDir> <outDir>");
+            Environment.ExitCode = 2;
             return;
         }
 
@@ -24,6 +25,7 @@ public static class DownloadCommand
             Console.WriteLine("Manifest is invalid:");
             foreach (var error in validation.Errors)
                 Console.WriteLine($"  - {error}");
+            Environment.ExitCode = 1;
             return;
         }
 
@@ -59,6 +61,7 @@ public static class DownloadCommand
             else
             {
                 Console.WriteLine($"  FAILED: {result.Error}");
+                Environment.ExitCode = 1;
             }
         }
     }

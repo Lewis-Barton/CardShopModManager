@@ -17,6 +17,7 @@ public static class UpdateCommand
         if (result.Error is not null)
         {
             Console.WriteLine(result.Error);
+            Environment.ExitCode = 1;
             return;
         }
 

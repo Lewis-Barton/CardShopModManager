@@ -25,6 +25,7 @@ public static class ModsCommand
                 break;
             default:
                 Console.WriteLine("Usage: mods <list <gameFolder> | disable <name> <gameFolder> | enable <name> <gameFolder>>");
+                Environment.ExitCode = 2;
                 break;
         }
     }
@@ -34,6 +35,14 @@ public static class ModsCommand
         if (gameFolderPath is null)
         {
             Console.WriteLine("Usage: mods list <gameFolder>");
+            Environment.ExitCode = 2;
+            return;
+        }
+
+        if (!Directory.Exists(gameFolderPath))
+        {
+            Console.WriteLine($"Game folder not found: {gameFolderPath}");
+            Environment.ExitCode = 1;
             return;
         }
 
@@ -55,6 +64,7 @@ public static class ModsCommand
             Console.WriteLine(disable
                 ? "Usage: mods disable <name> <gameFolder>"
                 : "Usage: mods enable <name> <gameFolder>");
+            Environment.ExitCode = 2;
             return;
         }
 

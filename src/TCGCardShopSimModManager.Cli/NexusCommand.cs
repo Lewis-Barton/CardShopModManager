@@ -13,6 +13,7 @@ public static class NexusCommand
                 if (string.IsNullOrWhiteSpace(arg1))
                 {
                     Console.WriteLine("Usage: nexus set-key <apikey>");
+                    Environment.ExitCode = 2;
                     return;
                 }
 
@@ -25,6 +26,7 @@ public static class NexusCommand
                 if (string.IsNullOrWhiteSpace(arg1))
                 {
                     Console.WriteLine("Usage: nexus set-client <clientId> [redirectUri]");
+                    Environment.ExitCode = 2;
                     return;
                 }
 
@@ -61,6 +63,7 @@ public static class NexusCommand
                 Console.WriteLine("  login            authenticate with Nexus via OAuth (preferred)");
                 Console.WriteLine("  set-key <apikey> store a classic API key (development only)");
                 Console.WriteLine("  API base comes from NEXUS_API_BASE, defaulting to https://api.nexusmods.com/v1");
+                Environment.ExitCode = 2;
                 break;
         }
     }
@@ -81,6 +84,7 @@ public static class NexusCommand
         catch (DownloadException ex)
         {
             Console.WriteLine($"Login failed: {ex.Message}");
+            Environment.ExitCode = 1;
         }
     }
 
@@ -97,6 +101,7 @@ public static class NexusCommand
             if (user is null)
             {
                 Console.WriteLine("Signed in, but the stored token could not be read — run 'nexus login' again.");
+                Environment.ExitCode = 1;
             }
             else
             {
@@ -133,6 +138,7 @@ public static class NexusCommand
         catch (DownloadException ex)
         {
             Console.WriteLine($"Status check failed: {ex.Message}");
+            Environment.ExitCode = 1;
         }
     }
 
