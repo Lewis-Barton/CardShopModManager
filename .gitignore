@@ -1,5 +1,5 @@
-# local editor/agent config and session data - never committed
-.claude/
+# Local agent instructions are specific to this working copy and must never be committed.
+AGENTS.md
 
 # .NET build output
 bin/
