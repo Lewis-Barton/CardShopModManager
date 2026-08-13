@@ -51,11 +51,21 @@ public sealed class ModpackSubmissionValidator
             return SubmissionResult.Failure(new List<string> { $"index.json is not valid JSON: {ex.Message}" }, warnings);
         }
 
+        // BUG-002: a malformed index may omit/garble 'packs'; treat a null array
+        // as a structural failure rather than letting LINQ throw ArgumentNull.
+        if (index.Packs is null)
+            return SubmissionResult.Failure(
+                new List<string> { "index.json is missing the required 'packs' array." }, warnings);
+
         var entry = index.Packs.FirstOrDefault(p => p.Id.Equals(packId, StringComparison.OrdinalIgnoreCase));
         if (entry is null)
             return SubmissionResult.Failure(new List<string> { $"No index entry for pack id '{packId}'." }, warnings);
 
         // Logo: present and actually a PNG.
+        // BUG-034: reject traversal/absolute logo refs before resolving.
+        if (!string.IsNullOrWhiteSpace(entry.Logo) && IsUnsafeRelativePath(entry.Logo))
+            return SubmissionResult.Failure(new List<string> { $"Logo reference is unsafe: '{entry.Logo}'" }, warnings);
+
         var logoPath = Path.Combine(_modpacksRoot, entry.Logo);
         if (!File.Exists(logoPath))
             errors.Add($"Logo file missing: {entry.Logo}");
@@ -65,6 +75,10 @@ public sealed class ModpackSubmissionValidator
             warnings.Add($"Logo {entry.Logo} is small (<1 KB) — check it isn't a placeholder.");
 
         // Manifest: present, parseable, and structurally valid.
+        // BUG-034: reject traversal/absolute manifest refs before resolving.
+        if (!string.IsNullOrWhiteSpace(entry.Manifest) && IsUnsafeRelativePath(entry.Manifest))
+            return SubmissionResult.Failure(new List<string> { $"Manifest reference is unsafe: '{entry.Manifest}'" }, warnings);
+
         var manifestPath = Path.Combine(_modpacksRoot, entry.Manifest);
         if (!File.Exists(manifestPath))
             return SubmissionResult.Failure(new List<string> { $"Manifest file missing: {entry.Manifest}" }, warnings);
@@ -83,8 +97,10 @@ public sealed class ModpackSubmissionValidator
         if (!manifestValidation.IsValid)
             errors.AddRange(manifestValidation.Errors);
 
+        // BUG-033: a manifest for a different pack must not validate as VALID
+        // for the referenced index entry — promote the mismatch to an error.
         if (!manifest.Name.Equals(entry.Name, StringComparison.OrdinalIgnoreCase))
-            warnings.Add($"Manifest name '{manifest.Name}' differs from index name '{entry.Name}'.");
+            errors.Add($"Manifest name '{manifest.Name}' does not match index name '{entry.Name}'.");
 
         // Every mod needs a way to actually be fetched.
         foreach (var mod in manifest.Mods)
@@ -96,10 +112,15 @@ public sealed class ModpackSubmissionValidator
                 errors.Add($"{mod.Name}: no source — needs a DownloadUrl, NexusModId, or a pack-level 'source'.");
         }
 
-        // The BepInEx framework must ship in every pack.
-        if (!manifest.Mods.Any(m => m.Id.Equals(ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase)))
+        // The BepInEx framework must ship in every pack, using exactly the
+        // reserved framework install type.
+        var bepinex = manifest.Mods.FirstOrDefault(m =>
+            m.Id.Equals(ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase));
+        if (bepinex is null)
             errors.Add($"Pack is missing the required BepInEx entry (id '{ModListConventions.BepInExModId}', " +
                        $"installType '{ModListConventions.BepInExInstallType}').");
+        else if (bepinex.InstallType != ModListConventions.BepInExInstallType)
+            errors.Add($"The BepInEx framework entry must use install type '{ModListConventions.BepInExInstallType}', found '{bepinex.InstallType}'.");
 
         return errors.Count == 0
             ? SubmissionResult.Ok(warnings)
@@ -109,8 +130,13 @@ public sealed class ModpackSubmissionValidator
     public List<(string PackId, SubmissionResult Result)> ValidateAll()
     {
         var indexPath = Path.Combine(_modpacksRoot, "index.json");
+        // BUG-031: a missing index is a failure, not "zero valid packs = success".
         if (!File.Exists(indexPath))
-            return new List<(string, SubmissionResult)>();
+            return new List<(string, SubmissionResult)>
+            {
+                ("(index.json)", SubmissionResult.Failure(
+                    new List<string> { $"Missing index.json at {indexPath}." }, new List<string>()))
+            };
 
         ModpackIndex index;
         try
@@ -125,6 +151,14 @@ public sealed class ModpackSubmissionValidator
                 ("(index.json)", SubmissionResult.Failure(new List<string> { $"index.json is not valid JSON: {ex.Message}" }, new List<string>()))
             };
         }
+
+        // BUG-002: a null 'packs' array must surface as a failure, not throw.
+        if (index.Packs is null)
+            return new List<(string, SubmissionResult)>
+            {
+                ("(index.json)", SubmissionResult.Failure(
+                    new List<string> { "index.json is missing the required 'packs' array." }, new List<string>()))
+            };
 
         return index.Packs
             .Select(p => (p.Id, ValidatePack(p.Id)))
@@ -145,5 +179,19 @@ public sealed class ModpackSubmissionValidator
         {
             return false;
         }
+    }
+
+    private static bool IsUnsafeRelativePath(string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath))
+            return false;
+        if (Path.IsPathRooted(relativePath))
+            return true;
+
+        foreach (var segment in relativePath.Split('/', '\\'))
+            if (segment is ".." or "")
+                return true;
+
+        return false;
     }
 }

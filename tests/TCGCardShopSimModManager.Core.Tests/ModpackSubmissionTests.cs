@@ -64,6 +64,62 @@ public sealed class ModpackSubmissionTests : IDisposable
         Assert.True(entry.Result.IsValid);
     }
 
+    [Fact]
+    public void ValidatePack_Fails_WhenIndexMissingPacksArray() // BUG-002
+    {
+        WriteIndexNoPacks();
+        var result = new ModpackSubmissionValidator(_root).ValidatePack("anything");
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("packs"));
+    }
+
+    [Fact]
+    public void ValidateAll_Fails_WhenIndexMissingPacksArray() // BUG-002
+    {
+        WriteIndexNoPacks();
+        var results = new ModpackSubmissionValidator(_root).ValidateAll();
+        var entry = Assert.Single(results);
+        Assert.False(entry.Result.IsValid);
+        Assert.Contains(entry.Result.Errors, e => e.Contains("packs"));
+    }
+
+    [Fact]
+    public void ValidateAll_Fails_WhenIndexMissing() // BUG-031
+    {
+        // No index.json written at all — must surface as a failure, not "all valid".
+        var results = new ModpackSubmissionValidator(_root).ValidateAll();
+        var entry = Assert.Single(results);
+        Assert.Equal("(index.json)", entry.PackId);
+        Assert.False(entry.Result.IsValid);
+    }
+
+    [Fact]
+    public void ValidatePack_Fails_WhenFrameworkUsesWrongInstallType() // BUG-032
+    {
+        WritePackWrongFrameworkType();
+        var result = new ModpackSubmissionValidator(_root).ValidatePack("broken-fw");
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("framework entry must use install type"));
+    }
+
+    [Fact]
+    public void ValidatePack_Fails_WhenManifestNameMismatchesIndex() // BUG-033
+    {
+        WritePackWrongName();
+        var result = new ModpackSubmissionValidator(_root).ValidatePack("testpack");
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("does not match"));
+    }
+
+    [Fact]
+    public void ValidatePack_Fails_WhenLogoReferenceUnsafe() // BUG-034
+    {
+        WritePackUnsafeLogo();
+        var result = new ModpackSubmissionValidator(_root).ValidatePack("unsafe");
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("unsafe"));
+    }
+
     // --- helpers ---------------------------------------------------------
 
     private void WriteValidPack(string id, bool withLogo = true)
@@ -96,6 +152,38 @@ public sealed class ModpackSubmissionTests : IDisposable
         File.WriteAllBytes(Path.Combine(packDir, "logo.png"), MakePng());
     }
 
+    private void WriteIndexNoPacks()
+    {
+        File.WriteAllText(Path.Combine(_root, "index.json"), "{\"version\":1}");
+    }
+
+    private void WritePackWrongFrameworkType()
+    {
+        File.WriteAllText(Path.Combine(_root, "index.json"), IndexJson("broken-fw"));
+        var packDir = Path.Combine(_root, "broken-fw");
+        Directory.CreateDirectory(packDir);
+        File.WriteAllText(Path.Combine(packDir, "manifest.json"), ManifestJsonWrongFrameworkType());
+        File.WriteAllBytes(Path.Combine(packDir, "logo.png"), MakePng());
+    }
+
+    private void WritePackWrongName()
+    {
+        File.WriteAllText(Path.Combine(_root, "index.json"), IndexJson("testpack"));
+        var packDir = Path.Combine(_root, "testpack");
+        Directory.CreateDirectory(packDir);
+        File.WriteAllText(Path.Combine(packDir, "manifest.json"), ManifestJsonWrongName());
+        File.WriteAllBytes(Path.Combine(packDir, "logo.png"), MakePng());
+    }
+
+    private void WritePackUnsafeLogo()
+    {
+        File.WriteAllText(Path.Combine(_root, "index.json"), IndexJsonWithLogo("unsafe", "../escape.png"));
+        var packDir = Path.Combine(_root, "unsafe");
+        Directory.CreateDirectory(packDir);
+        File.WriteAllText(Path.Combine(packDir, "manifest.json"), ManifestJson());
+        File.WriteAllBytes(Path.Combine(packDir, "logo.png"), MakePng());
+    }
+
     private static string IndexJson(string id) =>
         "{\"version\":1,\"packs\":[{\"id\":\"" + id + "\",\"name\":\"Pack One\"," +
         "\"shortDescription\":\"desc\",\"logo\":\"" + id + "/logo.png\"," +
@@ -121,6 +209,29 @@ public sealed class ModpackSubmissionTests : IDisposable
         "{\"manifestVersion\":1,\"name\":\"Pack One\",\"game\":\"tcgcardshopsimulator\"," +
         "\"mods\":[{\"id\":\"example-mod\",\"name\":\"Example Mod\",\"version\":\"1.0.0\",\"archive\":\"mod.zip\"," +
         "\"sha256\":\"abc\",\"installType\":\"BepInExPlugin\",\"dependencies\":[],\"conflicts\":[]}]}";
+
+    private static string ManifestJsonWrongFrameworkType() =>
+        "{\"manifestVersion\":1,\"name\":\"Pack One\",\"game\":\"tcgcardshopsimulator\"," +
+        "\"mods\":[{\"id\":\"bepinex\",\"name\":\"BepInEx\",\"version\":\"5.4.23\",\"archive\":\"bepinex.zip\"," +
+        "\"sha256\":\"abc\",\"installType\":\"BepInExPlugin\",\"dependencies\":[],\"conflicts\":[]," +
+        "\"downloadUrl\":\"https://example.com/bepinex.zip\"}," +
+        "{\"id\":\"example-mod\",\"name\":\"Example Mod\",\"version\":\"1.0.0\",\"archive\":\"mod.zip\"," +
+        "\"sha256\":\"abc\",\"installType\":\"BepInExPlugin\",\"dependencies\":[\"bepinex\"],\"conflicts\":[]," +
+        "\"downloadUrl\":\"https://example.com/mod.zip\"}]}";
+
+    private static string ManifestJsonWrongName() =>
+        "{\"manifestVersion\":1,\"name\":\"Totally Different Pack\",\"game\":\"tcgcardshopsimulator\"," +
+        "\"mods\":[{\"id\":\"bepinex\",\"name\":\"BepInEx\",\"version\":\"5.4.23\",\"archive\":\"bepinex.zip\"," +
+        "\"sha256\":\"abc\",\"installType\":\"BepInEx\",\"dependencies\":[],\"conflicts\":[]," +
+        "\"downloadUrl\":\"https://example.com/bepinex.zip\"}," +
+        "{\"id\":\"example-mod\",\"name\":\"Example Mod\",\"version\":\"1.0.0\",\"archive\":\"mod.zip\"," +
+        "\"sha256\":\"abc\",\"installType\":\"BepInExPlugin\",\"dependencies\":[\"bepinex\"],\"conflicts\":[]," +
+        "\"downloadUrl\":\"https://example.com/mod.zip\"}]}";
+
+    private static string IndexJsonWithLogo(string id, string logo) =>
+        "{\"version\":1,\"packs\":[{\"id\":\"" + id + "\",\"name\":\"Pack One\"," +
+        "\"shortDescription\":\"desc\",\"logo\":\"" + logo + "\"," +
+        "\"manifest\":\"" + id + "/manifest.json\",\"version\":\"1.0.0\"}]}";
 
     private static byte[] MakePng()
     {

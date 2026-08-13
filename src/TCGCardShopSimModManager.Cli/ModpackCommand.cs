@@ -31,6 +31,8 @@ public static class ModpackCommand
                     ok &= result.IsValid;
                 }
                 Console.WriteLine(ok ? "All packs valid." : "Some packs failed validation.");
+                // BUG-031: a failed validation must not exit 0.
+                Environment.ExitCode = ok ? 0 : 1;
                 return;
             }
 
