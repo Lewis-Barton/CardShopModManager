@@ -9,6 +9,7 @@ public static class InstallCommand
         if (manifestPath is null || sourceDirectory is null || gameFolderPath is null)
         {
             Console.WriteLine("Usage: install <manifest.json> <sourceDir> <gameFolder>");
+            Environment.ExitCode = 2;
             return;
         }
 

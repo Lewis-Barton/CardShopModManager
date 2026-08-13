@@ -152,6 +152,34 @@ public sealed class DeploymentServiceTests : IDisposable
         Assert.True(bepinexIdx < pluginIdx, $"BepInEx must be ordered before plugins.\n{text}");
     }
 
+    [Fact]
+    public void Validate_MalformedManifest_ReturnsFriendlyJsonError_Bug026()
+    {
+        // BUG-026: a malformed manifest must surface a friendly "not valid JSON"
+        // message, not the raw serializer exception through the top-level handler.
+        var manifestPath = Path.Combine(_root, "bad.json");
+        File.WriteAllText(manifestPath, "{ \"manifestVersion\": 1, \"name\": \"oops\", ");
+
+        var report = new DeploymentService().Validate(manifestPath, null);
+
+        Assert.False(report.Success);
+        Assert.Contains(report.Lines, l => l.Contains("not valid JSON"));
+    }
+
+    [Fact]
+    public void Install_MalformedManifest_ReturnsFriendlyJsonError_Bug026()
+    {
+        var manifestPath = Path.Combine(_root, "bad.json");
+        File.WriteAllText(manifestPath, "not json at all");
+        var gameFolder = Path.Combine(_root, "game");
+        Directory.CreateDirectory(gameFolder);
+
+        var report = new DeploymentService().Install(manifestPath, _sourceDir, gameFolder);
+
+        Assert.False(report.Success);
+        Assert.Contains(report.Lines, l => l.Contains("not valid JSON"));
+    }
+
     // --- helpers -----------------------------------------------------------
 
     private string WriteManifest(string[] modJsons, string fileName = "manifest.json")

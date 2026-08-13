@@ -9,6 +9,7 @@ public static class ValidateCommand
         if (string.IsNullOrWhiteSpace(manifestPath))
         {
             Console.WriteLine("Usage: validate <manifest.json> [gameFolder]");
+            Environment.ExitCode = 2;
             return;
         }
 

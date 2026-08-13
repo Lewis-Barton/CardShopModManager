@@ -40,6 +40,16 @@ public static class ModpackCommand
             return;
         }
 
+        // BUG-035: validate the install id up front, before any network fetch, so
+        // a missing id prints a usage hint instead of "Unexpected error" after a
+        // wasted round-trip to GitHub.
+        if (sub is "install" && arg1 is null)
+        {
+            Console.WriteLine("Usage: modpack install <id> [game]");
+            Environment.ExitCode = 2;
+            return;
+        }
+
         var reader = new ModpackIndexReader();
         var index = await reader.FetchIndexAsync();
 
@@ -57,7 +67,7 @@ public static class ModpackCommand
             return;
         }
 
-        var packId = arg1 ?? throw new ArgumentException("modpack install needs a pack id");
+        var packId = arg1!;
         var summary = index.Packs.FirstOrDefault(p =>
             p.Id.Equals(packId, StringComparison.OrdinalIgnoreCase));
 

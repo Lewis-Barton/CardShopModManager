@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace TCGCardShopSimModManager.Core;
 
 public sealed record DeploymentReport(bool Success, List<string> Lines)
@@ -35,7 +37,17 @@ public sealed class DeploymentService
         if (!File.Exists(manifestPath))
             return DeploymentReport.Failure(lines, $"Manifest file not found: {manifestPath}");
 
-        var manifest = ModpackInstaller.EnforceBepInExFirst(new ManifestReader().Read(manifestPath));
+        // BUG-026: a malformed manifest must surface a friendly message, not the
+        // raw serializer exception via the top-level handler.
+        ModListManifest manifest;
+        try
+        {
+            manifest = ModpackInstaller.EnforceBepInExFirst(new ManifestReader().Read(manifestPath));
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return DeploymentReport.Failure(lines, $"Manifest is not valid JSON: {ex.Message}");
+        }
         var validation = new ManifestValidator().Validate(manifest);
         if (!validation.IsValid)
         {
@@ -70,7 +82,17 @@ public sealed class DeploymentService
         if (!File.Exists(manifestPath))
             return DeploymentReport.Failure(lines, $"Manifest file not found: {manifestPath}");
 
-        var manifest = new ManifestReader().Read(manifestPath);
+        // BUG-026: a malformed manifest must surface a friendly message, not the
+        // raw serializer exception via the top-level handler.
+        ModListManifest manifest;
+        try
+        {
+            manifest = new ManifestReader().Read(manifestPath);
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return DeploymentReport.Failure(lines, $"Manifest is not valid JSON: {ex.Message}");
+        }
         return Install(manifest, sourceDirectory, gameFolderPath);
     }
 

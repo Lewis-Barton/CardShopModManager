@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TCGCardShopSimModManager.Core;
 
 namespace TCGCardShopSimModManager.Cli;
@@ -13,10 +14,31 @@ public static class PlanCommand
         if (manifestPath is null || sourceDirectory is null || gameFolderPath is null)
         {
             Console.WriteLine("Usage: plan <manifest.json> <sourceDir> <gameFolder>");
+            Environment.ExitCode = 2;
             return;
         }
 
-        var manifest = new ManifestReader().Read(manifestPath);
+        // BUG-036: validate argument values at the CLI boundary. A missing or
+        // malformed manifest should fail with a clear message, not the generic
+        // "Unexpected error" from the top-level handler.
+        if (!File.Exists(manifestPath))
+        {
+            Console.WriteLine($"Manifest file not found: {manifestPath}");
+            Environment.ExitCode = 2;
+            return;
+        }
+
+        ModListManifest manifest;
+        try
+        {
+            manifest = new ManifestReader().Read(manifestPath);
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            Console.WriteLine($"Manifest is not valid JSON: {ex.Message}");
+            Environment.ExitCode = 1;
+            return;
+        }
         var validation = new ManifestValidator().Validate(manifest);
 
         if (!validation.IsValid)

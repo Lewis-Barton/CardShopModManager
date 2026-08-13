@@ -9,9 +9,9 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 |----------|------|-------|
 | Critical | 0 | 1 |
 | High     | 1 | 12 |
-| Medium   | 7 | 11 |
-| Low      | 2 | 6 |
-| **Total**| **10** | **30** |
+| Medium   | 5 | 12 |
+| Low      | 1 | 8 |
+| **Total**| **7** | **33** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |
@@ -41,8 +41,8 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 | BUG-023 | Medium | archive | oversized archives install partially and report success | Fixed | ZipArchiveExtractor.cs, ModInstaller.cs | ExtractionResult.Truncated (set on entry/size cap) now makes CreatePlan throw InvalidDataException, so a partial copy is never installed | BUG-023: a truncated extraction must fail loudly, not install partial + report success | Verified (unit + suite) |
 | BUG-024 | Medium | validation | safe archive filenames with ".." (MyMod..v1.zip) falsely rejected | Fixed | ManifestValidator.cs | Replaced the `Contains("..")` substring test with a segment-based traversal check (rejects a `..` *segment* or rooted path, allows `..` inside a filename) | BUG-024: `MyMod..v1.zip` is a safe filename and must validate | Verified (unit + suite) |
 | BUG-025 | Medium | validation | installType "BepInEx" accepted for non-bepinex id on local path | Fixed | ManifestValidator.cs | Reserved the `BepInEx` install type for the framework entry (id `bepinex`); a non-framework mod claiming it is now rejected | BUG-025: `BepInEx` is the framework's reserved type and must not be used by ordinary mods | Verified (unit + suite) |
-| BUG-026 | Low | UX | malformed manifests surface raw serializer exceptions | Open | ManifestReader.cs, Program.cs | | | |
-| BUG-027 | Low | CLI | install with <3 args prints usage but exits 0 | Open | InstallCommand.cs, Program.cs | | | |
+| BUG-026 | Low | UX | malformed manifests surface raw serializer exceptions | Fixed | DeploymentService.cs | `Validate`/`Install` now catch `JsonException`/`InvalidOperationException` from `ManifestReader.Read` and return a friendly `DeploymentReport.Failure` ("Manifest is not valid JSON: ...") instead of the raw serializer message | BUG-026: a malformed manifest must read as a clear user-facing error, not the internal JSON parser exception | Verified (unit + CLI smoke + suite) |
+| BUG-027 | Low | CLI | install with <3 args prints usage but exits 0 | Fixed | InstallCommand.cs, ValidateCommand.cs, PlanCommand.cs | All three commands now set `Environment.ExitCode = 2` on the usage branch, matching the unknown-command handling in `Program.cs` | BUG-027: a usage/misuse error must be detectable by callers via a non-zero exit code | Verified (CLI smoke + suite) |
 | BUG-028 | Low | validation | empty mods list validated as valid (no warning) | Fixed | ManifestValidator.cs | `Validate` now reports an error when `Mods` is null/empty | BUG-028: an empty pack must be surfaced, not silently "valid" | Verified (unit + suite) |
 | BUG-029 | Medium | classifier | loose .dll at root alongside BepInEx/ lands in game root, not BepInEx/plugins | Fixed | ArchiveClassifier.cs | In the BepInExLayout branch, a root-level .dll now routes to BepInEx/plugins/<mod>/ instead of mirroring to the game root | BUG-029: loose plugin DLL must live under plugins, never the game root where the loader could pick it up | Verified (unit + suite) |
 | BUG-030 | Low | archive | nested .zip installed as-is, unvalidated | Fixed | ZipArchiveExtractor.cs, ArchiveProtectionSettings.cs | ArchiveProtectionSettings.Default now rejects archive extensions (.zip/.7z/.rar/.tar/.gz/.tgz/.bz2/.xz) so a nested archive is refused, not written unvalidated | BUG-030: a nested archive bypasses all protection checks if written verbatim | Verified (unit + suite) |
@@ -50,8 +50,8 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 | BUG-032 | High | modpack validate | BepInEx framework accepted with wrong installType "BepInExPlugin" -> VALID | Fixed | ManifestValidator.cs, ModpackSubmissionValidator.cs | Framework entry (id `bepinex`) must use `BepInEx` install type; `ModpackSubmissionValidator` enforces the exact type on the framework entry | BUG-032: a mislabeled framework entry must be INVALID | Verified (unit + suite) |
 | BUG-033 | Medium | modpack validate | wrong manifest (different pack name) accepted as VALID | Fixed | ModpackSubmissionValidator.cs | Manifest/index name mismatch is now an error (was only a warning), so a mismatched manifest cannot validate as VALID | BUG-033: a manifest for a different pack must not validate as VALID | Verified (unit + suite) |
 | BUG-034 | Low | modpack validate | no path sanitization for logo/manifest refs (traversal/absolute) | Fixed | ModpackSubmissionValidator.cs, ManifestValidator.cs | `ModpackSubmissionValidator` now rejects `..`/rooted `Logo`/`Manifest` references before resolving (consistent with archive handling) | BUG-034: traversal/absolute logo/manifest refs must be rejected | Verified (unit + suite) |
-| BUG-035 | Medium | CLI UX | `modpack install` no-id throws "Unexpected error" after network fetch | Open | ModpackCommand.cs, Program.cs | | | |
-| BUG-036 | Medium | CLI UX | missing/bad args collapse into generic "Unexpected error" | Open | InstallCommand.cs, ValidateCommand.cs, PlanCommand.cs, Program.cs | | | |
+| BUG-035 | Medium | CLI UX | `modpack install` no-id throws "Unexpected error" after network fetch | Fixed | ModpackCommand.cs | `ModpackCommand` now validates the install id up front (before `FetchIndexAsync`) and prints a usage hint with exit code 2, so no wasted network round-trip | BUG-035: a missing pack id should be a usage hint, not a scary "Unexpected error" after fetching the index | Verified (CLI smoke) |
+| BUG-036 | Medium | CLI UX | missing/bad args collapse into generic "Unexpected error" | Fixed | PlanCommand.cs, DeploymentService.cs | `PlanCommand` now validates the manifest's existence and JSON at the CLI boundary with clear messages and non-zero exit codes; `DeploymentService` already returns friendly not-found/invalid-JSON errors, so bad arguments no longer reach the generic top-level handler | BUG-036: argument *values* must be validated where they enter, reserving "Unexpected error" for genuine crashes | Verified (CLI smoke + suite) |
 | BUG-037 | Medium | UI | RunHandler swallows exceptions -> stale UI state on thrown failure | Open | MainWindow.cs | | | |
 | BUG-038 | Medium | UI | WelcomeDetectAsync not wrapped -> unobserved exception at startup risk | Open | MainWindow.cs | | | |
 | BUG-039 | Low | CLI | serve ignores SIGINT headless; no clean shutdown | Open | ServeCommand.cs, LocalHttpServer.cs | | | |
@@ -113,4 +113,15 @@ Detailed entries are appended here as bugs are resolved (files changed, what/why
   - BUG-003 (High): `MainWindow.OnPackInstallAsync` now forwards the selected pack via `InstallAsync(manifest, fallback, pack: pack)`, so the `ModpackJournalStore.Record` call runs on success and the update badge/button work in the GUI.
 - **Why:** These were silent-success / wrong-ordering / late-conflict holes in the local install and resolver paths (and the GUI journal-write gap).
 - **Verification:** New tests `DeploymentServiceTests.Install_ReportsFailureWhenAModInstallsNothing_Bug017`, `Install_RefusesConflictWithInstalledMod_Bug019`, `Validate_EnforcesBepInExFirst_Bug020`; `ModListResolverTests.RejectsDependencyThatMatchesOnlyByCase_Bug021`, `RejectsConflictThatMatchesOnlyByCase_Bug021`; `DestinationConflictFinderTests.PendingPlanCollidingWithInstalledMod_IsReported_Bug019` all pass; full Core suite 130/130; solution builds clean (incl. GUI).
+
+### BUG-026, BUG-027, BUG-035, BUG-036 — CLI error handling & argument UX (Workstream 5)
+- **Files:** `DeploymentService.cs`, `InstallCommand.cs`, `ValidateCommand.cs`, `PlanCommand.cs`, `ModpackCommand.cs` (+ tests `DeploymentServiceTests.cs`)
+- **What:**
+  - BUG-026 (Low): `DeploymentService.Validate`/`Install` now wrap `ManifestReader.Read` in a try/catch for `JsonException`/`InvalidOperationException` and return a friendly `DeploymentReport.Failure` ("Manifest is not valid JSON: ...") — the raw serializer message no longer escapes to the user.
+  - BUG-027 (Low): `InstallCommand`, `ValidateCommand`, and `PlanCommand` now set `Environment.ExitCode = 2` on the usage branch, matching the unknown-command handling in `Program.cs`, so misuse is detectable by scripts.
+  - BUG-035 (Medium): `ModpackCommand` validates the `install` pack id up front (before `FetchIndexAsync`) and prints a usage hint with exit code 2 — no wasted network round-trip and no "Unexpected error".
+  - BUG-036 (Medium): `PlanCommand` validates the manifest's existence and JSON at the CLI boundary with clear messages; combined with BUG-026, bad arguments no longer collapse into the generic top-level "Unexpected error".
+- **Why:** These were raw-exception leaks and silent zero-exit misuse paths at the CLI boundary.
+- **Verification:** New tests `DeploymentServiceTests.Validate_MalformedManifest_ReturnsFriendlyJsonError_Bug026`, `Install_MalformedManifest_ReturnsFriendlyJsonError_Bug026`; CLI smoke confirms `validate`/`install a b`/`plan` exit 2, `validate bad.json` exits 1 with friendly text, `plan missing.json` exits 2 with "not found", and `modpack install` (no id) exits 2 with a usage hint and no fetch; full Core suite 132/132.
+
 
