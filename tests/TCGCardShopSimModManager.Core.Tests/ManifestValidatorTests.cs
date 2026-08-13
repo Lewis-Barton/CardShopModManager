@@ -30,6 +30,33 @@ public sealed class ManifestValidatorTests
         Assert.Contains(result.Errors, e => e.Contains("unsafe"));
     }
 
+    [Theory]
+    [InlineData("../escape")]
+    [InlineData("..\\escape")]
+    [InlineData("folder/name")]
+    [InlineData("folder\\name")]
+    [InlineData(".")]
+    [InlineData("..")]
+    public void Validate_RejectsModNameThatIsUnsafeAsFolder(string name)
+    {
+        var mod = Mod("example-mod", "BepInExPlugin", "mod.zip") with { Name = name };
+
+        var result = new ManifestValidator().Validate(Manifest(mod));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("safe folder name"));
+    }
+
+    [Fact]
+    public void Validate_AcceptsDotsInsideModName()
+    {
+        var mod = Mod("example-mod", "BepInExPlugin", "mod.zip") with { Name = "Example..Mod" };
+
+        var result = new ManifestValidator().Validate(Manifest(mod));
+
+        Assert.True(result.IsValid, string.Join("\n", result.Errors));
+    }
+
     [Fact]
     public void Validate_RejectsReservedBepInExTypeForNonFramework() // BUG-025
     {

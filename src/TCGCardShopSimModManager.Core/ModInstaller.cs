@@ -479,8 +479,24 @@ public UninstallResult Uninstall(string modName)
     /// Turn a forward-slash relative destination (as ZIP stores it) into a real
     /// absolute path on this OS, using the platform's directory separator.
     /// </summary>
-    private static string PhysicalPath(string gameFolderPath, string relativePath) =>
-        Path.Combine(gameFolderPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+    private static string PhysicalPath(string gameFolderPath, string relativePath)
+    {
+        if (Path.IsPathRooted(relativePath))
+            throw new InvalidDataException($"Install destination must be relative: {relativePath}");
+
+        var gameRoot = Path.GetFullPath(gameFolderPath);
+        var destination = Path.GetFullPath(Path.Combine(
+            gameRoot,
+            relativePath.Replace('/', Path.DirectorySeparatorChar)));
+        var requiredPrefix = Path.EndsInDirectorySeparator(gameRoot)
+            ? gameRoot
+            : gameRoot + Path.DirectorySeparatorChar;
+
+        if (!destination.StartsWith(requiredPrefix, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException($"Install destination escapes the game folder: {relativePath}");
+
+        return destination;
+    }
 
     private static string ComputeSha256(string filePath)
     {

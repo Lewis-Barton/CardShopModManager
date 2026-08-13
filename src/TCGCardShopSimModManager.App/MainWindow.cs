@@ -32,6 +32,8 @@ public sealed partial class MainWindow : Window
     private List<InstalledModpack> _installedPacks = new();
     private ModpackSummary? _selectedPack;
     private ModListManifest? _selectedManifest;
+    private int _packSelectionVersion;
+    private bool _packInstallRunning;
     private readonly HttpClient _http = new();
     private readonly ModpackIndexReader _packReader = new();
 
@@ -249,12 +251,13 @@ public sealed partial class MainWindow : Window
             });
 
         card.Child = stack;
-        card.PointerPressed += (_, _) => _ = SelectPack(pack);
+        card.PointerPressed += async (_, _) => await RunHandler(() => SelectPack(pack));
         return card;
     }
 
     private async Task SelectPack(ModpackSummary pack)
     {
+        var selectionVersion = ++_packSelectionVersion;
         _selectedPack = pack;
         _selectedManifest = null;
         _packInstall.IsEnabled = false;
@@ -264,12 +267,16 @@ public sealed partial class MainWindow : Window
         _packStatus.Text = "Reading manifest...";
 
         var logo = await LoadLogoAsync(_packReader.LogoUrl(pack));
+        if (selectionVersion != _packSelectionVersion)
+            return;
         if (logo is not null)
             _packLogo.Source = logo;
 
         try
         {
             var manifest = await _packReader.FetchManifestAsync(pack);
+            if (selectionVersion != _packSelectionVersion)
+                return;
             _selectedManifest = manifest;
             _packMods.ItemsSource = manifest.Mods
                 .Select(m => $"  {m.Name} {m.Version ?? ""}".Trim())
@@ -280,12 +287,16 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            _packStatus.Text = $"Could not read manifest: {ex.Message}";
+            if (selectionVersion == _packSelectionVersion)
+                _packStatus.Text = $"Could not read manifest: {ex.Message}";
         }
     }
 
     private async Task OnPackInstallAsync()
     {
+        if (_packInstallRunning)
+            return;
+
         var pack = _selectedPack;
         var manifest = _selectedManifest;
         var gameFolder = _gameBox.Text;
@@ -301,10 +312,21 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        PackLog($"--- Install {pack.Name} into {gameFolder}");
-        var fallback = BuildFallback(pack);
-        var report = await RunUnderPack(() =>
-            new ModpackInstaller(gameFolder, _http).InstallAsync(manifest, fallback, pack: pack));
+        _packInstallRunning = true;
+        _packInstall.IsEnabled = false;
+        DeploymentReport report;
+        try
+        {
+            PackLog($"--- Install {pack.Name} into {gameFolder}");
+            var fallback = BuildFallback(pack);
+            report = await RunUnderPack(() =>
+                new ModpackInstaller(gameFolder, _http).InstallAsync(manifest, fallback, pack: pack));
+        }
+        finally
+        {
+            _packInstallRunning = false;
+            _packInstall.IsEnabled = _selectedManifest is not null;
+        }
 
         foreach (var line in report.Lines)
             PackLog(line);

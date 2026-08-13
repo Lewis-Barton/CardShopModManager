@@ -28,10 +28,11 @@ public sealed class ModpackInstaller
         ModpackSummary? pack = null,
         CancellationToken cancellationToken = default)
     {
+        var ownsCacheDirectory = cacheDirectory is null;
         cacheDirectory ??= Path.Combine(
             Path.GetTempPath(),
             "cardshopmodmanager-modpack",
-            (manifest.Name ?? "pack").ToLowerInvariant());
+            Guid.NewGuid().ToString("N"));
 
         // Pre-flight: if the pack declares a total download size, refuse early
         // (before touching the network) when the download temp location or the
@@ -67,11 +68,12 @@ public sealed class ModpackInstaller
         var report = new DeploymentService().Install(
             EnforceBepInExFirst(manifest), cacheDirectory, _gameFolderPath);
 
-        // The install copied what it needed out of the temp cache; drop it so a
-        // finished modpack doesn't leave the downloaded archives on disk.
+        // Only remove a workspace created by this installer. A supplied cache
+        // belongs to the caller and may contain archives used by other packs.
         if (report.Success)
         {
-            TryDeleteDirectory(cacheDirectory);
+            if (ownsCacheDirectory)
+                TryDeleteDirectory(cacheDirectory);
 
             // Remember which pack version we just laid down, so the app can later
             // tell the user a newer one is published.

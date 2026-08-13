@@ -128,7 +128,7 @@ public sealed class ModpackTests : IDisposable
     }
 
     [Fact]
-    public async Task ModpackInstaller_PreflightPassesAndCleansTempCache_WhenTotalSizeDeclared()
+    public async Task ModpackInstaller_PreflightPasses_WhenTotalSizeDeclared()
     {
         var archiveBytes = MakeZip(("ExampleMod.dll", "dll-bytes"));
         var sha = Sha(archiveBytes);
@@ -149,11 +149,58 @@ public sealed class ModpackTests : IDisposable
 
         var installed = Path.Combine(gameFolder, "BepInEx", "plugins", "Example Mod", "ExampleMod.dll");
         Assert.True(File.Exists(installed));
+    }
 
-        // A successful install must delete the temp download cache so the
-        // archives don't linger on disk.
-        var cacheDir = Path.Combine(Path.GetTempPath(), "cardshopmodmanager-modpack", "cleanup pack");
-        Assert.False(Directory.Exists(cacheDir), "temp modpack cache should be deleted after install");
+    [Fact]
+    public async Task ModpackInstaller_DoesNotDeleteCallerOwnedCache()
+    {
+        var archiveBytes = MakeZip(("ExampleMod.dll", "dll-bytes"));
+        var sha = Sha(archiveBytes);
+        _server.Provider = _ => new HttpResponse(200, archiveBytes, null);
+
+        var mod = new ModEntry(
+            "example-mod", "Example Mod", null, "ExampleMod.zip", sha, "BepInExPlugin",
+            new List<string>(), new List<string>(), DownloadUrl: _server.Url("ExampleMod.zip"));
+        var manifest = new ModListManifest(1, "Pack", "tcgcardshopsimulator", new List<ModEntry> { mod });
+        var gameFolder = Path.Combine(_root, "game");
+        var cacheDirectory = Path.Combine(_root, "shared-cache");
+        Directory.CreateDirectory(gameFolder);
+        Directory.CreateDirectory(cacheDirectory);
+        var unrelatedFile = Path.Combine(cacheDirectory, "keep.txt");
+        File.WriteAllText(unrelatedFile, "belongs to caller");
+
+        var report = await new ModpackInstaller(gameFolder).InstallAsync(
+            manifest, cacheDirectory: cacheDirectory);
+
+        Assert.True(report.Success, string.Join("\n", report.Lines));
+        Assert.True(File.Exists(unrelatedFile));
+        Assert.True(Directory.Exists(cacheDirectory));
+    }
+
+    [Fact]
+    public async Task ModpackInstaller_ManifestNameCannotChooseCleanupDirectory()
+    {
+        var archiveBytes = MakeZip(("ExampleMod.dll", "dll-bytes"));
+        var sha = Sha(archiveBytes);
+        _server.Provider = _ => new HttpResponse(200, archiveBytes, null);
+
+        var protectedDirectory = Path.Combine(_root, "do-not-delete");
+        Directory.CreateDirectory(protectedDirectory);
+        var sentinel = Path.Combine(protectedDirectory, "keep.txt");
+        File.WriteAllText(sentinel, "keep");
+
+        var mod = new ModEntry(
+            "example-mod", "Example Mod", null, "ExampleMod.zip", sha, "BepInExPlugin",
+            new List<string>(), new List<string>(), DownloadUrl: _server.Url("ExampleMod.zip"));
+        var manifest = new ModListManifest(
+            1, protectedDirectory, "tcgcardshopsimulator", new List<ModEntry> { mod });
+        var gameFolder = Path.Combine(_root, "game");
+        Directory.CreateDirectory(gameFolder);
+
+        var report = await new ModpackInstaller(gameFolder).InstallAsync(manifest);
+
+        Assert.True(report.Success, string.Join("\n", report.Lines));
+        Assert.Equal("keep", File.ReadAllText(sentinel));
     }
 
     [Fact]

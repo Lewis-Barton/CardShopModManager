@@ -87,6 +87,20 @@ public sealed class ModInstallerTests : IDisposable
     }
 
     [Fact]
+    public void Install_RejectsDestinationOutsideGameFolder_WhenValidationIsBypassed()
+    {
+        var mod = AddLooseFile("ExampleMod.dll", "dll-bytes") with { Name = "../../../escaped" };
+        var escaped = Path.Combine(_testRoot, "escaped", "ExampleMod.dll");
+
+        var result = _installer.Install(mod, _sourceDir);
+
+        Assert.False(result.Success);
+        Assert.Contains("escapes the game folder", result.Error);
+        Assert.False(File.Exists(escaped));
+        Assert.Empty(new JournalStore(_gameFolder).Load());
+    }
+
+    [Fact]
     public void Install_WorksWithSpacesInGamePath()
     {
         // The real-world matrix: a library path containing spaces must behave

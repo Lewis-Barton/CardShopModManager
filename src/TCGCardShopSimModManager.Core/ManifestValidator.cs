@@ -36,6 +36,8 @@ public sealed class ManifestValidator
         {
             if (string.IsNullOrWhiteSpace(mod.Name))
                 errors.Add("A mod entry is missing a name.");
+            else if (!IsSafeDirectoryName(mod.Name))
+                errors.Add($"{mod.Name}: mod name cannot be used as a safe folder name.");
             else if (!seenNames.Add(mod.Name))
                 errors.Add($"Duplicate mod name: {mod.Name}");
 
@@ -78,5 +80,13 @@ public sealed class ManifestValidator
                 return true;
 
         return false;
+    }
+
+    private static bool IsSafeDirectoryName(string name)
+    {
+        if (name is "." or ".." || name.IndexOfAny(new[] { '/', '\\' }) >= 0)
+            return false;
+
+        return name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
     }
 }

@@ -4,6 +4,26 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 **Update this file as each bug is fixed:** set `Status` → `Fixed`, fill the **Fix** and
 **Why / PR** columns, and record verification.
 
+## 2026-08-13 follow-up review
+
+The original table below remains the record of the first 40 bugs. A broader
+design review found three additional safety issues, now fixed:
+
+- **BUG-041 — unsafe modpack cache cleanup (Critical):** hosted installs now use
+  a GUID-named internal workspace instead of deriving a directory from the
+  manifest name. A caller-supplied cache is never deleted by the installer.
+  Covered by `ModpackInstaller_ManifestNameCannotChooseCleanupDirectory` and
+  `ModpackInstaller_DoesNotDeleteCallerOwnedCache`.
+- **BUG-042 — mod-name destination traversal (High):** manifest validation now
+  requires mod names that can safely form one directory segment. The installer
+  also resolves every final destination and refuses paths outside the selected
+  game folder, even when validation is bypassed. Covered by manifest-validation
+  theories and `Install_RejectsDestinationOutsideGameFolder_WhenValidationIsBypassed`.
+- **BUG-043 — stale modpack selection race (High):** the desktop app now tags
+  each asynchronous selection and ignores results belonging to an older click,
+  preventing one pack's metadata from being paired with another pack's
+  manifest. The install action also rejects re-entry while it is running.
+
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
@@ -143,7 +163,6 @@ Detailed entries are appended here as bugs are resolved (files changed, what/why
   - BUG-039 (Low): `ServeCommand` now also watches for stdin EOF and `AppDomain.ProcessExit` (in addition to Ctrl+C) and disposes the server on each, so a headless or terminated run releases the listener cleanly.
 - **Why:** These were the last open holes — update detection ignoring real version formats / false-positiving on component counts, and a demo server that wouldn't shut down cleanly headless.
 - **Verification:** New test `ModpackTests.ModpackVersion_IsNewer_ToleratesPrefixesAndComponentCounts_Bug006_Bug007`; full Core suite 135/135; solution builds clean. BUG-039 verified by build + source analysis. **All 40 known bugs are now fixed.**
-
 
 
 
