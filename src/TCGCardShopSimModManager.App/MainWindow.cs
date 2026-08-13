@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
@@ -21,33 +22,26 @@ namespace TCGCardShopSimModManager.App;
 /// </summary>
 public sealed partial class MainWindow : Window
 {
-    // The controls declared with x:Name in MainWindow.axaml (_gameBox, _log, ...)
-    // are generated for this partial class by Avalonia's name generator, so we
-    // don't declare them here.
-
     private List<DiscoveredMod> _discovered = new();
 
-    // Modpack gallery state (the "Modpacks" tab).
     private List<ModpackSummary> _packs = new();
     private List<InstalledModpack> _installedPacks = new();
-    private ModpackSummary? _selectedPack;
-    private ModListManifest? _selectedManifest;
-    private int _packSelectionVersion;
-    private bool _packInstallRunning;
     private readonly HttpClient _http = new();
-    private readonly ModpackIndexReader _packReader = new();
+    private readonly ModpackIndexReader _packReader;
+    private AppSettings _settings = AppSettings.Load();
 
     public MainWindow()
     {
-        // Builds the visual tree declared in MainWindow.axaml and assigns the
-        // x:Name fields (_log, _gameBox, ...). Must use InitializeComponent
-        // (not AvaloniaXamlLoader.Load) so those fields are populated.
+        _packReader = new ModpackIndexReader(_http);
         InitializeComponent();
         Closed += (_, _) => _http.Dispose();
 
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         if (version is not null)
+        {
             Title = $"TCG Card Shop Sim Mod Manager {version}";
+            _versionText.Text = $"Version {version.ToString(3)}";
+        }
 
         // BUG-038: an exception during startup detection must be caught and
         // logged, not left as an unobserved async-void exception that can crash
@@ -65,8 +59,44 @@ public sealed partial class MainWindow : Window
     private async void OnDisableClick(object? sender, RoutedEventArgs e) => await RunHandler(OnDisableAsync);
     private async void OnUpdateCheckClick(object? sender, RoutedEventArgs e) => await RunHandler(OnUpdateCheckAsync);
     private async void OnExportBundleClick(object? sender, RoutedEventArgs e) => await RunHandler(OnExportBundleAsync);
-    private async void OnPackInstallClick(object? sender, RoutedEventArgs e) => await RunHandler(OnPackInstallAsync);
     private async void OnPickGameFolder(object? sender, RoutedEventArgs e) => await RunHandler(() => PickFolderAsync(_gameBox));
+    private async void OnRefreshPacksClick(object? sender, RoutedEventArgs e) => await RunHandler(LoadPacksAsync);
+    private void OnBrowseNavClick(object? sender, RoutedEventArgs e) => ShowPage(_browsePage, _browseNav);
+    private void OnManageNavClick(object? sender, RoutedEventArgs e) => ShowPage(_managePage, _manageNav);
+    private void OnSettingsNavClick(object? sender, RoutedEventArgs e) => ShowPage(_settingsPage, _settingsNav);
+    private void OnPackTextFilterChanged(object? sender, TextChangedEventArgs e) => ApplyPackFilters();
+    private async void OnPackCheckFilterChanged(object? sender, RoutedEventArgs e)
+    {
+        if (ReferenceEquals(sender, _includeAdult) && _includeAdult.IsChecked == true &&
+            !_settings.Confirmed18Plus)
+        {
+            var confirmed = await ConfirmDialog.Show(this, "Show 18+ modpacks",
+                "This may show modpacks intended for adults. Confirm that you are at least 18 years old.");
+            if (!confirmed)
+            {
+                _includeAdult.IsChecked = false;
+                return;
+            }
+
+            _settings = _settings with { Confirmed18Plus = true };
+            AppSettings.Save(_settings);
+        }
+
+        ApplyPackFilters();
+    }
+    private void OnPackSizeFilterChanged(object? sender, RangeBaseValueChangedEventArgs e) => ApplyPackFilters();
+    private void OnResetFiltersClick(object? sender, RoutedEventArgs e)
+    {
+        _packSearch.Text = string.Empty;
+        _modFilter.Text = string.Empty;
+        _tagFilter.Text = string.Empty;
+        _includeNonFeatured.IsChecked = true;
+        _includeAdult.IsChecked = false;
+        _installedOnly.IsChecked = false;
+        _excludeMod.IsChecked = false;
+        _sizeFilter.Value = _sizeFilter.Maximum;
+        ApplyPackFilters();
+    }
 
     private async Task RunHandler(Func<Task> action)
     {
@@ -132,7 +162,8 @@ public sealed partial class MainWindow : Window
 
     private async Task LoadPacksAsync()
     {
-        PackLog("Loading modpacks from GitHub...");
+        _packStatus.Text = "Loading modpacks from GitHub...";
+        _packProgress.IsVisible = true;
         try
         {
             var index = await _packReader.FetchIndexAsync();
@@ -148,17 +179,18 @@ public sealed partial class MainWindow : Window
             catch (Exception ex)
             {
                 _installedPacks = new List<InstalledModpack>();
-                PackLog($"Could not read installed modpacks (update badges disabled): {ex.Message}");
+                _packStatus.Text = $"Could not read installed modpacks: {ex.Message}";
             }
 
-            _packsPanel.Children.Clear();
-            foreach (var pack in _packs)
-                _packsPanel.Children.Add(BuildPackCard(pack, IsUpdateAvailable(pack)));
-            PackLog($"Found {_packs.Count} modpack(s).");
+            ApplyPackFilters();
         }
         catch (Exception ex)
         {
-            PackLog($"Could not load modpacks: {ex.Message}");
+            _packStatus.Text = $"Could not load modpacks: {ex.Message}";
+        }
+        finally
+        {
+            _packProgress.IsVisible = false;
         }
     }
 
@@ -213,18 +245,54 @@ public sealed partial class MainWindow : Window
         return installed is not null && ModpackVersion.IsNewer(installed.PackVersion, pack.Version);
     }
 
+    private void ApplyPackFilters()
+    {
+        if (_packsPanel is null)
+            return;
+
+        var search = _packSearch.Text?.Trim();
+        var mod = _modFilter.Text?.Trim();
+        var tag = _tagFilter.Text?.Trim();
+        var maxBytes = _sizeFilter.Value >= _sizeFilter.Maximum
+            ? (long?)null
+            : (long)(_sizeFilter.Value * 1024 * 1024 * 1024);
+
+        _sizeFilterLabel.Text = maxBytes is null ? "Any size" : $"Up to {_sizeFilter.Value:0} GB";
+        var visible = _packs.Where(pack =>
+            (string.IsNullOrEmpty(search) || pack.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+             pack.ShortDescription.Contains(search, StringComparison.OrdinalIgnoreCase)) &&
+            (_includeNonFeatured.IsChecked == true || pack.Featured) &&
+            (_includeAdult.IsChecked == true || !pack.Nsfw) &&
+            (maxBytes is null || pack.DownloadSize is null || pack.DownloadSize <= maxBytes) &&
+            (string.IsNullOrEmpty(mod) ||
+             (pack.ModIds?.Any(value => value.Contains(mod, StringComparison.OrdinalIgnoreCase)) == true) !=
+             (_excludeMod.IsChecked == true)) &&
+            (string.IsNullOrEmpty(tag) || pack.Tags?.Any(value => value.Contains(tag, StringComparison.OrdinalIgnoreCase)) == true) &&
+            (_installedOnly.IsChecked != true || _installedPacks.Any(installed => pack.IsId(installed.PackId))))
+            .ToList();
+
+        _packsPanel.Children.Clear();
+        foreach (var pack in visible)
+            _packsPanel.Children.Add(BuildPackCard(pack, IsUpdateAvailable(pack)));
+        _packStatus.Text = visible.Count == _packs.Count
+            ? $"{visible.Count} modpack(s) available."
+            : $"Showing {visible.Count} of {_packs.Count} modpack(s).";
+    }
+
     private Border BuildPackCard(ModpackSummary pack, bool updateAvailable)
     {
         var card = new Border
         {
-            Classes = { "card" },
-            Width = 200,
-            Margin = new Thickness(0, 0, 8, 8),
-            Padding = new Thickness(8)
+            Classes = { "card", "packCard" },
+            Width = 360,
+            Height = 230,
+            Margin = new Thickness(0, 0, 14, 14),
+            Padding = new Thickness(0),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
 
-        var stack = new StackPanel { Spacing = 4 };
-        var img = new Image { Width = 64, Height = 64, Stretch = Stretch.Uniform };
+        var grid = new Grid { RowDefinitions = new RowDefinitions("150,*") };
+        var img = new Image { Height = 150, Stretch = Stretch.UniformToFill };
 
         // Fetch the logo off the UI thread, then drop it in once it arrives.
         _ = LoadLogoAsync(_packReader.LogoUrl(pack)).ContinueWith(t =>
@@ -233,17 +301,20 @@ public sealed partial class MainWindow : Window
                 Dispatcher.UIThread.Post(() => img.Source = bmp);
         });
 
-        stack.Children.Add(img);
-        stack.Children.Add(new TextBlock { Text = pack.Name, FontWeight = FontWeight.Bold });
-        stack.Children.Add(new TextBlock
+        grid.Children.Add(img);
+        var details = new StackPanel { Spacing = 3, Margin = new Thickness(12, 8) };
+        Grid.SetRow(details, 1);
+        details.Children.Add(new TextBlock { Text = pack.Name, FontWeight = FontWeight.SemiBold, FontSize = 15 });
+        details.Children.Add(new TextBlock
         {
             Text = pack.ShortDescription,
             TextWrapping = TextWrapping.Wrap,
-            FontSize = 11
+            FontSize = 11,
+            MaxLines = 2
         });
 
         if (updateAvailable)
-            stack.Children.Add(new TextBlock
+            details.Children.Add(new TextBlock
             {
                 Text = "Update available",
                 Foreground = new SolidColorBrush(Colors.Orange),
@@ -251,110 +322,17 @@ public sealed partial class MainWindow : Window
                 FontWeight = FontWeight.Bold
             });
 
-        card.Child = stack;
-        card.PointerPressed += async (_, _) => await RunHandler(() => SelectPack(pack));
+        grid.Children.Add(details);
+        card.Child = grid;
+        card.PointerPressed += async (_, _) => await RunHandler(() => OpenPack(pack));
         return card;
     }
 
-    private async Task SelectPack(ModpackSummary pack)
+    private async Task OpenPack(ModpackSummary pack)
     {
-        var selectionVersion = ++_packSelectionVersion;
-        _selectedPack = pack;
-        _selectedManifest = null;
-        _packInstall.IsEnabled = false;
-        _packName.Text = pack.Name;
-        _packDesc.Text = pack.ShortDescription;
-        _packMods.ItemsSource = null;
-        _packStatus.Text = "Reading manifest...";
-
-        var logo = await LoadLogoAsync(_packReader.LogoUrl(pack));
-        if (selectionVersion != _packSelectionVersion)
-            return;
-        if (logo is not null)
-            _packLogo.Source = logo;
-
-        try
-        {
-            var manifest = await _packReader.FetchManifestAsync(pack);
-            if (selectionVersion != _packSelectionVersion)
-                return;
-            _selectedManifest = manifest;
-            _packMods.ItemsSource = manifest.Mods
-                .Select(m => $"  {m.Name} {m.Version ?? ""}".Trim())
-                .ToList();
-            _packInstall.IsEnabled = true;
-            _packInstall.Content = IsUpdateAvailable(pack) ? "Update" : "Install modpack";
-            _packStatus.Text = $"{manifest.Mods.Count} mod(s). Ready to install.";
-        }
-        catch (Exception ex)
-        {
-            if (selectionVersion == _packSelectionVersion)
-                _packStatus.Text = $"Could not read manifest: {ex.Message}";
-        }
-    }
-
-    private async Task OnPackInstallAsync()
-    {
-        if (_packInstallRunning)
-            return;
-
-        var pack = _selectedPack;
-        var manifest = _selectedManifest;
-        var gameFolder = _gameBox.Text;
-
-        if (pack is null || manifest is null)
-        {
-            PackLog("Select a modpack first.");
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(gameFolder))
-        {
-            PackLog("Set the game folder first (Local / Manage tab).");
-            return;
-        }
-
-        _packInstallRunning = true;
-        _packInstall.IsEnabled = false;
-        DeploymentReport report;
-        try
-        {
-            PackLog($"--- Install {pack.Name} into {gameFolder}");
-            var fallback = BuildFallback(pack);
-            report = await RunUnderPack(() =>
-                Task.Run(() => new ModpackInstaller(gameFolder, _http)
-                    .InstallAsync(manifest, fallback, pack: pack)));
-        }
-        finally
-        {
-            _packInstallRunning = false;
-            _packInstall.IsEnabled = _selectedManifest is not null;
-        }
-
-        foreach (var line in report.Lines)
-            PackLog(line);
-
-        _packStatus.Text = report.Success
-            ? $"Installed {pack.Name}."
-            : "Install did not complete — see the log above.";
-
-        if (report.Success)
-        {
-            // Refresh the gallery and this pack's badge/button now that the
-            // installed version is recorded.
-            await LoadPacksAsync();
-            if (_selectedPack is not null)
-                await SelectPack(_selectedPack);
-        }
-    }
-
-    private static IModSource? BuildFallback(ModpackSummary pack)
-    {
-        if (pack.Source is null)
-            return null;
-
-        return pack.Source.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-            ? new HttpModSource(m => $"{pack.Source.TrimEnd('/')}/{Uri.EscapeDataString(m.FileName)}")
-            : new LocalFileSource(pack.Source);
+        var detail = new PackDetailWindow(pack, _gameBox.Text, _http, _packReader);
+        await detail.ShowDialog(this);
+        await LoadPacksAsync();
     }
 
     private async Task<Bitmap?> LoadLogoAsync(string url)
@@ -370,23 +348,13 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void PackLog(string line)
+    private void ShowPage(Control page, Button nav)
     {
-        _packLog.Text += line + "\n";
-        _packLog.CaretIndex = _packLog.Text.Length;
-    }
-
-    private async Task<T> RunUnderPack<T>(Func<Task<T>> work)
-    {
-        _packProgress.IsVisible = true;
-        try
-        {
-            return await work();
-        }
-        finally
-        {
-            _packProgress.IsVisible = false;
-        }
+        _browsePage.IsVisible = ReferenceEquals(page, _browsePage);
+        _managePage.IsVisible = ReferenceEquals(page, _managePage);
+        _settingsPage.IsVisible = ReferenceEquals(page, _settingsPage);
+        foreach (var button in new[] { _browseNav, _manageNav, _settingsNav })
+            button.Classes.Set("active", ReferenceEquals(button, nav));
     }
 
     private async Task OnEnableAsync()

@@ -78,6 +78,13 @@ unit test already covers it, **[manual]** where it needs a real environment.
 
 ## Hosted modpacks (modpacks/)
 
+- [ ] **[manual]** Resize the desktop window at its minimum and normal sizes;
+      the navigation remains visible, filters remain usable and cards wrap
+      without overlapping or clipping.
+- [ ] **[manual]** Search and each Browse filter update the card grid, Reset
+      restores the full catalog, and clicking a card opens its details.
+- [ ] **[manual]** Enabling the 18+ filter asks for age confirmation once;
+      declining leaves adult packs hidden and confirmation survives a restart.
 - [ ] **[auto]** BepInEx is ordered first when a pack includes it
       (`EnforceBepInExFirst_MakesBepInExAResolverDependency`,
       `ModpackInstaller_InstallsBepInExFirstAndRecordsPack`).

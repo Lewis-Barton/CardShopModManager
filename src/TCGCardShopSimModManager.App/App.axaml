@@ -1,20 +1,8 @@
-<!--
-  App.axaml is the styling layer for the whole desktop app.
-
-  Two XAML concepts (web-dev analogies):
-  - <Application.Resources> holds reusable values (brushes, radii). Think of it
-    like CSS custom properties (the accent color below) that any control can read.
-  - <Application.Styles> holds <Style> blocks. A <Style> with a Selector but no
-    x:Key is "implicit": it applies to every matching control automatically,
-    like a CSS rule such as "button { ... }". These reach controls we build in
-    C# (MainWindow.cs) too, because the app theme styles the whole tree.
--->
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="TCGCardShopSimModManager.App.App">
 
   <Application.Resources>
-    <!-- Palette: a calm, card-shop teal on light panels. -->
     <SolidColorBrush x:Key="AppBackgroundBrush">#EEF1F5</SolidColorBrush>
     <SolidColorBrush x:Key="PanelBrush">#FFFFFF</SolidColorBrush>
     <SolidColorBrush x:Key="BorderBrushKey">#D2D8E0</SolidColorBrush>
@@ -22,12 +10,10 @@
     <SolidColorBrush x:Key="AccentHoverBrush">#115E59</SolidColorBrush>
     <SolidColorBrush x:Key="TextBrush">#1F2933</SolidColorBrush>
     <SolidColorBrush x:Key="MutedBrush">#6B7280</SolidColorBrush>
+    <SolidColorBrush x:Key="SoftAccentBrush">#DDF3F0</SolidColorBrush>
+    <SolidColorBrush x:Key="DangerBrush">#B42318</SolidColorBrush>
     <CornerRadius x:Key="ControlRadius">6</CornerRadius>
 
-    <!-- Button theme: teal fill, white label, rounded, with hover + disabled
-         states. Defined as a ControlTheme (not a plain Style) so it replaces
-         Fluent's default button theme — otherwise the hover state reverts to
-         Fluent's light tint and the white label vanishes on hover. -->
     <ControlTheme x:Key="ButtonTheme" TargetType="Button">
       <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
       <Setter Property="Foreground" Value="White" />
@@ -46,7 +32,6 @@
   </Application.Resources>
 
   <Application.Styles>
-    <!-- The base modern theme; our implicit styles below override its defaults. -->
     <FluentTheme />
 
     <Style Selector="Window">
@@ -58,10 +43,28 @@
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
 
-    <!-- Buttons: apply our ControlTheme so hover keeps a solid teal background
-         (Fluent's default would lighten it and hide the white label). -->
     <Style Selector="Button">
       <Setter Property="Theme" Value="{DynamicResource ButtonTheme}" />
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="#E5E9EF" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="Button.danger">
+      <Setter Property="Background" Value="{DynamicResource DangerBrush}" />
+    </Style>
+    <Style Selector="Button.nav">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Padding" Value="14,11" />
+      <Setter Property="MinWidth" Value="0" />
+    </Style>
+    <Style Selector="Button.nav:pointerover">
+      <Setter Property="Background" Value="#E8ECEF" />
+    </Style>
+    <Style Selector="Button.nav.active">
+      <Setter Property="Background" Value="{DynamicResource SoftAccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
     </Style>
 
     <Style Selector="TextBox">
@@ -79,16 +82,25 @@
       <Setter Property="Padding" Value="4" />
     </Style>
 
+    <Style Selector="CheckBox">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="CheckBox:checked">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+
     <Style Selector="ProgressBar">
       <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
     </Style>
 
-    <!-- Class-based styles (hooked via Classes="header" / "subtitle" / "card").
-         These are the XAML equivalent of CSS classes. -->
     <Style Selector="TextBlock.header">
       <Setter Property="FontSize" Value="20" />
       <Setter Property="FontWeight" Value="Bold" />
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.pageTitle">
+      <Setter Property="FontSize" Value="24" />
+      <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="TextBlock.subtitle">
       <Setter Property="FontSize" Value="12" />
@@ -100,6 +112,9 @@
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="8" />
       <Setter Property="Padding" Value="10" />
+    </Style>
+    <Style Selector="Border.packCard:pointerover">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
     </Style>
   </Application.Styles>
 </Application>

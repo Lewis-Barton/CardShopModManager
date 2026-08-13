@@ -62,15 +62,20 @@ design review found three additional safety issues, now fixed:
   the desktop window now runs the complete hosted-install pipeline away from the
   UI thread, reuses its existing HTTP client for logos, and disposes that client
   when the window closes. Update checks now dispose their parsed JSON document.
+- **BUG-051 — desktop navigation and gallery do not scale (Medium):** the desktop
+  now uses a persistent navigation rail with separate Browse, Manage and Settings
+  pages. Browse has a fixed filter column, responsive large-card gallery and a
+  focused pack-details window. Optional catalog metadata drives search, content,
+  size, mod, tag and installed-pack filters without breaking older indexes.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 2 |
 | High     | 0 | 16 |
-| Medium   | 0 | 23 |
+| Medium   | 0 | 24 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **50** |
+| **Total**| **0** | **51** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

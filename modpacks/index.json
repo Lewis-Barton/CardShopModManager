@@ -8,7 +8,12 @@
       "logo": "essential-qol/logo.png",
       "manifest": "essential-qol/manifest.json",
       "version": "1.0.0",
-      "updated": "2026-08-12"
+      "updated": "2026-08-12",
+      "featured": true,
+      "nsfw": false,
+      "downloadSize": 400,
+      "tags": ["essential", "quality-of-life", "starter"],
+      "modIds": ["bepinex", "example-mod"]
     }
   ]
 }

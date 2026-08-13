@@ -49,7 +49,12 @@ not the mod list.
       "logo": "essential-qol/logo.png",
       "manifest": "essential-qol/manifest.json",
       "version": "1.2.0",
-      "updated": "2026-08-12"
+      "updated": "2026-08-12",
+      "featured": true,
+      "nsfw": false,
+      "downloadSize": 285000000,
+      "tags": ["quality-of-life", "starter"],
+      "modIds": ["bepinex", "example-mod"]
     }
   ]
 }
@@ -63,6 +68,9 @@ Fields:
 - `version`, `updated` — shown on the card; `version` is compared against the
   installed pack journal (`cardshopmodmanager.modpacks.json` in the game folder)
   so the app can show "Update available" when a newer pack is published.
+- `featured`, `nsfw`, `downloadSize`, `tags`, `modIds` — optional gallery
+  metadata used by the desktop filters. `downloadSize` is the total compressed
+  download size in bytes. Older index entries can omit these fields.
 
 ## manifest.json
 

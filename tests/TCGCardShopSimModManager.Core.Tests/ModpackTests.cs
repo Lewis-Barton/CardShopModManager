@@ -68,6 +68,11 @@ public sealed class ModpackTests : IDisposable
 
         var pack = Assert.Single(index.Packs);
         Assert.Equal("p1", pack.Id);
+        Assert.False(pack.Featured);
+        Assert.True(pack.Nsfw);
+        Assert.Equal(123456, pack.DownloadSize);
+        Assert.Equal(new[] { "starter", "qol" }, pack.Tags);
+        Assert.Equal(new[] { "bepinex", "example-mod" }, pack.ModIds);
         Assert.Equal(_server.Url("p1/manifest.json"), reader.ManifestUrl(pack, baseUrl));
         Assert.Equal(_server.Url("p1/logo.png"), reader.LogoUrl(pack, baseUrl));
 
@@ -385,7 +390,9 @@ public sealed class ModpackTests : IDisposable
     private static string IndexJson() =>
         "{\"version\":1,\"packs\":[{\"id\":\"p1\",\"name\":\"Pack One\"," +
         "\"shortDescription\":\"desc\",\"logo\":\"p1/logo.png\",\"manifest\":\"p1/manifest.json\"," +
-        "\"version\":\"1.0.0\",\"updated\":\"2026-08-12\",\"source\":\"https://example.com/\"}]}";
+        "\"version\":\"1.0.0\",\"updated\":\"2026-08-12\",\"source\":\"https://example.com/\"," +
+        "\"featured\":false,\"nsfw\":true,\"downloadSize\":123456," +
+        "\"tags\":[\"starter\",\"qol\"],\"modIds\":[\"bepinex\",\"example-mod\"]}]}";
 
     private static string ManifestJson(string name, string archive, string sha) =>
         "{\"manifestVersion\":1,\"name\":\"" + name + "\",\"game\":\"tcgcardshopsimulator\"," +

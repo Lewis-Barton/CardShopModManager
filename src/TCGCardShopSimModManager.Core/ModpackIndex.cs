@@ -27,7 +27,12 @@ public sealed record ModpackSummary(
     /// installed-version journal may still hold the old id; matching against
     /// these aliases keeps update detection and tracking working (BUG-009).
     /// </summary>
-    List<string>? FormerIds = null)
+    List<string>? FormerIds = null,
+    bool Featured = true,
+    bool Nsfw = false,
+    long? DownloadSize = null,
+    List<string>? Tags = null,
+    List<string>? ModIds = null)
 {
     /// <summary>True when <paramref name="id"/> equals this pack's canonical id
     /// or any of its legacy <see cref="FormerIds"/>, case-insensitively.</summary>

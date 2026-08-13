@@ -1,123 +1,156 @@
-<!--
-  MainWindow.axaml holds the layout (the "what's on screen") as XAML.
-  MainWindow.cs holds the behaviour (the "what happens on click") as code-behind.
-
-  Notes for reading this:
-  - x:Name="..." gives a control an id we can use in code-behind. The matching
-    field (_gameBox, _log, ...) is generated for us by Avalonia's name generator.
-  - Grid.Row / Grid.Column place a child into a specific cell of the parent Grid.
-  - Avalonia's Grid has no row/column "spacing" property (that's a UWP thing), so
-    gaps come from Margin, like CSS margin between block elements.
-  - Classes="header" / Classes="card" hook into the class-based styles in
-    App.axaml (the XAML equivalent of CSS classes).
--->
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="TCGCardShopSimModManager.App.MainWindow"
         Title="TCG Card Shop Sim Mod Manager"
-        Width="980" Height="680">
+        Width="1280" Height="760" MinWidth="980" MinHeight="620">
 
-  <Grid Margin="16" RowDefinitions="Auto,*">
+  <Grid ColumnDefinitions="190,*">
+    <Border Grid.Column="0" Background="{DynamicResource PanelBrush}"
+            BorderBrush="{DynamicResource BorderBrushKey}" BorderThickness="0,0,1,0">
+      <Grid Margin="14" RowDefinitions="Auto,*,Auto">
+        <StackPanel Spacing="2" Margin="4,8,4,28">
+          <TextBlock Classes="header" FontSize="16" Text="Card Shop" />
+          <TextBlock Classes="subtitle" Text="Mod Manager" />
+        </StackPanel>
 
-    <!-- Header -->
-    <StackPanel Grid.Row="0" Spacing="2">
-      <TextBlock Classes="header" Text="TCG Card Shop Sim Mod Manager" />
-      <TextBlock Classes="subtitle" Text="Install and manage mods for TCG Card Shop Simulator" />
-    </StackPanel>
+        <StackPanel Grid.Row="1" Spacing="8">
+          <Button x:Name="_browseNav" Classes="nav active" Content="Browse modpacks"
+                  HorizontalContentAlignment="Left" Click="OnBrowseNavClick" />
+          <Button x:Name="_manageNav" Classes="nav" Content="Manage mods"
+                  HorizontalContentAlignment="Left" Click="OnManageNavClick" />
+          <Button x:Name="_settingsNav" Classes="nav" Content="Settings"
+                  HorizontalContentAlignment="Left" Click="OnSettingsNavClick" />
+        </StackPanel>
 
-    <TabControl Grid.Row="1" Margin="0,8,0,0">
+        <StackPanel Grid.Row="2" Spacing="2" Margin="4,0">
+          <TextBlock Classes="subtitle" Text="TCG Card Shop Simulator" />
+          <TextBlock x:Name="_versionText" Classes="subtitle" Text="Version" />
+        </StackPanel>
+      </Grid>
+    </Border>
 
-      <!-- Modpacks: pick a hosted pack, see what's in it, install in one click -->
-      <TabItem>
-        <TabItem.Header>
-          <TextBlock Text="Modpacks" Foreground="{DynamicResource TextBrush}" />
-        </TabItem.Header>
-        <Grid ColumnDefinitions="*,300" RowDefinitions="*,Auto,Auto">
-          <!-- Gallery of pack cards -->
-          <ScrollViewer Grid.Column="0" Grid.Row="0" VerticalScrollBarVisibility="Auto">
-            <WrapPanel x:Name="_packsPanel" Orientation="Horizontal" Margin="0,0,8,0" />
-          </ScrollViewer>
+    <Grid Grid.Column="1">
+      <Grid x:Name="_browsePage" RowDefinitions="Auto,*">
+        <Grid Grid.Row="0" Margin="22,18,22,14" ColumnDefinitions="*,Auto">
+          <StackPanel Spacing="2">
+            <TextBlock Classes="pageTitle" Text="Browse modpacks" />
+            <TextBlock Classes="subtitle" Text="Find a curated setup and install it in one step." />
+          </StackPanel>
+          <Button Grid.Column="1" Content="Refresh" Click="OnRefreshPacksClick" />
+        </Grid>
 
-          <!-- Selected pack details -->
-          <Border Grid.Column="1" Grid.Row="0" Classes="card" Margin="8,0,0,0">
-            <DockPanel LastChildFill="True">
-              <TextBlock DockPanel.Dock="Top" Classes="header" FontSize="14"
-                         Text="Modpack details" Margin="0,0,0,8" />
-              <StackPanel Spacing="6">
-                <Image x:Name="_packLogo" MaxHeight="96" Stretch="Uniform" />
-                <TextBlock x:Name="_packName" Classes="subtitle" Text="" />
-                <TextBlock x:Name="_packDesc" TextWrapping="Wrap" Text="" />
-                <TextBlock Classes="subtitle" FontSize="12" Text="Includes:" Margin="0,6,0,0" />
-                <ItemsControl x:Name="_packMods" />
-                <Button x:Name="_packInstall" Content="Install modpack"
-                        IsEnabled="False" Click="OnPackInstallClick" Margin="0,6,0,0" />
-                <TextBlock x:Name="_packStatus" TextWrapping="Wrap" Text="" />
+        <Grid Grid.Row="1" Margin="22,0,22,20" ColumnDefinitions="260,*">
+          <Border Grid.Column="0" Classes="card filterPanel" Padding="14" Margin="0,0,14,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel Spacing="12">
+                <TextBox x:Name="_packSearch" Watermark="Search modpacks..."
+                         TextChanged="OnPackTextFilterChanged" />
+                <ComboBox SelectedIndex="0">
+                  <ComboBoxItem Content="TCG Card Shop Simulator" />
+                </ComboBox>
+
+                <StackPanel Spacing="6">
+                  <TextBlock FontWeight="SemiBold" Text="Include" />
+                  <CheckBox x:Name="_includeNonFeatured" Content="Non-featured"
+                            IsChecked="True" IsCheckedChanged="OnPackCheckFilterChanged" />
+                  <CheckBox x:Name="_includeAdult" Content="18+ content"
+                            IsChecked="False" IsCheckedChanged="OnPackCheckFilterChanged" />
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                  <TextBlock FontWeight="SemiBold" Text="Maximum download size" />
+                  <Slider x:Name="_sizeFilter" Minimum="0" Maximum="20" Value="20"
+                          TickFrequency="1" ValueChanged="OnPackSizeFilterChanged" />
+                  <TextBlock x:Name="_sizeFilterLabel" Classes="subtitle" Text="Any size" />
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock FontWeight="SemiBold" Text="Has mod" />
+                    <CheckBox Grid.Column="1" x:Name="_excludeMod" Content="Exclude"
+                              IsCheckedChanged="OnPackCheckFilterChanged" />
+                  </Grid>
+                  <TextBox x:Name="_modFilter" Watermark="Mod name or id"
+                           TextChanged="OnPackTextFilterChanged" />
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                  <TextBlock FontWeight="SemiBold" Text="Has tag" />
+                  <TextBox x:Name="_tagFilter" Watermark="Tag"
+                           TextChanged="OnPackTextFilterChanged" />
+                </StackPanel>
+
+                <CheckBox x:Name="_installedOnly" Content="Installed modpacks only"
+                          IsCheckedChanged="OnPackCheckFilterChanged" />
+                <Button Content="Reset filters" Classes="secondary" Click="OnResetFiltersClick" />
               </StackPanel>
-            </DockPanel>
+            </ScrollViewer>
           </Border>
 
-          <!-- Progress + per-pack log -->
-          <ProgressBar Grid.Column="0" Grid.Row="1" x:Name="_packProgress"
-                       IsIndeterminate="True" IsVisible="False" Height="6" Margin="0,8,0,0" />
-          <TextBox Grid.Column="0" Grid.Row="2" x:Name="_packLog"
-                   IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
-                   FontFamily="Consolas" Height="90" Margin="0,6,0,0" />
-        </Grid>
-      </TabItem>
-
-      <!-- Local / Manage: game folder + day-to-day mod care. Modpack installs
-           happen from the Modpacks tab (GitHub fetch -> Nexus download -> temp
-           -> install -> cleanup), so there is no manual manifest/source entry. -->
-      <TabItem>
-        <TabItem.Header>
-          <TextBlock Text="Local / Manage" Foreground="{DynamicResource TextBrush}" />
-        </TabItem.Header>
-        <Grid Margin="0,8,0,0" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*">
-
-          <!-- Game folder -->
-          <Grid Grid.Row="0" Margin="0,8,0,0" ColumnDefinitions="*,Auto">
-            <TextBox x:Name="_gameBox"
-                     Watermark="Game folder (where Card Shop Simulator is installed)" />
-            <Button Grid.Column="1" Margin="8,0,0,0" Content="Browse…" Click="OnPickGameFolder" />
+          <Grid Grid.Column="1" RowDefinitions="*,Auto,Auto">
+            <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+              <WrapPanel x:Name="_packsPanel" Orientation="Horizontal" />
+            </ScrollViewer>
+            <ProgressBar Grid.Row="1" x:Name="_packProgress" IsIndeterminate="True"
+                         IsVisible="False" Height="5" Margin="0,8,0,0" />
+            <TextBlock Grid.Row="2" x:Name="_packStatus" Classes="subtitle"
+                       Text="Loading modpacks..." Margin="2,8,0,0" />
           </Grid>
-
-          <!-- Primary actions: operate on the mod selected in the list below -->
-          <StackPanel Grid.Row="2" Margin="0,6,0,0" Orientation="Horizontal" Spacing="8">
-            <Button Content="Uninstall" Click="OnUninstallClick" />
-          </StackPanel>
-
-          <!-- Utilities -->
-          <StackPanel Grid.Row="3" Margin="0,6,0,0" Orientation="Horizontal" Spacing="8">
-            <Button Content="List mods" Click="OnListModsClick" />
-            <Button Content="Enable" Click="OnEnableClick" />
-            <Button Content="Disable" Click="OnDisableClick" />
-            <Button Content="Update check" Click="OnUpdateCheckClick" />
-            <Button Content="Export bundle" Click="OnExportBundleClick" />
-          </StackPanel>
-
-          <!-- Progress (hidden until a job runs) -->
-          <ProgressBar Grid.Row="4" Margin="0,6,0,0" x:Name="_progress"
-                       IsIndeterminate="True" IsVisible="False" Height="6" />
-
-          <!-- Bottom split: log + installed mods, each in a card -->
-          <Grid Grid.Row="5" Margin="0,6,0,0" ColumnDefinitions="*,260">
-            <Border Classes="card" Grid.Column="0" Margin="0,0,12,0">
-              <TextBox x:Name="_log"
-                       IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
-                       FontFamily="Consolas" Text="TCG Card Shop Sim Mod Manager" />
-            </Border>
-
-            <Border Classes="card" Grid.Column="1">
-              <DockPanel LastChildFill="True">
-                <TextBlock DockPanel.Dock="Top" Classes="header" FontSize="14" Text="Installed mods" />
-                <ListBox x:Name="_modsList" />
-              </DockPanel>
-            </Border>
-          </Grid>
-
         </Grid>
-      </TabItem>
+      </Grid>
 
-    </TabControl>
+      <Grid x:Name="_managePage" IsVisible="False" Margin="22"
+            RowDefinitions="Auto,Auto,Auto,Auto,*">
+        <StackPanel Grid.Row="0" Spacing="2" Margin="0,0,0,14">
+          <TextBlock Classes="pageTitle" Text="Manage mods" />
+          <TextBlock Classes="subtitle" Text="Choose the game folder and manage installed mods." />
+        </StackPanel>
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+          <TextBox x:Name="_gameBox" Watermark="Game folder" />
+          <Button Grid.Column="1" Margin="8,0,0,0" Content="Browse..." Click="OnPickGameFolder" />
+        </Grid>
+        <StackPanel Grid.Row="2" Margin="0,10,0,0" Orientation="Horizontal" Spacing="8">
+          <Button Content="Refresh list" Click="OnListModsClick" />
+          <Button Content="Enable" Click="OnEnableClick" />
+          <Button Content="Disable" Click="OnDisableClick" />
+          <Button Content="Uninstall" Classes="danger" Click="OnUninstallClick" />
+        </StackPanel>
+        <ProgressBar Grid.Row="3" Margin="0,8,0,0" x:Name="_progress"
+                     IsIndeterminate="True" IsVisible="False" Height="5" />
+        <Grid Grid.Row="4" Margin="0,12,0,0" ColumnDefinitions="2*,*">
+          <Border Classes="card" Margin="0,0,12,0">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Text="Activity" Margin="0,0,0,8" />
+              <TextBox x:Name="_log" IsReadOnly="True" AcceptsReturn="True"
+                       TextWrapping="Wrap" FontFamily="Consolas" Text="TCG Card Shop Sim Mod Manager" />
+            </DockPanel>
+          </Border>
+          <Border Grid.Column="1" Classes="card">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Text="Installed mods" Margin="0,0,0,8" />
+              <ListBox x:Name="_modsList" />
+            </DockPanel>
+          </Border>
+        </Grid>
+      </Grid>
+
+      <Grid x:Name="_settingsPage" IsVisible="False" Margin="22" RowDefinitions="Auto,*">
+        <StackPanel Spacing="2">
+          <TextBlock Classes="pageTitle" Text="Settings" />
+          <TextBlock Classes="subtitle" Text="Application tools and maintenance." />
+        </StackPanel>
+        <Border Grid.Row="1" Classes="card" Margin="0,14,0,0" MaxWidth="620"
+                HorizontalAlignment="Left" VerticalAlignment="Top">
+          <StackPanel Spacing="12">
+            <TextBlock FontWeight="SemiBold" Text="Maintenance" />
+            <TextBlock TextWrapping="Wrap" Text="Check for app updates or create a support bundle for troubleshooting." />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="Check for updates" Click="OnUpdateCheckClick" />
+              <Button Content="Export support bundle" Classes="secondary" Click="OnExportBundleClick" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Grid>
   </Grid>
 </Window>
