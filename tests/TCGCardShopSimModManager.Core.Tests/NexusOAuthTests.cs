@@ -97,6 +97,15 @@ public sealed class NexusOAuthTests
     }
 
     [Fact]
+    public async Task RefreshAsync_MissingRefreshToken_AsksForSignInWithoutCallingNexus()
+    {
+        var error = await Assert.ThrowsAsync<DownloadException>(() => NexusOAuth.RefreshAsync(""));
+
+        Assert.Contains("Sign in again", error.Message);
+        Assert.False(error.Retryable);
+    }
+
+    [Fact]
     public async Task LoopbackListener_CapturesCodeAndState()
     {
         int port;

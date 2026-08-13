@@ -108,7 +108,8 @@ public static class NexusOAuth
     public static async Task<NexusTokenSet> ExchangeCodeAsync(
         string code, string redirectUri, string codeVerifier, string? clientId = null, HttpClient? http = null)
     {
-        http ??= new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        using var ownedHttp = http is null ? new HttpClient { Timeout = TimeSpan.FromSeconds(30) } : null;
+        http ??= ownedHttp!;
 
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -135,7 +136,12 @@ public static class NexusOAuth
     public static async Task<NexusTokenSet> RefreshAsync(
         string refreshToken, string? clientId = null, HttpClient? http = null)
     {
-        http ??= new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        if (string.IsNullOrWhiteSpace(refreshToken))
+            throw new DownloadException(
+                "The saved Nexus session cannot be refreshed. Sign in again.", retryable: false);
+
+        using var ownedHttp = http is null ? new HttpClient { Timeout = TimeSpan.FromSeconds(30) } : null;
+        http ??= ownedHttp!;
 
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -165,7 +171,11 @@ public static class NexusOAuth
         if (!set.IsExpired)
             return set.AccessToken;
 
-        var refreshed = await RefreshAsync(set.RefreshToken!, clientId, http);
+        if (string.IsNullOrWhiteSpace(set.RefreshToken))
+            throw new DownloadException(
+                "The saved Nexus session has expired and cannot be refreshed. Sign in again.", retryable: false);
+
+        var refreshed = await RefreshAsync(set.RefreshToken, clientId, http);
         NexusTokenStore.Save(refreshed);
         return refreshed.AccessToken;
     }

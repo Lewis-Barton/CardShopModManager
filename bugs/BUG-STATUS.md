@@ -83,15 +83,19 @@ design review found three additional safety issues, now fixed:
   file-and-journal transaction, while direct install, uninstall, enable and
   disable calls protect themselves. A second process receives a clear retry
   message instead of working against half-changed files.
+- **BUG-055 — expired OAuth session assumes a refresh token (Medium):** token
+  renewal now detects a missing refresh token before making a request and asks
+  the user to sign in again. OAuth exchanges also dispose the HTTP client when
+  the helper created it, while leaving caller-owned clients alone.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 2 |
 | High     | 0 | 17 |
-| Medium   | 0 | 26 |
+| Medium   | 0 | 27 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **54** |
+| **Total**| **0** | **55** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

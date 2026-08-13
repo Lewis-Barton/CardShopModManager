@@ -93,6 +93,9 @@ unit test already covers it, **[manual]** where it needs a real environment.
       authoritative age-verification field to its OAuth or user response.
 - [ ] **[manual]** With a registered Nexus client ID, Settings can sign in,
       display the account name, survive a restart, and sign out cleanly.
+- [ ] **[auto]** An expired Nexus session without a refresh token asks the user
+      to sign in again without making a token request
+      (`RefreshAsync_MissingRefreshToken_AsksForSignInWithoutCallingNexus`).
 - [ ] **[auto]** BepInEx is ordered first when a pack includes it
       (`EnforceBepInExFirst_MakesBepInExAResolverDependency`,
       `ModpackInstaller_InstallsBepInExFirstAndRecordsPack`).
