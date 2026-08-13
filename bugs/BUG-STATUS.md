@@ -31,6 +31,12 @@ design review found three additional safety issues, now fixed:
   Hosted installs also stamp their pack id onto each mod journal entry. Legacy
   journals remain readable and gain stable identity after their next update.
   Covered at both installer and deployment-service level.
+- **BUG-045 — lifecycle operations report or retain partial state (Medium):**
+  enable and disable now return a partial-failure result when some files move
+  but collisions or non-managed files leave the mod in a mixed state. Uninstall
+  also checks the manager's disabled folder, removes verified parked files, and
+  clears stale journal entries when every tracked file is already gone. Covered
+  by disabled-mod and missing-file uninstall tests.
 
 ## Summary
 | Severity | Open | Fixed |
@@ -171,5 +177,4 @@ Detailed entries are appended here as bugs are resolved (files changed, what/why
   - BUG-039 (Low): `ServeCommand` now also watches for stdin EOF and `AppDomain.ProcessExit` (in addition to Ctrl+C) and disposes the server on each, so a headless or terminated run releases the listener cleanly.
 - **Why:** These were the last open holes — update detection ignoring real version formats / false-positiving on component counts, and a demo server that wouldn't shut down cleanly headless.
 - **Verification:** New test `ModpackTests.ModpackVersion_IsNewer_ToleratesPrefixesAndComponentCounts_Bug006_Bug007`; full Core suite 135/135; solution builds clean. BUG-039 verified by build + source analysis. **All 40 known bugs are now fixed.**
-
 

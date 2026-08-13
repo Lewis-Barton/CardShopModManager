@@ -57,6 +57,10 @@ unit test already covers it, **[manual]** where it needs a real environment.
       `Enable_MovesFilesBackAndReportsInstalled`).
 - [ ] **[auto]** A modified file is left in place, not moved, when disabling
       (`Disable_LeavesModifiedFileInPlaceWithWarning`).
+- [ ] **[auto]** Uninstall removes a disabled mod from its parked location and
+      clears a journal whose files are already gone
+      (`Uninstall_DisabledModDeletesParkedFilesAndJournal`,
+      `Uninstall_ClearsJournalWhenAllManagedFilesAreAlreadyMissing`).
 - [ ] **[manual]** Disable + enable a mod on the real install and confirm the
       game stops/starts loading it.
 - [ ] **[fixed]** A transient test failure turned out to be a real concurrency

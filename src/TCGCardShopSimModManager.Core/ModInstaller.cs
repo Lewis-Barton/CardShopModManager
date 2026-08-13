@@ -346,6 +346,11 @@ public DisableResult Disable(string modName)
             $"{modName} is only partially disabled: {kept} file(s) modified since install were left active, so the mod is still partially loaded.",
             warnings);
 
+    if (moved > 0 && nonManaged > 0)
+        return new DisableResult(false,
+            $"{modName} is only partially disabled: {nonManaged} framework or game-root file(s) remain active.",
+            warnings);
+
     if (moved == 0)
     {
         if (nonManaged > 0)
@@ -416,6 +421,13 @@ public EnableResult Enable(string modName)
     }
 
     PruneEmptyDisabledFolders();
+
+    var blocked = warnings.Count(w => w.StartsWith("Destination already exists", StringComparison.Ordinal));
+
+    if (moved > 0 && (blocked > 0 || nonManaged > 0))
+        return new EnableResult(false,
+            $"{modName} is only partially enabled: {blocked + nonManaged} file(s) could not be restored.",
+            warnings);
 
     if (moved == 0)
     {
@@ -524,28 +536,36 @@ public UninstallResult Uninstall(string modName)
 
     foreach (var file in entry.Files)
     {
-        if (!File.Exists(file.Path))
+        var pathToDelete = file.Path;
+        if (!File.Exists(pathToDelete))
         {
-            warnings.Add($"File already missing, skipping: {file.Path}");
-            continue;
+            var sections = ManagedSections(file.Path);
+            var disabledPath = sections is null ? null : Path.Combine(new[] { _disabledRoot }.Concat(sections).ToArray());
+            if (disabledPath is not null && File.Exists(disabledPath))
+                pathToDelete = disabledPath;
+            else
+            {
+                warnings.Add($"File already missing, skipping: {file.Path}");
+                continue;
+            }
         }
 
-        var currentHash = ComputeSha256(file.Path);
+        var currentHash = ComputeSha256(pathToDelete);
         if (!currentHash.Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
         {
-            warnings.Add($"File was modified since install, refusing to delete: {file.Path}");
+            warnings.Add($"File was modified since install, refusing to delete: {pathToDelete}");
             kept++;
             continue;
         }
 
-        File.Delete(file.Path);
+        File.Delete(pathToDelete);
         deleted++;
     }
 
     // BUG-014: only drop the journal entry when every file was actually removed.
     // If a file was kept (modified), the mod is still on disk and must stay tracked
     // so it can be cleaned up later instead of being silently stranded.
-    if (kept == 0 && deleted > 0)
+    if (kept == 0)
     {
         _journal.Remove(modName);
 
@@ -564,6 +584,8 @@ public UninstallResult Uninstall(string modName)
         warnings.Add($"Uninstall incomplete for {modName}: {kept} file(s) were modified and kept; the journal entry is retained.");
     }
 
+    PruneEmptyDisabledFolders();
+    PruneEmptyActiveFolders();
     return new UninstallResult(true, null, warnings);
 }
 

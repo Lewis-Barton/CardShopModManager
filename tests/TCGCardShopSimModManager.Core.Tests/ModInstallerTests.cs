@@ -301,6 +301,34 @@ public sealed class ModInstallerTests : IDisposable
     }
 
     [Fact]
+    public void Uninstall_ClearsJournalWhenAllManagedFilesAreAlreadyMissing()
+    {
+        var mod = AddLooseFile("ExampleMod.dll", "dll-bytes");
+        var install = _installer.Install(mod, _sourceDir);
+        Assert.True(install.Success);
+        File.Delete(Assert.Single(install.InstalledPaths!));
+
+        var result = _installer.Uninstall(mod.Name);
+
+        Assert.True(result.Success, result.Error);
+        Assert.Empty(new JournalStore(_gameFolder).Load());
+    }
+
+    [Fact]
+    public void Uninstall_DisabledModDeletesParkedFilesAndJournal()
+    {
+        var mod = AddLooseFile("ExampleMod.dll", "dll-bytes");
+        Assert.True(_installer.Install(mod, _sourceDir).Success);
+        Assert.True(_installer.Disable(mod.Name).Success);
+
+        var result = _installer.Uninstall(mod.Name);
+
+        Assert.True(result.Success, result.Error);
+        Assert.Empty(new JournalStore(_gameFolder).Load());
+        Assert.False(Directory.EnumerateFiles(Path.Combine(_testRoot, "disabled"), "*", SearchOption.AllDirectories).Any());
+    }
+
+    [Fact]
     public void Disable_FrameworkMod_ReportsNonSuccess() // BUG-011
     {
         // A mod whose files live under BepInEx/core (the framework) is not one we
