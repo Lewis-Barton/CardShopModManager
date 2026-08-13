@@ -85,6 +85,8 @@ unit test already covers it, **[manual]** where it needs a real environment.
       restores the full catalog, and clicking a card opens its details.
 - [ ] **[manual]** The NSFW filter remains disabled unless Nexus adds an
       authoritative age-verification field to its OAuth or user response.
+- [ ] **[manual]** With a registered Nexus client ID, Settings can sign in,
+      display the account name, survive a restart, and sign out cleanly.
 - [ ] **[auto]** BepInEx is ordered first when a pack includes it
       (`EnforceBepInExFirst_MakesBepInExAResolverDependency`,
       `ModpackInstaller_InstallsBepInExFirstAndRecordsPack`).

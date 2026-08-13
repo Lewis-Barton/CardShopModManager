@@ -62,7 +62,17 @@ public sealed partial class MainWindow : Window
     private async void OnRefreshPacksClick(object? sender, RoutedEventArgs e) => await RunHandler(LoadPacksAsync);
     private void OnBrowseNavClick(object? sender, RoutedEventArgs e) => ShowPage(_browsePage, _browseNav);
     private void OnManageNavClick(object? sender, RoutedEventArgs e) => ShowPage(_managePage, _manageNav);
-    private void OnSettingsNavClick(object? sender, RoutedEventArgs e) => ShowPage(_settingsPage, _settingsNav);
+    private void OnSettingsNavClick(object? sender, RoutedEventArgs e)
+    {
+        ShowPage(_settingsPage, _settingsNav);
+        RefreshNexusStatus();
+    }
+    private async void OnNexusLoginClick(object? sender, RoutedEventArgs e) => await OnNexusLoginAsync();
+    private void OnNexusLogoutClick(object? sender, RoutedEventArgs e)
+    {
+        NexusTokenStore.Delete();
+        RefreshNexusStatus();
+    }
     private void OnPackTextFilterChanged(object? sender, TextChangedEventArgs e) => ApplyPackFilters();
     private void OnPackCheckFilterChanged(object? sender, RoutedEventArgs e) => ApplyPackFilters();
     private void OnPackSizeFilterChanged(object? sender, RangeBaseValueChangedEventArgs e) => ApplyPackFilters();
@@ -336,6 +346,43 @@ public sealed partial class MainWindow : Window
         _settingsPage.IsVisible = ReferenceEquals(page, _settingsPage);
         foreach (var button in new[] { _browseNav, _manageNav, _settingsNav })
             button.Classes.Set("active", ReferenceEquals(button, nav));
+    }
+
+    private void RefreshNexusStatus()
+    {
+        var token = NexusTokenStore.TryLoad();
+        var user = token is null ? null : NexusJwt.DecodeAccessToken(token.AccessToken);
+        if (user is null)
+        {
+            _nexusStatus.Text = NexusOAuth.ClientId == "public_test"
+                ? "Not signed in. A production Nexus OAuth client ID has not been configured."
+                : "Not signed in to Nexus Mods.";
+            _nexusLogin.IsEnabled = true;
+            _nexusLogout.IsEnabled = false;
+            return;
+        }
+
+        _nexusStatus.Text = $"Signed in as {user.Name}.";
+        _nexusLogin.IsEnabled = false;
+        _nexusLogout.IsEnabled = true;
+    }
+
+    private async Task OnNexusLoginAsync()
+    {
+        _nexusLogin.IsEnabled = false;
+        _nexusStatus.Text = "Opening Nexus Mods in your browser...";
+        try
+        {
+            var user = await NexusOAuth.LoginAsync(_http);
+            _nexusStatus.Text = $"Signed in as {user.Name}.";
+            _nexusLogout.IsEnabled = true;
+        }
+        catch (Exception ex)
+        {
+            _nexusStatus.Text = $"Nexus sign-in failed: {ex.Message}";
+            _nexusLogin.IsEnabled = true;
+            Diagnostic.Write(ex.ToString(), "nexus-login");
+        }
     }
 
     private async Task OnEnableAsync()

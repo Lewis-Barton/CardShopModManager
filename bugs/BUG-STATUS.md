@@ -73,15 +73,19 @@ design review found three additional safety issues, now fixed:
   redundant game selector and local age-confirmation flow were removed, cards
   were reduced to a 3-by-3 default viewport, and checkboxes now use an explicit
   theme whose checked, unchecked, disabled and hover states stay visible.
+- **BUG-053 — desktop account setup is CLI-only (Medium):** Settings now shows
+  Nexus sign-in status and exposes OAuth sign-in and sign-out using the existing
+  PKCE/token store. Branding now uses the full product name and the Refresh
+  label is explicitly centred within its button.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 2 |
 | High     | 0 | 16 |
-| Medium   | 0 | 25 |
+| Medium   | 0 | 26 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **52** |
+| **Total**| **0** | **53** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |
