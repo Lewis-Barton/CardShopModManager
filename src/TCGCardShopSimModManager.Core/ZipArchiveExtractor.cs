@@ -16,6 +16,7 @@ public sealed class ZipArchiveExtractor : IArchiveExtractor
         var rejected = new List<string>();
         var totalBytes = 0L;
         var entryCount = 0;
+        var truncated = false;
 
         using var archive = ZipFile.OpenRead(archivePath);
 
@@ -25,6 +26,7 @@ public sealed class ZipArchiveExtractor : IArchiveExtractor
             if (entryCount > settings.MaxEntries)
             {
                 rejected.Add("Entry limit exceeded; extraction stopped.");
+                truncated = true;
                 break;
             }
 
@@ -49,9 +51,10 @@ public sealed class ZipArchiveExtractor : IArchiveExtractor
                 continue;
             }
 
-            if (settings.RejectedFileExtensions.Contains(Path.GetExtension(relativePath)))
+            var extension = Path.GetExtension(relativePath);
+            if (settings.RejectedFileExtensions.Contains(extension))
             {
-                rejected.Add($"{relativePath}: unexpected executable rejected");
+                rejected.Add($"{relativePath}: rejected file type '{extension}'");
                 continue;
             }
 
@@ -65,6 +68,7 @@ public sealed class ZipArchiveExtractor : IArchiveExtractor
             if (totalBytes > settings.MaxTotalBytes)
             {
                 rejected.Add("Total extracted size exceeds limit; extraction stopped.");
+                truncated = true;
                 break;
             }
 
@@ -84,7 +88,7 @@ public sealed class ZipArchiveExtractor : IArchiveExtractor
             sources.Add(new ExtractedSource(relativePath, destinationPath));
         }
 
-        return new ExtractionResult(sources, rejected);
+        return new ExtractionResult(sources, rejected, truncated);
     }
 
     /// <summary>

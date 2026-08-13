@@ -14,7 +14,9 @@ public sealed record InstallPlan(
 public sealed record InstallResult(
     bool Success,
     string? Error,
-    List<string>? InstalledPaths);
+    List<string>? InstalledPaths,
+    List<string>? RejectedEntries = null,
+    List<string>? SkippedEntries = null);
 
 public sealed record UninstallResult(
     bool Success,

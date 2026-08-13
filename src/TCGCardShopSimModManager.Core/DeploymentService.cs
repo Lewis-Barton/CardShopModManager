@@ -145,6 +145,15 @@ public sealed class DeploymentService
                 ? $"Installed {Label(mod)}: {result.InstalledPaths!.Count} file(s)."
                 : $"Failed to install {Label(mod)}: {result.Error}");
 
+            if (result.RejectedEntries is { Count: > 0 })
+            {
+                lines.Add($"  warning: {result.RejectedEntries.Count} file(s) rejected during extraction:");
+                lines.AddRange(result.RejectedEntries.Select(r => $"    - {r}"));
+            }
+
+            if (result.SkippedEntries is { Count: > 0 })
+                lines.AddRange(result.SkippedEntries.Select(s => $"  note: skipped {s}"));
+
             if (!result.Success)
                 Diagnostic.Write($"install failed for {mod.Id}: {result.Error}", "install");
         }

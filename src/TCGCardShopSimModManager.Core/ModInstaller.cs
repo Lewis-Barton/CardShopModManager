@@ -37,7 +37,8 @@ public sealed class ModInstaller
     /// into <paramref name="extractionRoot"/> (safely), and classify the layout.
     /// Throws on hash mismatch, corrupt archive, or an archive with nothing to install.
     /// </summary>
-    public InstallPlan CreatePlan(ModEntry mod, string sourceDirectory, string extractionRoot)
+    public InstallPlan CreatePlan(ModEntry mod, string sourceDirectory, string extractionRoot,
+        ArchiveProtectionSettings? settings = null)
     {
         var sourcePath = Path.Combine(sourceDirectory, mod.Archive);
         if (!File.Exists(sourcePath))
@@ -50,7 +51,16 @@ public sealed class ModInstaller
 
         if (ArchiveExtractor.IsSupportedArchive(sourcePath))
         {
-            var result = ArchiveExtractor.Extract(sourcePath, extractionRoot);
+            var result = ArchiveExtractor.Extract(sourcePath, extractionRoot, settings ?? ArchiveProtectionSettings.Default);
+            if (result.Truncated)
+            {
+                var detail = result.RejectedEntries.Count > 0
+                    ? string.Join("; ", result.RejectedEntries)
+                    : "extraction stopped early";
+                throw new InvalidDataException(
+                    $"{mod.Archive}: extraction was truncated ({detail}) — refusing to install a partial copy.");
+            }
+
             if (result.Sources.Count == 0)
             {
                 var detail = result.RejectedEntries.Count > 0
@@ -79,10 +89,13 @@ public sealed class ModInstaller
         try
         {
             var plan = CreatePlan(mod, sourceDirectory, workDir);
+            var rejected = plan.RejectedEntries;
+            var skipped = plan.SkippedEntries;
 
             if (plan.Files.Count == 0)
                 return new InstallResult(false,
-                    $"{mod.Archive}: nothing to install (all content was documentation/OS junk)", null);
+                    $"{mod.Archive}: nothing to install (all content was documentation/OS junk)", null,
+                    rejected, skipped);
 
             // Never silently overwrite. Also reject two sources mapping to one destination.
             var existing = plan.Files
@@ -120,7 +133,7 @@ public sealed class ModInstaller
                 DateTimeOffset.UtcNow,
                 installedPaths.Select(p => new JournalFileEntry(p, ComputeSha256(p))).ToList()));
 
-            return new InstallResult(true, null, installedPaths);
+            return new InstallResult(true, null, installedPaths, rejected, skipped);
         }
         catch (Exception ex)
         {

@@ -14,8 +14,12 @@ public sealed record ArchiveProtectionSettings(
         MaxEntries: 4096,
         MaxSingleFileBytes: 512L * 1024 * 1024,  // 512 MiB per file
         MaxTotalBytes: 1024L * 1024 * 1024,      // 1 GiB total
+        // Executables and nested archives are both refused: a nested archive
+        // would bypass every protection check below, and executables must never
+        // be dropped into a game folder.
         RejectedFileExtensions: new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            ".exe", ".cmd", ".bat", ".com", ".scr", ".ps1", ".vbs", ".vbe", ".wsf"
+            ".exe", ".cmd", ".bat", ".com", ".scr", ".ps1", ".vbs", ".vbe", ".wsf",
+            ".zip", ".7z", ".rar", ".tar", ".gz", ".tgz", ".bz2", ".xz"
         });
 }

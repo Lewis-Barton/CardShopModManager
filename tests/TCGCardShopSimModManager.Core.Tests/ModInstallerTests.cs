@@ -140,6 +140,43 @@ public sealed class ModInstallerTests : IDisposable
     }
 
     [Fact]
+    public void Install_SurfacesRejectedExecutable_WhileInstallingRest()
+    {
+        // A mod that bundles a malicious .exe alongside a good plugin: the .exe
+        // must be refused, the plugin installed, and the refusal surfaced.
+        var zipPath = CreateZip(
+            ("BepInEx/plugins/Mod/mod.dll", "dll-bytes"),
+            ("evil.exe", "trample"));
+        var mod = AddZip("mixed.zip", zipPath);
+
+        var result = _installer.Install(mod, _sourceDir);
+
+        Assert.True(result.Success, result.Error);
+        Assert.NotNull(result.RejectedEntries);
+        Assert.Contains(result.RejectedEntries, r => r.Contains("evil.exe"));
+        Assert.True(File.Exists(Path.Combine(_gameFolder, "BepInEx", "plugins", "Mod", "mod.dll")));
+        Assert.False(File.Exists(Path.Combine(_gameFolder, "evil.exe")));
+    }
+
+    [Fact]
+    public void CreatePlan_ThrowsOnTruncatedArchive()
+    {
+        // An archive that blows the size cap must fail loudly, not install a
+        // partial copy and report success.
+        var zipPath = CreateZip(
+            ("a.txt", new string('x', 100)),
+            ("b.txt", new string('x', 100)),
+            ("c.txt", new string('x', 100)));
+        var mod = AddZip("big.zip", zipPath);
+
+        var settings = ArchiveProtectionSettings.Default with { MaxTotalBytes = 150 };
+        var workDir = Path.Combine(_testRoot, "plan");
+
+        Assert.Throws<InvalidDataException>(() =>
+            _installer.CreatePlan(mod, _sourceDir, workDir, settings));
+    }
+
+    [Fact]
     public void Uninstall_RemovesAllInstalledFilesAndJournalEntry()
     {
         var zipPath = CreateZip(

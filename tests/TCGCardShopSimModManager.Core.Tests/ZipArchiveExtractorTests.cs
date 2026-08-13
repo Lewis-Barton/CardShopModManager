@@ -113,7 +113,7 @@ public sealed class ZipArchiveExtractorTests : IDisposable
 
         var source = Assert.Single(result.Sources); // only the DLL gets through
         Assert.Equal("Mod.dll", source.RelativePath);
-        Assert.Contains(result.RejectedEntries, r => r.Contains("unexpected executable"));
+        Assert.Contains(result.RejectedEntries, r => r.Contains("rejected file type") && r.Contains("evil.exe"));
         Assert.False(File.Exists(Path.Combine(_destination, "evil.exe")));
     }
 
@@ -127,6 +127,37 @@ public sealed class ZipArchiveExtractorTests : IDisposable
 
         Assert.Empty(result.Sources);
         Assert.Contains(result.RejectedEntries, r => r.Contains("too large"));
+    }
+
+    [Fact]
+    public void Extract_RejectsNestedZip()
+    {
+        // A nested archive would bypass every protection check below, so it is
+        // refused rather than written out as a payload.
+        var zip = CreateZip(
+            ("BepInEx/plugins/Mod/mod.dll", "dll-bytes"),
+            ("BepInEx/plugins/Mod/inner.zip", "zip-bytes"));
+
+        var result = new ZipArchiveExtractor().Extract(zip, _destination, ArchiveProtectionSettings.Default);
+
+        var source = Assert.Single(result.Sources); // only the DLL makes it through
+        Assert.Equal("BepInEx/plugins/Mod/mod.dll", source.RelativePath);
+        Assert.Contains(result.RejectedEntries, r => r.Contains("rejected file type") && r.Contains("inner.zip"));
+    }
+
+    [Fact]
+    public void Extract_FlagsTruncationWhenSizeCapHit()
+    {
+        var settings = ArchiveProtectionSettings.Default with { MaxTotalBytes = 20 };
+        var zip = CreateZip(
+            ("a.txt", new string('x', 10)),
+            ("b.txt", new string('x', 10)),
+            ("c.txt", new string('x', 10)));
+
+        var result = new ZipArchiveExtractor().Extract(zip, _destination, settings);
+
+        Assert.True(result.Truncated);
+        Assert.Contains(result.RejectedEntries, r => r.Contains("exceeds limit"));
     }
 
     [Fact]

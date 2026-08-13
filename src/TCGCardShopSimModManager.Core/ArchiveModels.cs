@@ -9,10 +9,13 @@ public sealed record ExtractedSource(
 
 /// <summary>
 /// The result of a protected extraction: what made it out, and what was rejected.
+/// <see cref="Truncated"/> is set when extraction was halted early (entry cap or
+/// size cap), meaning the archive was only partially read.
 /// </summary>
 public sealed record ExtractionResult(
     List<ExtractedSource> Sources,
-    List<string> RejectedEntries);
+    List<string> RejectedEntries,
+    bool Truncated = false);
 
 /// <summary>
 /// One planned file copy: from where, what it looked like, and where it goes.
