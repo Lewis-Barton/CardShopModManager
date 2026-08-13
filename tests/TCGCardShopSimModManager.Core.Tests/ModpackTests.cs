@@ -271,6 +271,43 @@ public sealed class ModpackTests : IDisposable
         var entry = Assert.Single(recorded);
         Assert.Equal("p1", entry.PackId);
         Assert.Equal("1.0.0", entry.PackVersion);
+        Assert.All(new JournalStore(gameFolder).Load(), mod => Assert.Equal("p1", mod.PackId));
+    }
+
+    [Fact]
+    public async Task ModpackInstaller_UpdateChangesFilesBeforeRecordingNewPackVersion()
+    {
+        var firstBytes = MakeZip(("ExampleMod.dll", "version-one"));
+        var secondBytes = MakeZip(("ExampleMod.dll", "version-two"));
+        var currentBytes = firstBytes;
+        _server.Provider = _ => new HttpResponse(200, currentBytes, null);
+
+        ModListManifest Manifest(byte[] archive, string version) => new(
+            1,
+            "Pack One",
+            "tcgcardshopsimulator",
+            new List<ModEntry>
+            {
+                new("example-mod", "Example Mod", version, "ExampleMod.zip", Sha(archive),
+                    "BepInExPlugin", new List<string>(), new List<string>(),
+                    DownloadUrl: _server.Url("ExampleMod.zip"))
+            });
+
+        var gameFolder = Path.Combine(_root, "game");
+        Directory.CreateDirectory(gameFolder);
+        var installer = new ModpackInstaller(gameFolder);
+        var firstPack = new ModpackSummary("p1", "Pack One", "desc", "logo.png", "manifest.json", "1.0.0");
+        Assert.True((await installer.InstallAsync(Manifest(firstBytes, "1.0.0"), pack: firstPack)).Success);
+
+        currentBytes = secondBytes;
+        var secondPack = firstPack with { Version = "2.0.0" };
+        var report = await installer.InstallAsync(Manifest(secondBytes, "2.0.0"), pack: secondPack);
+
+        Assert.True(report.Success, string.Join("\n", report.Lines));
+        var installed = Path.Combine(gameFolder, "BepInEx", "plugins", "Example Mod", "ExampleMod.dll");
+        Assert.Equal("version-two", File.ReadAllText(installed));
+        Assert.Equal("2.0.0", Assert.Single(new ModpackJournalStore(gameFolder).Load()).PackVersion);
+        Assert.Equal("2.0.0", Assert.Single(new JournalStore(gameFolder).Load()).Version);
     }
 
     [Fact]

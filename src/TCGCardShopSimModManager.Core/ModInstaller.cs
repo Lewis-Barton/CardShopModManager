@@ -88,20 +88,41 @@ public sealed class ModInstaller
         Directory.CreateDirectory(workDir);
 
         var installedPaths = new List<string>();
+        var backups = new List<(string Original, string Backup)>();
         try
         {
             var plan = CreatePlan(mod, sourceDirectory, workDir);
             var rejected = plan.RejectedEntries;
             var skipped = plan.SkippedEntries;
+            var existingEntry = FindJournalEntry(mod);
+            var ownedPaths = existingEntry?.Files
+                .ToDictionary(f => Path.GetFullPath(f.Path), StringComparer.OrdinalIgnoreCase)
+                ?? new Dictionary<string, JournalFileEntry>(StringComparer.OrdinalIgnoreCase);
 
             if (plan.Files.Count == 0)
                 return new InstallResult(false,
                     $"{mod.Archive}: nothing to install (all content was documentation/OS junk)", null,
                     rejected, skipped);
 
-            // Never silently overwrite. Also reject two sources mapping to one destination.
+            // An update may replace files owned by the previous journal entry, but
+            // only while they still match what we installed. Everything else keeps
+            // the normal no-overwrite rule.
+            if (existingEntry is not null)
+            {
+                foreach (var file in existingEntry.Files.Where(f => File.Exists(f.Path)))
+                {
+                    if (!HashMatchesCurrent(file.Path, file.Sha256))
+                        return new InstallResult(false,
+                            $"Cannot update {mod.Name}: a managed file was modified: {file.Path}", null);
+                }
+            }
+
             var existing = plan.Files
-                .Where(f => File.Exists(PhysicalPath(_gameFolderPath, f.DestinationRelativePath)))
+                .Where(f =>
+                {
+                    var destination = PhysicalPath(_gameFolderPath, f.DestinationRelativePath);
+                    return File.Exists(destination) && !ownedPaths.ContainsKey(destination);
+                })
                 .Select(f => f.DestinationRelativePath)
                 .ToList();
             if (existing.Count > 0)
@@ -115,18 +136,35 @@ public sealed class ModInstaller
                 return new InstallResult(false,
                     $"{mod.Archive}: multiple files map to the same destination: {duplicate.Key}", null);
 
+            if (existingEntry is not null)
+            {
+                var backupRoot = Path.Combine(workDir, "previous-install");
+                Directory.CreateDirectory(backupRoot);
+                var backupNumber = 0;
+                foreach (var file in existingEntry.Files.Where(f => File.Exists(f.Path)))
+                {
+                    var backup = Path.Combine(backupRoot, (++backupNumber).ToString());
+                    File.Copy(file.Path, backup);
+                    backups.Add((file.Path, backup));
+                }
+            }
+
             foreach (var file in plan.Files)
             {
                 var destinationPath = PhysicalPath(_gameFolderPath, file.DestinationRelativePath);
                 Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
 
                 // Copy, then verify the copy landed intact before trusting it.
-                File.Copy(file.SourceAbsolutePath, destinationPath);
+                installedPaths.Add(destinationPath);
+                File.Copy(file.SourceAbsolutePath, destinationPath, overwrite: ownedPaths.ContainsKey(destinationPath));
                 if (!HashesMatch(file.SourceAbsolutePath, destinationPath))
                     throw new IOException($"Verification failed after copying {file.DestinationRelativePath}");
-
-                installedPaths.Add(destinationPath);
             }
+
+            var installedSet = installedPaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var oldFile in ownedPaths.Keys.Where(path => !installedSet.Contains(path)))
+                if (File.Exists(oldFile))
+                    File.Delete(oldFile);
 
             // Hash each installed file so uninstall can later refuse to delete
             // anything that has been changed. Remember the pack id (if any) so
@@ -134,8 +172,11 @@ public sealed class ModInstaller
             _journal.Add(new InstallJournalEntry(
                 plan.Mod.Name,
                 DateTimeOffset.UtcNow,
-                installedPaths.Select(p => new JournalFileEntry(p, ComputeSha256(p))).ToList())
-                with { PackId = mod.PackId });
+                installedPaths.Select(p => new JournalFileEntry(p, ComputeSha256(p))).ToList(),
+                PackId: mod.PackId,
+                ModId: mod.Id,
+                Version: mod.Version,
+                ArchiveSha256: mod.Sha256));
 
             return new InstallResult(true, null, installedPaths, rejected, skipped);
         }
@@ -153,6 +194,20 @@ public sealed class ModInstaller
                 {
                     // Best effort; the journal was never written so nothing claims
                     // these files were installed.
+                }
+            }
+
+            foreach (var (original, backup) in backups)
+            {
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(original)!);
+                    File.Copy(backup, original, overwrite: true);
+                }
+                catch
+                {
+                    // Best effort. The original journal remains in place when
+                    // an update fails, so later repair still has ownership data.
                 }
             }
 
@@ -174,6 +229,43 @@ public sealed class ModInstaller
     {
         var entry = _journal.Load().FirstOrDefault(e => e.ModName == modName);
         return entry is not null && entry.Files.All(f => File.Exists(f.Path));
+    }
+
+    /// <summary>True when this exact archive is journaled and its files are present.</summary>
+    public bool IsCurrent(ModEntry mod)
+    {
+        var entry = FindJournalEntry(mod);
+        return entry is not null &&
+               entry.ArchiveSha256?.Equals(mod.Sha256, StringComparison.OrdinalIgnoreCase) == true &&
+               entry.Files.All(f => File.Exists(f.Path));
+    }
+
+    public bool HasJournalEntry(ModEntry mod) => FindJournalEntry(mod) is not null;
+
+    public string? JournaledName(ModEntry mod) => FindJournalEntry(mod)?.ModName;
+
+    public string? UpdateBlockReason(ModEntry mod)
+    {
+        var entry = FindJournalEntry(mod);
+        if (entry is null)
+            return null;
+
+        var modified = entry.Files.FirstOrDefault(file =>
+            File.Exists(file.Path) && !HashMatchesCurrent(file.Path, file.Sha256));
+        return modified is null
+            ? null
+            : $"Cannot update {mod.Name}: a managed file was modified: {modified.Path}";
+    }
+
+    private InstallJournalEntry? FindJournalEntry(ModEntry mod)
+    {
+        var entries = _journal.Load();
+        return entries.FirstOrDefault(e =>
+                   !string.IsNullOrWhiteSpace(e.ModId) &&
+                   e.ModId.Equals(mod.Id, StringComparison.OrdinalIgnoreCase))
+               ?? entries.FirstOrDefault(e =>
+                   string.IsNullOrWhiteSpace(e.ModId) &&
+                   e.ModName.Equals(mod.Name, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

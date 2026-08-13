@@ -28,6 +28,16 @@ public sealed class ModpackInstaller
         ModpackSummary? pack = null,
         CancellationToken cancellationToken = default)
     {
+        if (pack is not null)
+        {
+            manifest = manifest with
+            {
+                Mods = manifest.Mods
+                    .Select(mod => mod with { PackId = pack.Id })
+                    .ToList()
+            };
+        }
+
         var ownsCacheDirectory = cacheDirectory is null;
         cacheDirectory ??= Path.Combine(
             Path.GetTempPath(),
@@ -78,7 +88,18 @@ public sealed class ModpackInstaller
             // Remember which pack version we just laid down, so the app can later
             // tell the user a newer one is published.
             if (pack is not null)
-                new ModpackJournalStore(_gameFolderPath).Record(pack.Id, pack.Version, pack.Name);
+            {
+                try
+                {
+                    new ModpackJournalStore(_gameFolderPath).Record(pack.Id, pack.Version, pack.Name);
+                }
+                catch (Exception ex)
+                {
+                    return DeploymentReport.Failure(
+                        report.Lines,
+                        $"The mods were installed, but the pack version could not be recorded: {ex.Message}");
+                }
+            }
         }
 
         return report;

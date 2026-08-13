@@ -42,6 +42,73 @@ public sealed class ModInstallerTests : IDisposable
         var entry = Assert.Single(new JournalStore(_gameFolder).Load(), e => e.ModName == mod.Name);
         var file = Assert.Single(entry.Files);
         Assert.Equal(installed, file.Path);
+        Assert.Equal(mod.Id, entry.ModId);
+        Assert.Equal(mod.Version, entry.Version);
+        Assert.Equal(mod.Sha256, entry.ArchiveSha256);
+    }
+
+    [Fact]
+    public void Install_UpdateReplacesAddsAndRemovesOwnedFiles()
+    {
+        var firstZip = CreateZip(
+            ("ExampleMod.dll", "version-one"),
+            ("old.cfg", "old-setting"));
+        var first = AddZip("pack.zip", firstZip) with
+        {
+            Id = "stable-id",
+            Name = "Example Mod",
+            Version = "1.0.0"
+        };
+        var firstResult = _installer.Install(first, _sourceDir);
+        Assert.True(firstResult.Success, firstResult.Error);
+
+        var secondZip = CreateZip(
+            ("ExampleMod.dll", "version-two"),
+            ("new.cfg", "new-setting"));
+        var second = AddZip("pack.zip", secondZip) with
+        {
+            Id = "stable-id",
+            Name = "Example Mod Renamed",
+            Version = "2.0.0"
+        };
+
+        var result = _installer.Install(second, _sourceDir);
+
+        Assert.True(result.Success, result.Error);
+        var pluginRoot = Path.Combine(_gameFolder, "BepInEx", "plugins", "Example Mod Renamed");
+        Assert.Equal("version-two", File.ReadAllText(Path.Combine(pluginRoot, "ExampleMod.dll")));
+        Assert.Equal("new-setting", File.ReadAllText(Path.Combine(pluginRoot, "new.cfg")));
+        Assert.False(File.Exists(Path.Combine(_gameFolder, "BepInEx", "plugins", "Example Mod", "old.cfg")));
+        var entry = Assert.Single(new JournalStore(_gameFolder).Load());
+        Assert.Equal("stable-id", entry.ModId);
+        Assert.Equal("2.0.0", entry.Version);
+        Assert.Equal(second.Sha256, entry.ArchiveSha256);
+    }
+
+    [Fact]
+    public void Install_UpdateRefusesToReplaceModifiedOwnedFile()
+    {
+        var first = AddLooseFile("ExampleMod.dll", "version-one") with
+        {
+            Id = "stable-id",
+            Version = "1.0.0"
+        };
+        Assert.True(_installer.Install(first, _sourceDir).Success);
+        var installed = Path.Combine(_gameFolder, "BepInEx", "plugins", "Example Mod", "ExampleMod.dll");
+        File.WriteAllText(installed, "user-change");
+
+        var second = AddLooseFile("ExampleMod.dll", "version-two") with
+        {
+            Id = "stable-id",
+            Version = "2.0.0"
+        };
+        var result = _installer.Install(second, _sourceDir);
+
+        Assert.False(result.Success);
+        Assert.Contains("modified", result.Error);
+        Assert.Equal("user-change", File.ReadAllText(installed));
+        var entry = Assert.Single(new JournalStore(_gameFolder).Load());
+        Assert.Equal("1.0.0", entry.Version);
     }
 
     [Fact]
@@ -341,6 +408,28 @@ public sealed class ModInstallerTests : IDisposable
 
         Assert.Empty(entries);
         Assert.True(File.Exists(Path.Combine(_gameFolder, "cardshopmodmanager.journal.json.corrupt")));
+    }
+
+    [Fact]
+    public void JournalStore_LoadsLegacyEntryWithoutIdentityFields()
+    {
+        var journalPath = Path.Combine(_gameFolder, "cardshopmodmanager.journal.json");
+        File.WriteAllText(journalPath, """
+            [
+              {
+                "modName": "Legacy Mod",
+                "installedAt": "2026-08-13T12:00:00Z",
+                "files": []
+              }
+            ]
+            """);
+
+        var entry = Assert.Single(new JournalStore(_gameFolder).Load());
+
+        Assert.Equal("Legacy Mod", entry.ModName);
+        Assert.Null(entry.ModId);
+        Assert.Null(entry.Version);
+        Assert.Null(entry.ArchiveSha256);
     }
 
     [Fact]

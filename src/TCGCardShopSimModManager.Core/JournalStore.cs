@@ -47,7 +47,12 @@ public sealed class JournalStore
     public void Add(InstallJournalEntry entry)
     {
         var entries = Load();
-        entries.RemoveAll(e => e.ModName == entry.ModName); // replace if reinstalling
+        entries.RemoveAll(e =>
+            (!string.IsNullOrWhiteSpace(entry.ModId) &&
+             !string.IsNullOrWhiteSpace(e.ModId) &&
+             e.ModId.Equals(entry.ModId, StringComparison.OrdinalIgnoreCase)) ||
+            (string.IsNullOrWhiteSpace(e.ModId) &&
+             e.ModName.Equals(entry.ModName, StringComparison.OrdinalIgnoreCase)));
         entries.Add(entry);
         Save(entries);
     }

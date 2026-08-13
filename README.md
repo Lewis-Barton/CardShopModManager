@@ -130,6 +130,12 @@ disabled mod.
 Before copying anything, `install` builds the plan for every archive and refuses
 to proceed if two mods claim the same destination file.
 
+Installing a newer archive for the same mod id performs an update. The manager
+replaces or removes only files that still match its previous journal and refuses
+the update if a managed file has been changed by hand. Older journal files do
+not contain stable ids or archive hashes; they remain readable and are upgraded
+when the matching mod is next installed.
+
 ## Installation layout rules
 
 An archive's structure decides where its files go, and `plan` shows the choice

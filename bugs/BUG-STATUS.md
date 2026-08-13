@@ -23,6 +23,14 @@ design review found three additional safety issues, now fixed:
   each asynchronous selection and ignores results belonging to an older click,
   preventing one pack's metadata from being paired with another pack's
   manifest. The install action also rejects re-entry while it is running.
+- **BUG-044 — modpack update records a version without replacing files (High):**
+  install journals now retain the stable mod id, version and archive hash. An
+  unchanged archive is skipped; a changed archive replaces only files still
+  matching the previous journal, removes obsolete owned files, and writes the
+  new identity after every copy verifies. Modified files block the update.
+  Hosted installs also stamp their pack id onto each mod journal entry. Legacy
+  journals remain readable and gain stable identity after their next update.
+  Covered at both installer and deployment-service level.
 
 ## Summary
 | Severity | Open | Fixed |
@@ -163,6 +171,5 @@ Detailed entries are appended here as bugs are resolved (files changed, what/why
   - BUG-039 (Low): `ServeCommand` now also watches for stdin EOF and `AppDomain.ProcessExit` (in addition to Ctrl+C) and disposes the server on each, so a headless or terminated run releases the listener cleanly.
 - **Why:** These were the last open holes — update detection ignoring real version formats / false-positiving on component counts, and a demo server that wouldn't shut down cleanly headless.
 - **Verification:** New test `ModpackTests.ModpackVersion_IsNewer_ToleratesPrefixesAndComponentCounts_Bug006_Bug007`; full Core suite 135/135; solution builds clean. BUG-039 verified by build + source analysis. **All 40 known bugs are now fixed.**
-
 
 

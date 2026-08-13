@@ -180,6 +180,69 @@ public sealed class DeploymentServiceTests : IDisposable
         Assert.Contains(report.Lines, l => l.Contains("not valid JSON"));
     }
 
+    [Fact]
+    public void Install_NewerArchiveUpdatesExistingMod()
+    {
+        var archive = Path.Combine(_sourceDir, "plugin.zip");
+        WriteZip(archive, ("ExampleMod.dll", "version-one"));
+        var manifestPath = WriteManifest(new[]
+        {
+            MakeModJson("example-mod", archive: "plugin.zip", sha: ShaOf(archive))
+        });
+        var gameFolder = Path.Combine(_root, "game");
+        Directory.CreateDirectory(gameFolder);
+        var service = new DeploymentService();
+        Assert.True(service.Install(manifestPath, _sourceDir, gameFolder).Success);
+
+        WriteZip(archive, ("ExampleMod.dll", "version-two"));
+        manifestPath = WriteManifest(new[]
+        {
+            MakeModJson("example-mod", archive: "plugin.zip", sha: ShaOf(archive))
+        });
+
+        var report = service.Install(manifestPath, _sourceDir, gameFolder);
+
+        Assert.True(report.Success, string.Join("\n", report.Lines));
+        Assert.Contains(report.Lines, line => line.StartsWith("Updated example-mod"));
+        var installed = Path.Combine(gameFolder, "BepInEx", "plugins", "example-mod", "ExampleMod.dll");
+        Assert.Equal("version-two", File.ReadAllText(installed));
+    }
+
+    [Fact]
+    public void Install_PreflightBlocksAllUpdatesWhenOneManagedFileWasModified()
+    {
+        var firstArchive = Path.Combine(_sourceDir, "first.zip");
+        var secondArchive = Path.Combine(_sourceDir, "second.zip");
+        WriteZip(firstArchive, ("First.dll", "first-v1"));
+        WriteZip(secondArchive, ("Second.dll", "second-v1"));
+        var manifestPath = WriteManifest(new[]
+        {
+            MakeModJson("first", archive: "first.zip", sha: ShaOf(firstArchive)),
+            MakeModJson("second", archive: "second.zip", sha: ShaOf(secondArchive))
+        });
+        var gameFolder = Path.Combine(_root, "game");
+        Directory.CreateDirectory(gameFolder);
+        var service = new DeploymentService();
+        Assert.True(service.Install(manifestPath, _sourceDir, gameFolder).Success);
+
+        var firstInstalled = Path.Combine(gameFolder, "BepInEx", "plugins", "first", "First.dll");
+        var secondInstalled = Path.Combine(gameFolder, "BepInEx", "plugins", "second", "Second.dll");
+        File.WriteAllText(secondInstalled, "user-change");
+        WriteZip(firstArchive, ("First.dll", "first-v2"));
+        WriteZip(secondArchive, ("Second.dll", "second-v2"));
+        manifestPath = WriteManifest(new[]
+        {
+            MakeModJson("first", archive: "first.zip", sha: ShaOf(firstArchive)),
+            MakeModJson("second", archive: "second.zip", sha: ShaOf(secondArchive))
+        });
+
+        var report = service.Install(manifestPath, _sourceDir, gameFolder);
+
+        Assert.False(report.Success);
+        Assert.Equal("first-v1", File.ReadAllText(firstInstalled));
+        Assert.Equal("user-change", File.ReadAllText(secondInstalled));
+    }
+
     // --- helpers -----------------------------------------------------------
 
     private string WriteManifest(string[] modJsons, string fileName = "manifest.json")

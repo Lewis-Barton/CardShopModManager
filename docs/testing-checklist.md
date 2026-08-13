@@ -33,6 +33,12 @@ unit test already covers it, **[manual]** where it needs a real environment.
 
 - [ ] **[manual]** Install a mod, **update** the manifest to a newer archive,
       reinstall the newer version, confirm the newer file replaces the old.
+- [ ] **[auto]** An update replaces changed files, adds new files and removes
+      obsolete files only while the previous copies still match the journal
+      (`Install_UpdateReplacesAddsAndRemovesOwnedFiles`,
+      `Install_NewerArchiveUpdatesExistingMod`).
+- [ ] **[auto]** An update refuses to overwrite a managed file changed by hand
+      (`Install_UpdateRefusesToReplaceModifiedOwnedFile`).
 - [ ] **[manual]** **Downgrade** to an older archive and confirm it replaces the
       newer file.
 - [ ] **[auto]** Uninstall warns and keeps a file that was modified after

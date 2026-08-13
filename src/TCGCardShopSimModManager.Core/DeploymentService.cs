@@ -130,7 +130,7 @@ public sealed class DeploymentService
         lines.AddRange(resolution.OrderedMods.Select(m => $"  {Label(m)}"));
 
         var installer = new ModInstaller(gameFolderPath);
-        var toInstall = resolution.OrderedMods.Where(m => !installer.IsInstalled(m.Name)).ToList();
+        var toInstall = resolution.OrderedMods.Where(m => !installer.IsCurrent(m)).ToList();
 
         // Pre-flight: plan every archive so two mods claiming the same file are
         // caught before a single byte is copied.
@@ -159,7 +159,13 @@ public sealed class DeploymentService
 
         // BUG-019: refuse pre-flight when a pending mod collides with a file
         // already owned by an installed mod, not only when two pending mods clash.
-        var conflicts = DestinationConflictFinder.Find(plans, BuildInstalledPlans(gameFolderPath));
+        var replacingNames = toInstall
+            .Select(installer.JournaledName)
+            .Where(name => name is not null)
+            .Select(name => name!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var conflicts = DestinationConflictFinder.Find(
+            plans, BuildInstalledPlans(gameFolderPath, replacingNames));
         if (conflicts.Count > 0)
         {
             lines.Add("File conflicts detected — refusing to install:");
@@ -167,12 +173,19 @@ public sealed class DeploymentService
             return DeploymentReport.Failure(lines, null);
         }
 
+        foreach (var mod in toInstall)
+        {
+            if (installer.UpdateBlockReason(mod) is { } reason)
+                return DeploymentReport.Failure(lines, reason);
+        }
+
         var anyFailure = false;
         foreach (var mod in toInstall)
         {
+            var updating = installer.HasJournalEntry(mod);
             var result = installer.Install(mod, sourceDirectory);
             lines.Add(result.Success
-                ? $"Installed {Label(mod)}: {result.InstalledPaths!.Count} file(s)."
+                ? $"{(updating ? "Updated" : "Installed")} {Label(mod)}: {result.InstalledPaths!.Count} file(s)."
                 : $"Failed to install {Label(mod)}: {result.Error}");
 
             if (result.RejectedEntries is { Count: > 0 })
@@ -259,11 +272,15 @@ public sealed class DeploymentService
     /// file's full path; we turn that back into a relative destination so it
     /// compares like a pending plan's destinations.
     /// </summary>
-    private static IReadOnlyList<InstallPlan> BuildInstalledPlans(string gameFolderPath)
+    private static IReadOnlyList<InstallPlan> BuildInstalledPlans(
+        string gameFolderPath,
+        ISet<string>? excludedModNames = null)
     {
         var plans = new List<InstallPlan>();
         foreach (var entry in new JournalStore(gameFolderPath).Load())
         {
+            if (excludedModNames?.Contains(entry.ModName) == true)
+                continue;
             if (entry.Files.Count == 0)
                 continue;
 
