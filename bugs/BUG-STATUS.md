@@ -7,16 +7,16 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
-| Critical | 1 | 0 |
+| Critical | 0 | 1 |
 | High     | 13 | 0 |
-| Medium   | 18 | 0 |
+| Medium   | 17 | 1 |
 | Low      | 8 | 0 |
-| **Total**| **40** | **0** |
+| **Total**| **38** | **2** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |
 |-----|-----|------|-------|--------|-----------------|-----|----------|----------|
-| BUG-001 | Critical | archive/classifier (security) | Game-root loader-hijack DLL placed via BepInEx-layout mirror | Open | ArchiveClassifier.cs | | | |
+| BUG-001 | Critical | archive/classifier (security) | Game-root loader-hijack DLL placed via BepInEx-layout mirror | Fixed | ArchiveClassifier.cs | Denylist of known DLL-hijack target names (winhttp/version/winmm/dbghelp/d3d*/dxgi/…) refused only at the sensitive roots (game root + BepInEx/ root); framework tree (incl. BepInEx/core/doorstop.dll) mirrors freely | BUG-001: allowlist wrongly rejected the framework's own BepInEx/core/doorstop.dll and still let hijack DLLs reach the game root; denylist blocks the exact attack vector without breaking the framework | Verified (unit + 104-test suite + build) |
 | BUG-002 | High | modpack validate | Validator crashes (ArgumentNull) on malformed index/manifest | Open | ModpackSubmissionValidator.cs | | | |
 | BUG-003 | High | update detection | GUI never records pack journal -> feature dead in app | Open | MainWindow.cs, ModpackInstaller.cs | | | |
 | BUG-004 | High | pack journal | Corrupt modpacks.json throws unhandled, blocks all install/upgrade | Open | ModpackJournalStore.cs | | | |
@@ -44,7 +44,7 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 | BUG-026 | Low | UX | malformed manifests surface raw serializer exceptions | Open | ManifestReader.cs, Program.cs | | | |
 | BUG-027 | Low | CLI | install with <3 args prints usage but exits 0 | Open | InstallCommand.cs, Program.cs | | | |
 | BUG-028 | Low | validation | empty mods list validated as valid (no warning) | Open | ManifestValidator.cs | | | |
-| BUG-029 | Medium | classifier | loose .dll at root alongside BepInEx/ lands in game root, not BepInEx/plugins | Open | ArchiveClassifier.cs | | | |
+| BUG-029 | Medium | classifier | loose .dll at root alongside BepInEx/ lands in game root, not BepInEx/plugins | Fixed | ArchiveClassifier.cs | In the BepInExLayout branch, a root-level .dll now routes to BepInEx/plugins/<mod>/ instead of mirroring to the game root | BUG-029: loose plugin DLL must live under plugins, never the game root where the loader could pick it up | Verified (unit + suite) |
 | BUG-030 | Low | archive | nested .zip installed as-is, unvalidated | Open | ZipArchiveExtractor.cs, ArchiveProtectionSettings.cs | | | |
 | BUG-031 | High | modpack validate | `modpack validate` (all) reports "All packs valid." when index.json missing | Open | ModpackSubmissionValidator.cs, ModpackCommand.cs | | | |
 | BUG-032 | High | modpack validate | BepInEx framework accepted with wrong installType "BepInExPlugin" -> VALID | Open | ManifestValidator.cs, ModpackSubmissionValidator.cs | | | |
@@ -59,3 +59,9 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 
 ## Fix log
 Detailed entries are appended here as bugs are resolved (files changed, what/why, verification).
+
+### BUG-001 (Critical) + BUG-029 (Medium) — ArchiveClassifier.cs
+- **Files:** `src/TCGCardShopSimModManager.Core/ArchiveClassifier.cs`, `tests/.../ArchiveClassifierTests.cs`
+- **What:** Replaced the prior allowlist (only `plugins`/`patchers`/`config` under `BepInEx`) with a **denylist of known DLL search-order hijack targets** (`winhttp.dll`, `version.dll`, `winmm.dll`, `dbghelp.dll`, `d3d9.dll`, `d3d11.dll`, `dxgi.dll`, `dsound.dll`, `mscoree.dll`, `propsys.dll`, `userenv.dll`, `dinput8.dll`, `dwrite.dll`, `apphelp.dll`, `comctl32.dll`, `secur32.dll`, `cryptbase.dll`, `msimg32.dll`, `uxtheme.dll`, `ws2_32.dll`). A file bearing one of these names is refused **only when it would land at the game root or the `BepInEx/` root**; everything else (including the genuine framework's `BepInEx/core/doorstop.dll`) mirrors normally. Root-level `.dll`s in a `BepInExLayout` now route to `BepInEx/plugins/<mod>/` (BUG-029).
+- **Why:** The allowlist wrongly rejected `BepInEx/core/doorstop.dll` (breaks the framework) and the original mirror logic still let `winhttp.dll`/`version.dll` reach the game root / `BepInEx/` root — the classic pre-launch RCE vector. The denylist blocks exactly that vector while permitting the framework to install.
+- **Verification:** 11 ArchiveClassifier tests pass (incl. new `FrameworkDllUnderBepInExCore_IsAllowed`, `RootHijackDllInBepInExLayout_IsRejected`, `GameRootHijackDll_IsRejected`); full Core suite 104/104; `dotnet build` clean. Installer only writes `plan.Files`, so refused hijack DLLs are never written to disk.

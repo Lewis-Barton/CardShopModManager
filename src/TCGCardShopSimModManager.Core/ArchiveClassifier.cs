@@ -6,10 +6,15 @@ namespace TCGCardShopSimModManager.Core;
 /// and documented so every archive produces a predictable plan.
 ///
 /// Layout rules, checked in order:
-///   1. Contains a BepInEx/ folder -> mirror it into the game's BepInEx/.
+///   1. Contains a BepInEx/ folder -> mirror the genuine framework tree into the
+///      game's BepInEx/. The only prohibition is a known DLL search-order hijack
+///      target (e.g. winhttp.dll, version.dll) sitting directly at the game root or
+///      the BepInEx/ root; those are refused so a mod can never pre-load attacker
+///      code into the game process before any legitimate DLL.
 ///   2. Loose .dll at the archive root -> whole mod goes to BepInEx/plugins/{Name}/.
 ///   3. Contains a patchers/ folder -> files go to BepInEx/patchers/.
-///   4. Anything else -> mirror the archive root straight into the game root.
+///   4. Anything else -> mirror the archive root straight into the game root, except
+///      hijack-target DLLs at the game root which are refused.
 /// Documentation and OS-junk files are skipped, not installed.
 /// </summary>
 public sealed class ArchiveClassifier
@@ -39,6 +44,23 @@ public sealed class ArchiveClassifier
 
     private const string MacOsJunkDirectory = "__macosx";
 
+    // Known DLL search-order hijack targets. A mod that drops one of these at the
+    // game root or the BepInEx/ root would have attacker code loaded by the game (or
+    // BepInEx) before any legitimate DLL — pre-launch RCE. We refuse exactly these
+    // names at exactly those roots, and let everything else mirror, so the genuine
+    // BepInEx framework (e.g. BepInEx/core/doorstop.dll) still installs normally.
+    private static readonly HashSet<string> KnownHijackTargetNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "winhttp.dll", "version.dll", "winmm.dll", "dbghelp.dll",
+        "d3d9.dll", "d3d11.dll", "dxgi.dll", "dsound.dll",
+        "mscoree.dll", "propsys.dll", "userenv.dll", "dinput8.dll",
+        "dwrite.dll", "apphelp.dll", "comctl32.dll", "secur32.dll",
+        "cryptbase.dll", "msimg32.dll", "uxtheme.dll", "ws2_32.dll"
+    };
+
+    private static bool IsHijackTarget(string path) =>
+        KnownHijackTargetNames.Contains(Path.GetFileName(path));
+
     public InstallPlan BuildPlan(
         ModEntry mod,
         IReadOnlyCollection<ExtractedSource> sources,
@@ -61,7 +83,10 @@ public sealed class ArchiveClassifier
             var destinationRelativePath = MapToDestination(relativePath, mod.Name, kind);
             if (destinationRelativePath is null)
             {
-                skipped.Add($"{relativePath} (not covered by layout {kind})");
+                var reason = IsHijackTarget(relativePath)
+                    ? $"{relativePath} (refused: known DLL-hijack target at a sensitive root)"
+                    : $"{relativePath} (not covered by layout {kind})";
+                skipped.Add(reason);
                 continue;
             }
 
@@ -108,23 +133,49 @@ public sealed class ArchiveClassifier
         switch (kind)
         {
             case LayoutKind.BepInExLayout when segments[0].Equals("BepInEx", StringComparison.OrdinalIgnoreCase):
+                // Mirror the genuine BepInEx framework tree (plugins, patchers, config,
+                // core/doorstop.dll, etc.) into the game's BepInEx/. The only file we
+                // must never allow is a known DLL search-order hijack target placed
+                // directly at the BepInEx/ root (e.g. BepInEx/winhttp.dll). Framework
+                // files live one level deeper, so they still mirror.
+                if (segments.Length == 2 && IsHijackTarget(segments[1]))
+                    return null;
                 return $"BepInEx/{string.Join('/', segments[1..])}";
 
             case LayoutKind.BepInExLayout:
-                // Anything at the archive root alongside BepInEx/ (docs, etc.)
-                // mirrors into the game root.
+                // Archive-root files alongside BepInEx/ (docs, loose plugin DLLs, etc.).
+                // A loose .dll is a plugin and belongs under BepInEx/plugins/<mod>/; a
+                // hijack-target name is never a legitimate plugin, so refuse it. Any
+                // other root file mirrors into the game root — but never a hijack target
+                // sitting directly at the game root.
+                if (Path.GetExtension(relativePath).Equals(".dll", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (IsHijackTarget(relativePath))
+                        return null;
+                    return $"BepInEx/plugins/{modName}/{relativePath}";
+                }
+                if (segments.Length == 1 && IsHijackTarget(relativePath))
+                    return null;
                 return relativePath;
 
             case LayoutKind.PluginFolder:
+                if (IsHijackTarget(segments[^1]))
+                    return null;
                 return $"BepInEx/plugins/{modName}/{relativePath}";
 
             case LayoutKind.Patcher when segments[0].Equals("patchers", StringComparison.OrdinalIgnoreCase):
+                if (segments.Length == 2 && IsHijackTarget(segments[1]))
+                    return null;
                 return $"BepInEx/patchers/{string.Join('/', segments[1..])}";
 
             case LayoutKind.Patcher:
+                if (IsHijackTarget(segments[^1]))
+                    return null;
                 return $"BepInEx/plugins/{modName}/{relativePath}";
 
             case LayoutKind.GameRoot:
+                if (segments.Length == 1 && IsHijackTarget(segments[0]))
+                    return null;
                 return relativePath;
 
             default:

@@ -101,4 +101,96 @@ public sealed class ArchiveClassifierTests
         Assert.Empty(plan.Files);
         Assert.Empty(plan.SkippedEntries);
     }
+
+    [Fact]
+    public void BepInExRootFile_IsRejected()
+    {
+        // A DLL placed directly at the BepInEx/ root (e.g. winhttp.dll) is a
+        // loader-hijack target and must never be installed.
+        var plan = new ArchiveClassifier().BuildPlan(Mod, new[]
+        {
+            Source("BepInEx/plugins/RealMod.dll"),
+            Source("BepInEx/winhttp.dll")
+        });
+
+        Assert.Contains("BepInEx layout", plan.LayoutName);
+        var real = Assert.Single(plan.Files, f => f.SourceRelativePath == "BepInEx/plugins/RealMod.dll");
+        Assert.Equal("BepInEx/plugins/RealMod.dll", real.DestinationRelativePath);
+
+        Assert.DoesNotContain(plan.Files, f => f.SourceRelativePath == "BepInEx/winhttp.dll");
+        Assert.Contains(plan.SkippedEntries, s => s.Contains("winhttp.dll"));
+    }
+
+    [Fact]
+    public void LooseDllInBepInExLayout_GoesToPlugins()
+    {
+        // A loose .dll at the archive root alongside BepInEx/ is a plugin and
+        // must land under BepInEx/plugins/<mod>, not the game root.
+        var plan = new ArchiveClassifier().BuildPlan(Mod, new[]
+        {
+            Source("BepInEx/plugins/Mod/mod.dll"),
+            Source("loose.dll")
+        });
+
+        Assert.Contains("BepInEx layout", plan.LayoutName);
+        Assert.Equal(2, plan.Files.Count);
+        Assert.Contains(plan.Files,
+            f => f.DestinationRelativePath == "BepInEx/plugins/Example Mod/loose.dll");
+        Assert.Contains(plan.Files,
+            f => f.DestinationRelativePath == "BepInEx/plugins/Mod/mod.dll");
+    }
+
+    [Fact]
+    public void FrameworkDllUnderBepInExCore_IsAllowed()
+    {
+        // The genuine BepInEx framework ships files such as BepInEx/core/doorstop.dll.
+        // These are not hijack targets (they live one level below the BepInEx/ root),
+        // so they must mirror into the game's BepInEx/ tree, not be rejected.
+        var plan = new ArchiveClassifier().BuildPlan(Mod, new[]
+        {
+            Source("BepInEx/core/doorstop.dll"),
+            Source("BepInEx/core/BepInEx.dll"),
+            Source("BepInEx/plugins/RealMod.dll")
+        });
+
+        Assert.Contains("BepInEx layout", plan.LayoutName);
+        Assert.Equal(3, plan.Files.Count);
+        Assert.Contains(plan.Files,
+            f => f.SourceRelativePath == "BepInEx/core/doorstop.dll"
+                 && f.DestinationRelativePath == "BepInEx/core/doorstop.dll");
+        Assert.Contains(plan.Files,
+            f => f.SourceRelativePath == "BepInEx/core/BepInEx.dll"
+                 && f.DestinationRelativePath == "BepInEx/core/BepInEx.dll");
+        Assert.DoesNotContain(plan.SkippedEntries, s => s.Contains("doorstop.dll"));
+    }
+
+    [Fact]
+    public void RootHijackDllInBepInExLayout_IsRejected()
+    {
+        // BUG-001: a hijack-target DLL (winhttp.dll) at the archive root alongside a
+        // BepInEx/ folder must be refused, not mirrored into the game root.
+        var plan = new ArchiveClassifier().BuildPlan(Mod, new[]
+        {
+            Source("BepInEx/plugins/RealMod.dll"),
+            Source("winhttp.dll")
+        });
+
+        Assert.Contains("BepInEx layout", plan.LayoutName);
+        Assert.DoesNotContain(plan.Files, f => f.SourceRelativePath == "winhttp.dll");
+        Assert.Contains(plan.SkippedEntries, s => s.Contains("winhttp.dll") && s.Contains("refused"));
+    }
+
+    [Fact]
+    public void GameRootHijackDll_IsRejected()
+    {
+        // BUG-001: a hijack-target DLL dropped at the game root (no BepInEx structure)
+        // must be refused even when it is the only archive entry.
+        var plan = new ArchiveClassifier().BuildPlan(Mod, new[]
+        {
+            Source("version.dll")
+        });
+
+        Assert.Empty(plan.Files);
+        Assert.Contains(plan.SkippedEntries, s => s.Contains("version.dll") && s.Contains("refused"));
+    }
 }
