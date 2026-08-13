@@ -12,6 +12,12 @@ TCG Card Shop Sim Mod Manager collects nothing and sends nothing on its own.
   encrypted with DPAPI, readable only by the current Windows user, in
   `%LOCALAPPDATA%\TCGCardShopSimModManager`. It is never written into the project, the
   logs, or the support bundle.
+- **Nexus OAuth tokens stay on this machine.** `nexus login` stores the access
+  and refresh tokens encrypted with DPAPI, readable only by the current Windows
+  user, in `%LOCALAPPDATA%\TCGCardShopSimModManager\nexus-oauth-tokens.bin`. The
+  OAuth client id is stored unencrypted (it is public, not a secret) in
+  `%LOCALAPPDATA%\TCGCardShopSimModManager\oauth-settings.json`. Neither is
+  written into the project, the logs, or the support bundle.
 - **Diagnostic logs** are plain text in `%LOCALAPPDATA%\TCGCardShopSimModManager\logs`
   (override with the `CSMM_LOG_DIR` environment variable). You can delete them
   at any time. The `support-bundle` command collects them into a zip you share

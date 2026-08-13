@@ -49,7 +49,7 @@ try
                 args.ElementAtOrDefault(5));
             break;
         case "nexus":
-            await NexusCommand.Run(args.ElementAtOrDefault(1), args.ElementAtOrDefault(2));
+            await NexusCommand.Run(args.ElementAtOrDefault(1), args.ElementAtOrDefault(2), args.ElementAtOrDefault(3));
             break;
         case "nexus-demo":
             await NexusDemoCommand.Run(

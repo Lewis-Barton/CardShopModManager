@@ -5,20 +5,36 @@ namespace TCGCardShopSimModManager.Cli;
 
 public static class NexusCommand
 {
-    public static async Task Run(string? operation, string? apiKeyOrNothing)
+    public static async Task Run(string? operation, string? arg1, string? arg2 = null)
     {
         switch (operation)
         {
             case "set-key":
-                if (string.IsNullOrWhiteSpace(apiKeyOrNothing))
+                if (string.IsNullOrWhiteSpace(arg1))
                 {
                     Console.WriteLine("Usage: nexus set-key <apikey>");
                     return;
                 }
 
-                ApiKeyStore.Save(apiKeyOrNothing.Trim());
+                ApiKeyStore.Save(arg1.Trim());
                 Console.WriteLine("API key stored (DPAPI, readable only by the current user).");
                 Console.WriteLine("(The classic API-key path is for development only — prefer 'nexus login' for real use.)");
+                break;
+
+            case "set-client":
+                if (string.IsNullOrWhiteSpace(arg1))
+                {
+                    Console.WriteLine("Usage: nexus set-client <clientId> [redirectUri]");
+                    return;
+                }
+
+                OAuthSettings.Save(new OAuthSettings(
+                    ClientId: arg1.Trim(),
+                    RedirectUri: string.IsNullOrWhiteSpace(arg2) ? null : arg2.Trim()));
+                Console.WriteLine($"OAuth client id set to {arg1.Trim()}.");
+                if (!string.IsNullOrWhiteSpace(arg2))
+                    Console.WriteLine($"Redirect URI set to {arg2.Trim()}.");
+                Console.WriteLine("Subsequent 'nexus login' runs will use this client.");
                 break;
 
             case "clear":
@@ -40,7 +56,8 @@ public static class NexusCommand
                 break;
 
             default:
-                Console.WriteLine("Usage: nexus <set-key <apikey>|login|logout|status|clear>");
+                Console.WriteLine("Usage: nexus <set-key <apikey>|set-client <id> [redirectUri]|login|logout|status|clear>");
+                Console.WriteLine("  set-client <id>  store the Nexus OAuth client id (production path)");
                 Console.WriteLine("  login            authenticate with Nexus via OAuth (preferred)");
                 Console.WriteLine("  set-key <apikey> store a classic API key (development only)");
                 Console.WriteLine("  API base comes from NEXUS_API_BASE, defaulting to https://api.nexusmods.com/v1");

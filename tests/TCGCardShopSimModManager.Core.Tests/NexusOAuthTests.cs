@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -177,6 +178,38 @@ public sealed class NexusOAuthTests
         var result = await listener.WaitForCallbackAsync(CancellationToken.None);
         Assert.Equal("redirect_uri_mismatch", result.Error);
         Assert.Equal("bad uri", result.ErrorDescription);
+    }
+
+    [Fact]
+    public void OAuthSettings_RoundTrip()
+    {
+        var path = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TCGCardShopSimModManager", "oauth-settings.json");
+        var backup = File.Exists(path) ? File.ReadAllText(path) : null;
+
+        try
+        {
+            OAuthSettings.Save(new OAuthSettings("my-client", "http://127.0.0.1:8089/callback"));
+            var loaded = OAuthSettings.Load();
+            Assert.Equal("my-client", loaded.ClientId);
+            Assert.Equal("http://127.0.0.1:8089/callback", loaded.RedirectUri);
+
+            OAuthSettings.Save(new OAuthSettings());
+            var cleared = OAuthSettings.Load();
+            Assert.Null(cleared.ClientId);
+        }
+        finally
+        {
+            if (backup is null)
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+            else
+            {
+                File.WriteAllText(path, backup);
+            }
+        }
     }
 
     private static string B64Url(string s) =>

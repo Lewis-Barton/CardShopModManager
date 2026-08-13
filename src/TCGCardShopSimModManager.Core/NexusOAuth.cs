@@ -25,13 +25,41 @@ public static class NexusOAuth
     public const string AuthorizeEndpoint = "https://users.nexusmods.com/oauth/authorize";
     public const string TokenEndpoint = "https://users.nexusmods.com/oauth/token";
 
-    /// <summary>Override with NEXUS_OAUTH_CLIENT_ID once a dedicated app is registered.</summary>
-    public static string ClientId =>
-        Environment.GetEnvironmentVariable("NEXUS_OAUTH_CLIENT_ID") ?? "public_test";
+    /// <summary>Resolution order: NEXUS_OAUTH_CLIENT_ID env var, then the stored
+    /// settings file, then the built-in <c>public_test</c> dev client.</summary>
+    public static string ClientId
+    {
+        get
+        {
+            var env = Environment.GetEnvironmentVariable("NEXUS_OAUTH_CLIENT_ID");
+            if (!string.IsNullOrWhiteSpace(env))
+                return env;
 
-    /// <summary>Override with NEXUS_OAUTH_REDIRECT_URI to match a registered app.</summary>
-    public static string RedirectUri =>
-        Environment.GetEnvironmentVariable("NEXUS_OAUTH_REDIRECT_URI") ?? "http://127.0.0.1:8089/callback";
+            var settings = OAuthSettings.Load();
+            if (!string.IsNullOrWhiteSpace(settings.ClientId))
+                return settings.ClientId;
+
+            return "public_test";
+        }
+    }
+
+    /// <summary>Resolution order: NEXUS_OAUTH_REDIRECT_URI env var, then the stored
+    /// settings file, then the built-in <c>http://127.0.0.1:8089/callback</c>.</summary>
+    public static string RedirectUri
+    {
+        get
+        {
+            var env = Environment.GetEnvironmentVariable("NEXUS_OAUTH_REDIRECT_URI");
+            if (!string.IsNullOrWhiteSpace(env))
+                return env;
+
+            var settings = OAuthSettings.Load();
+            if (!string.IsNullOrWhiteSpace(settings.RedirectUri))
+                return settings.RedirectUri;
+
+            return "http://127.0.0.1:8089/callback";
+        }
+    }
 
     public static string BuildAuthorizeUrl(
         string? redirectUri = null, string? state = null, string? codeChallenge = null, string? clientId = null)

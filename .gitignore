@@ -18,6 +18,8 @@ samples/fake-game/cardshopmodmanager.*
 
 # credential material - never commit (key lives outside the repo via DPAPI)
 nexus-key*
+oauth-settings.json
+nexus-oauth-tokens*
 *.key
 *api-key*
 *apikey*

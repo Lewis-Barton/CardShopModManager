@@ -44,7 +44,7 @@ dotnet run --project src/TCGCardShopSimModManager.Cli -- plan     <manifest.json
 dotnet run --project src/TCGCardShopSimModManager.Cli -- download <manifest.json> <httpUrlBase|localFolder|nexus> <cacheDir> <outDir>
 dotnet run --project src/TCGCardShopSimModManager.Cli -- serve     <folder> [port]
 dotnet run --project src/TCGCardShopSimModManager.Cli -- demo
-dotnet run --project src/TCGCardShopSimModManager.Cli -- nexus     <set-key <apikey>|status|clear>
+dotnet run --project src/TCGCardShopSimModManager.Cli -- nexus     <set-key <apikey>|set-client <id> [redirectUri]|login|logout|status|clear>
 dotnet run --project src/TCGCardShopSimModManager.Cli -- nexus-demo
 dotnet run --project src/TCGCardShopSimModManager.Cli -- update-check
 dotnet run --project src/TCGCardShopSimModManager.Cli -- support-bundle [outDir]
@@ -60,7 +60,7 @@ dotnet run --project src/TCGCardShopSimModManager.Cli -- mods     <list <gameFol
 - `plan`      — dry run: exactly which files each archive would install, where, and what's skipped/rejected. Never touches the game.
 - `download`  — fetch every archive into `outDir` through the download pipeline. Source is an http(s) base URL, a local folder, or `nexus`.
 - `serve`     — host a folder over HTTP with Range support (in-process server, mainly for demos). `demo` is the one-command version: serve + download + install for you.
-- `nexus`     — manage the Nexus API key (`set-key`/`status`/`clear`). `nexus-demo` runs the whole Nexus path against a mock API.
+- `nexus`     — manage Nexus auth: `set-client` (OAuth app id), `login`/`logout`/`status` (OAuth), and `set-key`/`clear` (classic API key, development only). `nexus-demo` runs the whole Nexus path against a mock API.
 - `update-check` — compares the running version with the latest GitHub release (runs only when you ask).
 - `support-bundle` — zips environment info and recent diagnostics for sharing. Never includes the API key.
 - `install`   — resolve the enabled list, verify order, pre-flight file conflicts, then hash-verify, extract, plan, stage, copy, journal.
@@ -193,6 +193,34 @@ HTTP source fetches the bytes. Notes:
 host. Personal keys are fine for development; before distributing a build it
 must be registered with Nexus per its Acceptable Use Policy, and personal keys
 must not be embedded in it.
+
+## Nexus sign-in (OAuth)
+
+Mod downloads authenticate with Nexus through OAuth 2.0 (PKCE), so the app
+never sees your Nexus password and each user signs in with their own account.
+This is the path used in distributed builds. The classic API-key command
+(`nexus set-key`) remains for development only.
+
+Sign-in needs a Nexus OAuth client id. Register one with Nexus by emailing
+`api@nexusmods.com` with your application name, description, logo (dark
+background) and a callback URI of `http://127.0.0.1:8089/callback`, then set
+it once:
+
+```
+dotnet run --project src/TCGCardShopSimModManager.Cli -- nexus set-client <clientId>
+```
+
+`nexus login` opens your browser to Nexus, the app receives the redirect on a
+local loopback listener, and the token is stored per user (DPAPI on Windows).
+Tokens refresh automatically and are cleared with `nexus logout`.
+
+- `nexus set-key <apikey>` stores the key encrypted with DPAPI (current user
+  only) in `%LOCALAPPDATA%\TCGCardShopSimModManager\nexus-key.bin`.
+- `nexus set-client <clientId>` stores the OAuth client id in
+  `%LOCALAPPDATA%\TCGCardShopSimModManager\oauth-settings.json`. The client id
+  is public, not a secret.
+- No secrets live in the repo; `.gitignore` excludes anything that would hold or
+  reference a key (`nexus-key*`, `oauth-settings.json`, `*.key`, ...).
 
 ## Safety
 
