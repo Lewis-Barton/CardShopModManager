@@ -14,6 +14,30 @@ public static class ModpackCommand
 {
     public static async Task Run(string? sub, string? arg1, string? arg2)
     {
+        // `validate` is a local authoring check against modpacks/ on disk — it
+        // never touches GitHub, so handle it before the live-index path.
+        if (sub is "validate")
+        {
+            var root = arg2 ?? "modpacks";
+            var validator = new ModpackSubmissionValidator(root);
+
+            if (arg1 is null)
+            {
+                var all = validator.ValidateAll();
+                var ok = true;
+                foreach (var (id, result) in all)
+                {
+                    PrintSubmission(id, result);
+                    ok &= result.IsValid;
+                }
+                Console.WriteLine(ok ? "All packs valid." : "Some packs failed validation.");
+                return;
+            }
+
+            PrintSubmission(arg1, validator.ValidatePack(arg1));
+            return;
+        }
+
         var reader = new ModpackIndexReader();
         var index = await reader.FetchIndexAsync();
 
@@ -61,5 +85,15 @@ public static class ModpackCommand
 
         foreach (var line in report.Lines)
             Console.WriteLine(line);
+    }
+
+    private static void PrintSubmission(string packId, SubmissionResult result)
+    {
+        var tag = result.IsValid ? "VALID" : "INVALID";
+        Console.WriteLine($"[{tag}] {packId}");
+        foreach (var error in result.Errors)
+            Console.WriteLine($"  error: {error}");
+        foreach (var warning in result.Warnings)
+            Console.WriteLine($"  warning: {warning}");
     }
 }

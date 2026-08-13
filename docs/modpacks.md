@@ -164,6 +164,28 @@ folder the user picked.
 - The current manual **manifest + source boxes** stay, below the gallery, as a
   "Local pack" option for people who want to install from files on disk.
 
+## Validating a submission
+
+Before merging a pack, run the local check from the repo root:
+
+```
+dotnet run --project src/TCGCardShopSimModManager.Cli -- modpack validate [packId]
+```
+
+With no `packId` it checks every pack listed in `modpacks/index.json`. It reads
+`index.json`, the referenced `manifest.json` and `logo` from disk — it never
+contacts GitHub — and fails the submission on:
+
+- a missing or non-JSON `index.json` / `manifest.json`;
+- a missing `logo`, or one that isn't a PNG;
+- a manifest that fails `ManifestValidator`;
+- a mod with no resolvable source (`DownloadUrl`, `NexusModId`, or a pack-level
+  `source`);
+- a pack that omits the required `bepinex` entry (see BepInEx above).
+
+It warns (without failing) on a `manifest.name` that disagrees with the index
+`name`, or a suspiciously small logo.
+
 ## What is reused vs. new
 
 Reused as-is: `ModDownloader`, `HttpModSource`, `NexusModSource`,
@@ -175,5 +197,4 @@ install wiring, and the optional `DownloadUrl` field.
 
 ## Deferred (not v1)
 
-- **Pack-submission validation** — tooling to check a submitted `manifest.json`
-  and logo before merge. For v1, review by eye in the PR is enough.
+- (Pack-submission validation is done — see "Validating a submission" above.)
