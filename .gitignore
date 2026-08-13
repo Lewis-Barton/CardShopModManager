@@ -27,3 +27,4 @@ secrets.json
 
 # publish output
 /dist/
+/publish/

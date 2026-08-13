@@ -83,7 +83,7 @@ public sealed class ModpackInstaller
         if (report.Success)
         {
             if (ownsCacheDirectory)
-                TryDeleteDirectory(cacheDirectory);
+                TemporaryDirectory.DeleteBestEffort(cacheDirectory);
 
             // Remember which pack version we just laid down, so the app can later
             // tell the user a newer one is published.
@@ -159,16 +159,4 @@ public sealed class ModpackInstaller
         }
     }
 
-    private static void TryDeleteDirectory(string path)
-    {
-        try
-        {
-            if (Directory.Exists(path))
-                Directory.Delete(path, recursive: true);
-        }
-        catch
-        {
-            // Best-effort cleanup; a leftover temp folder is harmless.
-        }
-    }
 }

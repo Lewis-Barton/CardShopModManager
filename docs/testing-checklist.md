@@ -28,6 +28,8 @@ unit test already covers it, **[manual]** where it needs a real environment.
       (`CorruptSource_FailsCleanly_NoPartialNoFinal`).
 - [ ] **[manual]** A stale `.partial` file resumes (or the server re-downloads
       fresh) without producing a corrupt final file.
+- [ ] **[manual]** Lock a file in a temporary planning/install workspace and
+      confirm cleanup failure does not replace the command's reported result.
 
 ## Mod lifecycle
 

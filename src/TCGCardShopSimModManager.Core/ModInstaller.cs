@@ -215,8 +215,7 @@ public sealed class ModInstaller
         }
         finally
         {
-            if (Directory.Exists(workDir))
-                Directory.Delete(workDir, recursive: true);
+            TemporaryDirectory.DeleteBestEffort(workDir);
         }
     }
 

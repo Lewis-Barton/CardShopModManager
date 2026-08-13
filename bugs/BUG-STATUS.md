@@ -54,15 +54,19 @@ design review found three additional safety issues, now fixed:
   files are unique, and replacement keeps the previous version as a backup.
   Corrupt journals retain their existing recovery behavior; corrupt profiles
   still fail closed instead of being treated as "enable everything".
+- **BUG-049 — temporary cleanup can replace a valid result (Medium):** planning,
+  preview and installation now use one best-effort cleanup helper. A locked or
+  unavailable temporary file can leave its workspace behind, but can no longer
+  turn an otherwise controlled success or failure into an unexpected exception.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 2 |
 | High     | 0 | 16 |
-| Medium   | 0 | 21 |
+| Medium   | 0 | 22 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **48** |
+| **Total**| **0** | **49** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

@@ -153,8 +153,7 @@ public sealed class DeploymentService
         }
         finally
         {
-            if (Directory.Exists(planRoot))
-                Directory.Delete(planRoot, recursive: true);
+            TemporaryDirectory.DeleteBestEffort(planRoot);
         }
 
         // BUG-019: refuse pre-flight when a pending mod collides with a file
@@ -246,8 +245,7 @@ public sealed class DeploymentService
         }
         finally
         {
-            if (Directory.Exists(planRoot))
-                Directory.Delete(planRoot, recursive: true);
+            TemporaryDirectory.DeleteBestEffort(planRoot);
         }
 
         return previews;
