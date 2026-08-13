@@ -105,6 +105,25 @@ public sealed class DeploymentService
         Diagnostic.Write("DeploymentService.Install(manifest)");
         var lines = new List<string>();
 
+        GameOperationLock operation;
+        try
+        {
+            operation = GameOperationLock.Acquire(gameFolderPath);
+        }
+        catch (IOException ex)
+        {
+            return DeploymentReport.Failure(lines, ex.Message);
+        }
+        using (operation)
+            return InstallLocked(manifest, sourceDirectory, gameFolderPath, lines);
+    }
+
+    private static DeploymentReport InstallLocked(
+        ModListManifest manifest,
+        string sourceDirectory,
+        string gameFolderPath,
+        List<string> lines)
+    {
         // BUG-020: the local path must guarantee BepInEx sorts first just like the
         // hosted-modpack path does. Enforce it here so both `install` (this
         // overload) and `validate` resolve the same BepInEx-first order.
@@ -129,7 +148,7 @@ public sealed class DeploymentService
         lines.Add("Install order:");
         lines.AddRange(resolution.OrderedMods.Select(m => $"  {Label(m)}"));
 
-        var installer = new ModInstaller(gameFolderPath);
+        var installer = new ModInstaller(gameFolderPath, disabledRoot: null, operationLockHeld: true);
         var toInstall = resolution.OrderedMods.Where(m => !installer.IsCurrent(m)).ToList();
 
         // Pre-flight: plan every archive so two mods claiming the same file are

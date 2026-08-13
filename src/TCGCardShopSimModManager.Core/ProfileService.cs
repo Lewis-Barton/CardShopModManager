@@ -11,14 +11,29 @@ public sealed class ProfileService
 {
     private readonly ProfilesStore _store;
     private readonly ModInstaller _installer;
+    private readonly string _gameFolderPath;
 
     public ProfileService(string gameFolderPath)
     {
+        _gameFolderPath = gameFolderPath;
         _store = new ProfilesStore(gameFolderPath);
-        _installer = new ModInstaller(gameFolderPath);
+        _installer = new ModInstaller(gameFolderPath, disabledRoot: null, operationLockHeld: true);
     }
 
     public ProfileChangeResult Enable(ModListManifest manifest, string modId, string sourceDirectory)
+    {
+        try
+        {
+            using var operation = GameOperationLock.Acquire(_gameFolderPath);
+            return EnableLocked(manifest, modId, sourceDirectory);
+        }
+        catch (IOException ex)
+        {
+            return Failure(ex.Message);
+        }
+    }
+
+    private ProfileChangeResult EnableLocked(ModListManifest manifest, string modId, string sourceDirectory)
     {
         var mod = FindMod(manifest, modId);
         if (mod is null)
@@ -71,6 +86,19 @@ public sealed class ProfileService
     }
 
     public ProfileChangeResult Disable(ModListManifest manifest, string modId, string sourceDirectory)
+    {
+        try
+        {
+            using var operation = GameOperationLock.Acquire(_gameFolderPath);
+            return DisableLocked(manifest, modId, sourceDirectory);
+        }
+        catch (IOException ex)
+        {
+            return Failure(ex.Message);
+        }
+    }
+
+    private ProfileChangeResult DisableLocked(ModListManifest manifest, string modId, string sourceDirectory)
     {
         var mod = FindMod(manifest, modId);
         if (mod is null)

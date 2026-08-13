@@ -77,15 +77,21 @@ design review found three additional safety issues, now fixed:
   Nexus sign-in status and exposes OAuth sign-in and sign-out using the existing
   PKCE/token store. Branding now uses the full product name and the Refresh
   label is explicitly centred within its button.
+- **BUG-054 — overlapping operations can corrupt an installation (High):** all
+  file-changing operations now take a cross-process lock keyed to the selected
+  game folder. A profile change or deployment keeps that lock for its complete
+  file-and-journal transaction, while direct install, uninstall, enable and
+  disable calls protect themselves. A second process receives a clear retry
+  message instead of working against half-changed files.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 2 |
-| High     | 0 | 16 |
+| High     | 0 | 17 |
 | Medium   | 0 | 26 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **53** |
+| **Total**| **0** | **54** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

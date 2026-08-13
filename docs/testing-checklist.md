@@ -30,6 +30,12 @@ unit test already covers it, **[manual]** where it needs a real environment.
       fresh) without producing a corrupt final file.
 - [ ] **[manual]** Lock a file in a temporary planning/install workspace and
       confirm cleanup failure does not replace the command's reported result.
+- [ ] **[auto]** A second operation for the same game folder is refused while
+      the first holds the operation lock, then succeeds after release
+      (`GameOperationLockTests`).
+- [ ] **[manual]** Start a long install in the desktop app, then try to change
+      the same game through the CLI. The CLI should ask you to wait and neither
+      operation should leave partial files or journals.
 
 ## Mod lifecycle
 

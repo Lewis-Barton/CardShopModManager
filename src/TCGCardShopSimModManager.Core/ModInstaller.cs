@@ -9,6 +9,7 @@ public sealed class ModInstaller
     private readonly ModpackJournalStore _modpackJournal;
     private readonly string _gameFolderPath;
     private readonly string _disabledRoot;
+    private readonly bool _operationLockHeld;
 
     /// <summary>
     /// Where disabled mods are parked while turned off. Lives beside the mod
@@ -19,11 +20,17 @@ public sealed class ModInstaller
     /// scratch folder and never touch the real install.
     /// </summary>
     public ModInstaller(string gameFolderPath, string? disabledRoot = null)
+        : this(gameFolderPath, disabledRoot, operationLockHeld: false)
+    {
+    }
+
+    internal ModInstaller(string gameFolderPath, string? disabledRoot, bool operationLockHeld)
     {
         _gameFolderPath = gameFolderPath;
         _journal = new JournalStore(gameFolderPath);
         _modpackJournal = new ModpackJournalStore(gameFolderPath);
         _disabledRoot = disabledRoot ?? DisabledRoot;
+        _operationLockHeld = operationLockHeld;
     }
 
     /// <summary>
@@ -80,6 +87,19 @@ public sealed class ModInstaller
     }
 
     public InstallResult Install(ModEntry mod, string sourceDirectory)
+    {
+        try
+        {
+            using var operation = EnterOperation();
+            return InstallCore(mod, sourceDirectory);
+        }
+        catch (IOException ex)
+        {
+            return new InstallResult(false, ex.Message, null);
+        }
+    }
+
+    private InstallResult InstallCore(ModEntry mod, string sourceDirectory)
     {
         if (mod.InstallType != "BepInExPlugin" && mod.InstallType != ModListConventions.BepInExInstallType)
             return new InstallResult(false, $"Unsupported install type: {mod.InstallType}", null);
@@ -276,6 +296,19 @@ public sealed class ModInstaller
 /// </summary>
 public DisableResult Disable(string modName)
 {
+    try
+    {
+        using var operation = EnterOperation();
+        return DisableCore(modName);
+    }
+    catch (IOException ex)
+    {
+        return new DisableResult(false, ex.Message, new List<string>());
+    }
+}
+
+private DisableResult DisableCore(string modName)
+{
     var warnings = new List<string>();
     var entry = _journal.Load().FirstOrDefault(e => e.ModName == modName);
     if (entry is null)
@@ -376,6 +409,19 @@ public DisableResult Disable(string modName)
 /// something already occupies the destination.
 /// </summary>
 public EnableResult Enable(string modName)
+{
+    try
+    {
+        using var operation = EnterOperation();
+        return EnableCore(modName);
+    }
+    catch (IOException ex)
+    {
+        return new EnableResult(false, ex.Message, new List<string>());
+    }
+}
+
+private EnableResult EnableCore(string modName)
 {
     var warnings = new List<string>();
     var entry = _journal.Load().FirstOrDefault(e => e.ModName == modName);
@@ -519,6 +565,19 @@ private void PruneEmptyActiveFolders()
 
     public UninstallResult Uninstall(string modName)
     {
+        try
+        {
+            using var operation = EnterOperation();
+            return UninstallCore(modName);
+        }
+        catch (IOException ex)
+        {
+            return new UninstallResult(false, ex.Message, new List<string>());
+        }
+    }
+
+    private UninstallResult UninstallCore(string modName)
+    {
     // BUG-040: a missing game folder is distinct from "no journal entry".
     if (!Directory.Exists(_gameFolderPath))
         return new UninstallResult(false, $"Game folder not found: {_gameFolderPath}", new List<string>());
@@ -613,4 +672,7 @@ private void PruneEmptyActiveFolders()
 
     private static bool HashesMatch(string first, string second) =>
         ComputeSha256(first).Equals(ComputeSha256(second), StringComparison.OrdinalIgnoreCase);
+
+    private IDisposable? EnterOperation() =>
+        _operationLockHeld ? null : GameOperationLock.Acquire(_gameFolderPath);
 }
