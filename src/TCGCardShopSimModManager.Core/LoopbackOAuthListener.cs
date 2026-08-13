@@ -8,12 +8,6 @@ using System.Threading.Tasks;
 
 namespace TCGCardShopSimModManager.Core;
 
-/// <summary>
-/// A minimal loopback HTTP listener for catching the OAuth redirect. Uses a raw
-/// <see cref="TcpListener"/> (not <see cref="System.Net.HttpListener"/>) so we
-/// don't need a Windows URL-ACL reservation to bind a port. The desktop guide
-/// for Nexus OAuth recommends exactly this pattern.
-/// </summary>
 public sealed class LoopbackOAuthListener : IAsyncDisposable, IDisposable
 {
     private readonly TcpListener _listener;
@@ -35,40 +29,66 @@ public sealed class LoopbackOAuthListener : IAsyncDisposable, IDisposable
     }
 
     /// <summary>
-    /// Accepts one connection, reads the request line, extracts <c>code</c> and
-    /// <c>state</c> from the query, and replies with a tiny HTML page so the
-    /// browser can close. Returns the captured values.
+    /// Accepts connections until one carries <c>code</c> or <c>error</c>. Browsers
+    /// often open stray requests first (e.g. /favicon.ico); those are answered and
+    /// ignored so they don't swallow the real callback. Returns what was captured.
     /// </summary>
-    public async Task<(string Code, string State)> WaitForCallbackAsync(CancellationToken cancellationToken)
+    public async Task<LoopbackCallback> WaitForCallbackAsync(CancellationToken cancellationToken)
     {
-        using var client = await _listener.AcceptTcpClientAsync(cancellationToken);
-        using var stream = client.GetStream();
-        using var reader = new StreamReader(stream, Encoding.ASCII, leaveOpen: true);
-
-        string? code = null, state = null;
-
-        var requestLine = await reader.ReadLineAsync(cancellationToken);
-        if (requestLine is not null)
+        for (var attempt = 0; attempt < 10; attempt++)
         {
-            var queryStart = requestLine.IndexOf('?');
-            if (queryStart >= 0)
-            {
-                var query = requestLine.Substring(queryStart + 1);
-                var space = query.IndexOf(' ');
-                if (space >= 0)
-                    query = query.Substring(0, space);
+            using var client = await _listener.AcceptTcpClientAsync(cancellationToken);
+            using var stream = client.GetStream();
+            using var reader = new StreamReader(stream, Encoding.ASCII, leaveOpen: true);
 
-                foreach (var pair in query.Split('&'))
-                {
-                    var kv = pair.Split('=', 2);
-                    var key = Uri.UnescapeDataString(kv[0]);
-                    var value = kv.Length > 1 ? Uri.UnescapeDataString(kv[1]) : "";
-                    if (key == "code") code = value;
-                    else if (key == "state") state = value;
-                }
-            }
+            var result = ParseRequest(await reader.ReadLineAsync(cancellationToken));
+
+            // Answer every connection so the browser doesn't hang; only the one
+            // with code/error is the one we act on.
+            await RespondAsync(stream, cancellationToken);
+
+            if (result.Code is not null || result.Error is not null)
+                return result;
         }
 
+        return new LoopbackCallback(null, null, null, null, null);
+    }
+
+    private static LoopbackCallback ParseRequest(string? requestLine)
+    {
+        if (requestLine is null)
+            return new LoopbackCallback(null, null, null, null, null);
+
+        var queryStart = requestLine.IndexOf('?');
+        if (queryStart < 0)
+            return new LoopbackCallback(null, null, null, null, requestLine);
+
+        var rest = requestLine.Substring(queryStart + 1);
+        var space = rest.IndexOf(' ');
+        if (space >= 0)
+            rest = rest.Substring(0, space);
+
+        string? code = null, state = null, error = null, errorDescription = null;
+        foreach (var pair in rest.Split('&'))
+        {
+            var kv = pair.Split('=', 2);
+            var key = Uri.UnescapeDataString(kv[0]);
+            var value = kv.Length > 1 ? DecodeQueryValue(kv[1]) : "";
+            if (key == "code") code = value;
+            else if (key == "state") state = value;
+            else if (key == "error") error = value;
+            else if (key == "error_description") errorDescription = value;
+        }
+
+        return new LoopbackCallback(code, state, error, errorDescription, rest);
+    }
+
+    /// <summary>Query values are application/x-www-form-urlencoded, so '+' is a space.</summary>
+    private static string DecodeQueryValue(string value) =>
+        Uri.UnescapeDataString(value.Replace("+", " "));
+
+    private static async Task RespondAsync(Stream stream, CancellationToken cancellationToken)
+    {
         const string html = "<!doctype html><html><body><h2>Nexus sign-in complete</h2>"
             + "<p>You can close this window and return to the mod manager.</p></body></html>";
         var body = Encoding.UTF8.GetBytes(html);
@@ -79,8 +99,6 @@ public sealed class LoopbackOAuthListener : IAsyncDisposable, IDisposable
         await stream.WriteAsync(header, cancellationToken);
         await stream.WriteAsync(body, cancellationToken);
         await stream.FlushAsync(cancellationToken);
-
-        return (code ?? "", state ?? "");
     }
 
     public void Dispose() => _listener.Stop();
@@ -91,3 +109,6 @@ public sealed class LoopbackOAuthListener : IAsyncDisposable, IDisposable
         return ValueTask.CompletedTask;
     }
 }
+
+/// <summary>What the loopback redirect delivered.</summary>
+public sealed record LoopbackCallback(string? Code, string? State, string? Error, string? ErrorDescription, string? RawQuery);

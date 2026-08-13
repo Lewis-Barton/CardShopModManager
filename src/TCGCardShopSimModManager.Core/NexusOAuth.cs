@@ -164,14 +164,29 @@ public static class NexusOAuth
         OpenBrowser(url);
 
         log?.Invoke($"Waiting for Nexus to redirect back to {redirectUri} ...");
-        var (code, returnedState) = await listener.WaitForCallbackAsync(CancellationToken.None);
+        var result = await listener.WaitForCallbackAsync(CancellationToken.None);
 
-        if (string.IsNullOrEmpty(code))
-            throw new DownloadException("The OAuth redirect did not include a code.", retryable: false);
-        if (returnedState != state)
+        if (result.Error is not null)
+        {
+            var detail = result.ErrorDescription is not null ? $" ({result.ErrorDescription})" : "";
+            var hint = result.Error == "redirect_uri_mismatch"
+                ? " — the redirect_uri must match exactly, including 127.0.0.1 vs localhost."
+                : ".";
+            throw new DownloadException(
+                $"Nexus returned an OAuth error: {result.Error}{detail}. " +
+                $"Check that NEXUS_OAUTH_CLIENT_ID and the redirect URI match what Nexus has registered{hint}",
+                retryable: false);
+        }
+
+        if (string.IsNullOrEmpty(result.Code))
+            throw new DownloadException(
+                $"The OAuth redirect did not include a code. Query received: {result.RawQuery ?? "(none)"}",
+                retryable: false);
+
+        if (result.State != state)
             throw new DownloadException("OAuth state mismatch — possible CSRF. Aborting sign-in.", retryable: false);
 
-        var set = await ExchangeCodeAsync(code, redirectUri, verifier, clientId, http);
+        var set = await ExchangeCodeAsync(result.Code!, redirectUri, verifier, clientId, http);
         NexusTokenStore.Save(set);
 
         var user = NexusJwt.DecodeAccessToken(set.AccessToken)

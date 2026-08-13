@@ -116,10 +116,67 @@ public sealed class NexusOAuthTests
         var request = Encoding.ASCII.GetBytes("GET /callback?code=ABC123&state=ST456 HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
         await ns.WriteAsync(request, CancellationToken.None);
 
-        var (code, state) = await listener.WaitForCallbackAsync(CancellationToken.None);
+        var result = await listener.WaitForCallbackAsync(CancellationToken.None);
 
-        Assert.Equal("ABC123", code);
-        Assert.Equal("ST456", state);
+        Assert.Equal("ABC123", result.Code);
+        Assert.Equal("ST456", result.State);
+    }
+
+    [Fact]
+    public async Task LoopbackListener_IgnoresStrayRequest_ThenCapturesCode()
+    {
+        int port;
+        using (var probe = new TcpListener(IPAddress.Loopback, 0))
+        {
+            probe.Start();
+            port = ((IPEndPoint)probe.LocalEndpoint).Port;
+            probe.Stop();
+        }
+
+        var uri = $"http://127.0.0.1:{port}/callback";
+        await using var listener = new LoopbackOAuthListener(uri);
+        await listener.StartAsync();
+
+        // Keep both connections open until the listener has answered, so it can
+        // write its 200 response without the client having already disconnected.
+        using var stray = new TcpClient();
+        await stray.ConnectAsync(IPAddress.Loopback, port);
+        using var strayStream = stray.GetStream();
+        await strayStream.WriteAsync(Encoding.ASCII.GetBytes("GET /favicon.ico HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"), CancellationToken.None);
+
+        using var client = new TcpClient();
+        await client.ConnectAsync(IPAddress.Loopback, port);
+        using var ns = client.GetStream();
+        await ns.WriteAsync(Encoding.ASCII.GetBytes("GET /callback?code=ZZZ&state=WWW HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"), CancellationToken.None);
+
+        var result = await listener.WaitForCallbackAsync(CancellationToken.None);
+        Assert.Equal("ZZZ", result.Code);
+        Assert.Equal("WWW", result.State);
+    }
+
+    [Fact]
+    public async Task LoopbackListener_CapturesError()
+    {
+        int port;
+        using (var probe = new TcpListener(IPAddress.Loopback, 0))
+        {
+            probe.Start();
+            port = ((IPEndPoint)probe.LocalEndpoint).Port;
+            probe.Stop();
+        }
+
+        var uri = $"http://127.0.0.1:{port}/callback";
+        await using var listener = new LoopbackOAuthListener(uri);
+        await listener.StartAsync();
+
+        using var client = new TcpClient();
+        await client.ConnectAsync(IPAddress.Loopback, port);
+        using var ns = client.GetStream();
+        await ns.WriteAsync(Encoding.ASCII.GetBytes("GET /callback?error=redirect_uri_mismatch&error_description=bad+uri HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"), CancellationToken.None);
+
+        var result = await listener.WaitForCallbackAsync(CancellationToken.None);
+        Assert.Equal("redirect_uri_mismatch", result.Error);
+        Assert.Equal("bad uri", result.ErrorDescription);
     }
 
     private static string B64Url(string s) =>
