@@ -43,6 +43,7 @@ public sealed partial class MainWindow : Window
         // x:Name fields (_log, _gameBox, ...). Must use InitializeComponent
         // (not AvaloniaXamlLoader.Load) so those fields are populated.
         InitializeComponent();
+        Closed += (_, _) => _http.Dispose();
 
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         if (version is not null)
@@ -320,7 +321,8 @@ public sealed partial class MainWindow : Window
             PackLog($"--- Install {pack.Name} into {gameFolder}");
             var fallback = BuildFallback(pack);
             report = await RunUnderPack(() =>
-                new ModpackInstaller(gameFolder, _http).InstallAsync(manifest, fallback, pack: pack));
+                Task.Run(() => new ModpackInstaller(gameFolder, _http)
+                    .InstallAsync(manifest, fallback, pack: pack)));
         }
         finally
         {
@@ -355,11 +357,11 @@ public sealed partial class MainWindow : Window
             : new LocalFileSource(pack.Source);
     }
 
-    private static async Task<Bitmap?> LoadLogoAsync(string url)
+    private async Task<Bitmap?> LoadLogoAsync(string url)
     {
         try
         {
-            var bytes = await new HttpClient().GetByteArrayAsync(url);
+            var bytes = await _http.GetByteArrayAsync(url);
             return new Bitmap(new MemoryStream(bytes));
         }
         catch

@@ -33,7 +33,7 @@ public sealed record ModpackSummary(
     /// or any of its legacy <see cref="FormerIds"/>, case-insensitively.</summary>
     public bool IsId(string id) =>
         Id.Equals(id, StringComparison.OrdinalIgnoreCase) ||
-        (FormerIds ?? new List<string>()).Any(f => f.Equals(id, StringComparison.OrdinalIgnoreCase));
+        FormerIds?.Any(f => f.Equals(id, StringComparison.OrdinalIgnoreCase)) == true;
 }
 
 /// <summary>The modpacks/index.json document.</summary>

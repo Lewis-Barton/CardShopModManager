@@ -47,7 +47,9 @@ public sealed class UpdateChecker
                 return new UpdateCheckResult(false, true, null, null,
                     $"GitHub returned {(int)response.StatusCode}.");
 
-            var root = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken)).RootElement;
+            using var document = JsonDocument.Parse(
+                await response.Content.ReadAsStringAsync(cancellationToken));
+            var root = document.RootElement;
             var tag = root.GetProperty("tag_name").GetString() ?? "";
             var releaseUrl = root.TryGetProperty("html_url", out var html) ? html.GetString() : null;
 

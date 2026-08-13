@@ -58,15 +58,19 @@ design review found three additional safety issues, now fixed:
   preview and installation now use one best-effort cleanup helper. A locked or
   unavailable temporary file can leave its workspace behind, but can no longer
   turn an otherwise controlled success or failure into an unexpected exception.
+- **BUG-050 — desktop installs block the UI and logo requests leak clients (Medium):**
+  the desktop window now runs the complete hosted-install pipeline away from the
+  UI thread, reuses its existing HTTP client for logos, and disposes that client
+  when the window closes. Update checks now dispose their parsed JSON document.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 2 |
 | High     | 0 | 16 |
-| Medium   | 0 | 22 |
+| Medium   | 0 | 23 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **49** |
+| **Total**| **0** | **50** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

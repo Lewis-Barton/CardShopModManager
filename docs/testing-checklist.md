@@ -90,6 +90,8 @@ unit test already covers it, **[manual]** where it needs a real environment.
 - [ ] **[manual]** Install a pack, then bump `version` in `index.json`; the card
       shows "Update available" and the button reads "Update". Running it should
       not corrupt the existing install.
+- [ ] **[manual]** During a large hosted install, move and resize the desktop
+      window and confirm it remains responsive until the report appears.
 - [ ] **[auto]** `modpack validate` passes a well-formed pack and fails one
       missing the `bepinex` entry, a mod with no source, or a missing logo
       (`ModpackSubmissionTests`).
