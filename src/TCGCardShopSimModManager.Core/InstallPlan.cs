@@ -26,9 +26,11 @@ public sealed record UninstallResult(
 public sealed record DisableResult(
     bool Success,
     string? Error,
-    List<string> Warnings);
+    List<string> Warnings,
+    string? Message = null);
 
 public sealed record EnableResult(
     bool Success,
     string? Error,
-    List<string> Warnings);
+    List<string> Warnings,
+    string? Message = null);

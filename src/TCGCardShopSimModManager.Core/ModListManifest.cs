@@ -44,4 +44,5 @@ public sealed record ModEntry(
     List<string> Conflicts,
     long? NexusModId = null,
     long? NexusFileId = null,
-    string? DownloadUrl = null);
+    string? DownloadUrl = null,
+    string? PackId = null);

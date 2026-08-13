@@ -25,7 +25,9 @@ public sealed record DiscoveredMod(
 /// </summary>
 public static class ModDiscovery
 {
-    private static readonly string[] ActiveRoots = { "BepInEx/plugins", "BepInEx/patchers" };
+    // BUG-012: framework mods live under BepInEx/core (and other BepInEx subfolders),
+    // not just plugins/patchers, so they must be discoverable too.
+    private static readonly string[] ActiveRoots = { "BepInEx/plugins", "BepInEx/patchers", "BepInEx/core" };
 
     public static List<DiscoveredMod> Discover(string gameFolderPath, string? disabledRoot = null)
     {

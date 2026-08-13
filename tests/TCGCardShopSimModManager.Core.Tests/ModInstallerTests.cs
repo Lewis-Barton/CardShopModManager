@@ -219,6 +219,128 @@ public sealed class ModInstallerTests : IDisposable
         Assert.Contains("No journal entry", result.Error);
     }
 
+    [Fact]
+    public void Disable_FrameworkMod_ReportsNonSuccess() // BUG-011
+    {
+        // A mod whose files live under BepInEx/core (the framework) is not one we
+        // toggle, so disabling it must report failure, not a silent success.
+        var zipPath = CreateZip(("BepInEx/core/SomeFramework/framework.dll", "dll-bytes"));
+        var mod = AddZip("fw.zip", zipPath);
+        Assert.True(_installer.Install(mod, _sourceDir).Success);
+
+        var result = _installer.Disable(mod.Name);
+
+        Assert.False(result.Success);
+        Assert.Contains("not a managed", result.Error ?? "");
+    }
+
+    [Fact]
+    public void Disable_AlreadyDisabledMod_ReportsAlreadyDisabled() // BUG-018
+    {
+        var mod = AddLooseFile("ExampleMod.dll", "dll-bytes");
+        Assert.True(_installer.Install(mod, _sourceDir).Success);
+        Assert.True(_installer.Disable(mod.Name).Success);
+
+        var result = _installer.Disable(mod.Name);
+
+        Assert.True(result.Success);
+        Assert.Equal("Already disabled: Example Mod", result.Message);
+    }
+
+    [Fact]
+    public void Disable_ReinstallThenDisable_DoesNotThrow() // BUG-016
+    {
+        // disable -> reinstall (journaled, active copy regenerated) -> disable again
+        // used to crash with "file already exists" on the occupied disabled path.
+        var mod = AddLooseFile("ExampleMod.dll", "dll-bytes");
+        Assert.True(_installer.Install(mod, _sourceDir).Success);
+        Assert.True(_installer.Disable(mod.Name).Success);
+        Assert.True(_installer.Install(mod, _sourceDir).Success);
+
+        var result = _installer.Disable(mod.Name);
+
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public void Uninstall_MissingGameFolder_ReportsGameFolderNotFound() // BUG-040
+    {
+        var missing = new ModInstaller(
+            Path.Combine(_testRoot, "does-not-exist"),
+            Path.Combine(_testRoot, "disabled"));
+
+        var result = missing.Uninstall("AnyMod");
+
+        Assert.False(result.Success);
+        Assert.Contains("Game folder not found", result.Error ?? "");
+    }
+
+    [Fact]
+    public void Uninstall_KeepsJournalEntryWhenFileModified() // BUG-014
+    {
+        var mod = AddLooseFile("ExampleMod.dll", "dll-bytes");
+        Assert.True(_installer.Install(mod, _sourceDir).Success);
+        var installed = Path.Combine(_gameFolder, "BepInEx", "plugins", "Example Mod", "ExampleMod.dll");
+        File.WriteAllText(installed, "tampered");
+
+        var result = _installer.Uninstall(mod.Name);
+
+        Assert.True(result.Success);
+        Assert.Contains(result.Warnings, w => w.Contains("modified"));
+        Assert.True(File.Exists(installed));
+        // The journal entry must survive so the stranded mod stays tracked.
+        Assert.Contains(new JournalStore(_gameFolder).Load(), e => e.ModName == mod.Name);
+    }
+
+    [Fact]
+    public void Uninstall_LastModOfPack_ClearsPackJournal() // BUG-005
+    {
+        var packStore = new ModpackJournalStore(_gameFolder);
+        packStore.Record("shared-pack", "1.0", "Shared Pack");
+
+        var modA = new ModEntry("mod-a", "ModA", null, "a.dll", "", "BepInExPlugin", new(), new(), PackId: "shared-pack");
+        var modB = new ModEntry("mod-b", "ModB", null, "b.dll", "", "BepInExPlugin", new(), new(), PackId: "shared-pack");
+        File.WriteAllText(Path.Combine(_sourceDir, "a.dll"), "bytes-a");
+        File.WriteAllText(Path.Combine(_sourceDir, "b.dll"), "bytes-b");
+        modA = modA with { Sha256 = ComputeSha256(Path.Combine(_sourceDir, "a.dll")) };
+        modB = modB with { Sha256 = ComputeSha256(Path.Combine(_sourceDir, "b.dll")) };
+        Assert.True(_installer.Install(modA, _sourceDir).Success);
+        Assert.True(_installer.Install(modB, _sourceDir).Success);
+
+        Assert.Contains(packStore.Load(), p => p.PackId == "shared-pack");
+
+        _installer.Uninstall("ModA");
+        // pack should remain while another mod of it is still installed
+        Assert.Contains(packStore.Load(), p => p.PackId == "shared-pack");
+
+        _installer.Uninstall("ModB");
+        Assert.DoesNotContain(packStore.Load(), p => p.PackId == "shared-pack");
+    }
+
+    [Fact]
+    public void JournalStore_ToleratesCorruptFile() // BUG-015
+    {
+        File.WriteAllText(Path.Combine(_gameFolder, "cardshopmodmanager.journal.json"), "{ not valid json");
+        var store = new JournalStore(_gameFolder);
+
+        var entries = store.Load();
+
+        Assert.Empty(entries);
+        Assert.True(File.Exists(Path.Combine(_gameFolder, "cardshopmodmanager.journal.json.corrupt")));
+    }
+
+    [Fact]
+    public void ModpackJournalStore_ToleratesCorruptFile() // BUG-004
+    {
+        File.WriteAllText(Path.Combine(_gameFolder, "cardshopmodmanager.modpacks.json"), "{ not valid json");
+        var store = new ModpackJournalStore(_gameFolder);
+
+        var entries = store.Load();
+
+        Assert.Empty(entries);
+        Assert.True(File.Exists(Path.Combine(_gameFolder, "cardshopmodmanager.modpacks.json.corrupt")));
+    }
+
     // --- helpers -----------------------------------------------------------
 
     private ModEntry AddLooseFile(string fileName, string content)

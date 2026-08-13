@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Security.Cryptography;
 using TCGCardShopSimModManager.Core;
 
@@ -101,16 +102,19 @@ public sealed class ModDiscoveryTests : IDisposable
     }
 
     [Fact]
-    public void Disable_LeavesModifiedFileInPlaceWithWarning()
+    public void Disable_LeavesModifiedFileInPlaceAndReportsFailure()
     {
+        // BUG-013: a disable that cannot move a modified file is a *partial*
+        // disable and must be reported as a failure, not a silent success.
         Install("Example Mod", "ExampleMod.dll");
         var installedFile = Path.Combine(_gameFolder, "BepInEx", "plugins", "Example Mod", "ExampleMod.dll");
         File.WriteAllText(installedFile, "tampered");
 
         var result = _installer.Disable("Example Mod");
 
-        Assert.True(result.Success);
+        Assert.False(result.Success);
         Assert.Contains(result.Warnings, w => w.Contains("Modified"));
+        Assert.Contains("modified", result.Error ?? "");
         Assert.True(File.Exists(installedFile));
     }
 
@@ -120,6 +124,25 @@ public sealed class ModDiscoveryTests : IDisposable
         var result = _installer.Disable("Never Installed");
         Assert.False(result.Success);
         Assert.Contains("No journal entry", result.Error);
+    }
+
+    [Fact]
+    public void Discover_FrameworkModUnderBepInExCore_IsListed() // BUG-012
+    {
+        // Framework/core mods must be visible to `mods list`, not hidden because
+        // they live outside plugins/patchers.
+        var zipPath = CreateZip(("BepInEx/core/SomeFramework/framework.dll", "dll-bytes"));
+        File.Copy(zipPath, Path.Combine(_sourceDir, "core.zip"), overwrite: true);
+        var mod = new ModEntry("fw-mod", "SomeFramework", null, "core.zip",
+            ComputeSha256(Path.Combine(_sourceDir, "core.zip")),
+            "BepInExPlugin", new List<string>(), new List<string>());
+        Assert.True(_installer.Install(mod, _sourceDir).Success);
+
+        var discovered = ModDiscovery.Discover(_gameFolder, _disabledRoot);
+        var fw = Assert.Single(discovered, m => m.ModName == "SomeFramework");
+
+        Assert.Equal("BepInEx/core", fw.ActiveRoot);
+        Assert.Equal(ModInventoryState.Installed, fw.State);
     }
 
     // --- helpers -----------------------------------------------------------
@@ -134,6 +157,20 @@ public sealed class ModDiscoveryTests : IDisposable
 
         var installed = _installer.Install(mod, _sourceDir);
         Assert.True(installed.Success, installed.Error);
+    }
+
+    private static string CreateZip(params (string Name, string Content)[] entries)
+    {
+        var path = Path.Combine(Path.GetTempPath(), "discovery-tests-" + Guid.NewGuid().ToString("N") + ".zip");
+        using var file = File.Create(path);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+        foreach (var (name, content) in entries)
+        {
+            var entry = archive.CreateEntry(name);
+            using var writer = new StreamWriter(entry.Open());
+            writer.Write(content);
+        }
+        return path;
     }
 
     private static string ComputeSha256(string filePath)

@@ -69,6 +69,8 @@ public static class ModsCommand
                 return;
             }
             Console.WriteLine($"Disabled {modName}.");
+            if (result.Message is not null)
+                Console.WriteLine($"  {result.Message}");
             foreach (var warning in result.Warnings)
                 Console.WriteLine($"  Warning: {warning}");
         }
@@ -82,6 +84,8 @@ public static class ModsCommand
                 return;
             }
             Console.WriteLine($"Enabled {modName}.");
+            if (result.Message is not null)
+                Console.WriteLine($"  {result.Message}");
             foreach (var warning in result.Warnings)
                 Console.WriteLine($"  Warning: {warning}");
         }

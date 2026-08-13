@@ -6,6 +6,7 @@ namespace TCGCardShopSimModManager.Core;
 public sealed class ModInstaller
 {
     private readonly JournalStore _journal;
+    private readonly ModpackJournalStore _modpackJournal;
     private readonly string _gameFolderPath;
     private readonly string _disabledRoot;
 
@@ -21,6 +22,7 @@ public sealed class ModInstaller
     {
         _gameFolderPath = gameFolderPath;
         _journal = new JournalStore(gameFolderPath);
+        _modpackJournal = new ModpackJournalStore(gameFolderPath);
         _disabledRoot = disabledRoot ?? DisabledRoot;
     }
 
@@ -127,11 +129,13 @@ public sealed class ModInstaller
             }
 
             // Hash each installed file so uninstall can later refuse to delete
-            // anything that has been changed.
+            // anything that has been changed. Remember the pack id (if any) so
+            // uninstall can clear a now-empty pack from the pack journal (BUG-005).
             _journal.Add(new InstallJournalEntry(
                 plan.Mod.Name,
                 DateTimeOffset.UtcNow,
-                installedPaths.Select(p => new JournalFileEntry(p, ComputeSha256(p))).ToList()));
+                installedPaths.Select(p => new JournalFileEntry(p, ComputeSha256(p))).ToList())
+                with { PackId = mod.PackId });
 
             return new InstallResult(true, null, installedPaths, rejected, skipped);
         }
@@ -186,24 +190,34 @@ public DisableResult Disable(string modName)
     if (entry is null)
         return new DisableResult(false, $"No journal entry found for {modName}", warnings);
 
+    var moved = 0;
+    var alreadyDisabled = 0;
+    var kept = 0;
+    var nonManaged = 0;
+
     foreach (var file in entry.Files)
     {
         var sections = ManagedSections(file.Path);
         if (sections is null)
         {
+            // BUG-011: framework/core and game-root files are not something we
+            // toggle here; counting them lets us report a proper non-success.
             warnings.Add($"Not a managed BepInEx file, skipping: {file.Path}");
+            nonManaged++;
             continue;
         }
 
         if (!File.Exists(file.Path))
         {
             warnings.Add($"Already missing, skipping: {file.Path}");
+            alreadyDisabled++;
             continue;
         }
 
         if (!HashMatchesCurrent(file.Path, file.Sha256))
         {
             warnings.Add($"Modified since install, keeping in place: {file.Path}");
+            kept++;
             continue;
         }
 
@@ -212,10 +226,51 @@ public DisableResult Disable(string modName)
             disabledPath = Path.Combine(disabledPath, segment);
 
         Directory.CreateDirectory(Path.GetDirectoryName(disabledPath)!);
+
+        // BUG-016: a stale disabled copy (e.g. disabled -> reinstalled -> disable
+        // again) would make File.Move throw "file already exists". Clear it first.
+        if (File.Exists(disabledPath))
+        {
+            try
+            {
+                File.Delete(disabledPath);
+            }
+            catch
+            {
+                warnings.Add($"Could not clear stale disabled copy, leaving enabled: {disabledPath}");
+                continue;
+            }
+        }
+
         File.Move(file.Path, disabledPath);
+        moved++;
     }
 
     PruneEmptyActiveFolders();
+
+    // BUG-013: at least one managed file was kept — the mod is still partially active.
+    if (moved > 0 && kept > 0)
+        return new DisableResult(false,
+            $"{modName} is only partially disabled: {kept} file(s) modified since install were left active, so the mod is still partially loaded.",
+            warnings);
+
+    if (moved == 0)
+    {
+        if (nonManaged > 0)
+            // BUG-011: framework/game-root mods aren't something we toggle here.
+            return new DisableResult(false,
+                $"{modName} is not a managed BepInEx/plugins or BepInEx/patchers mod; framework/game-root mods cannot be disabled here.",
+                warnings);
+
+        if (kept > 0)
+            return new DisableResult(false,
+                $"{modName}: nothing disabled — {kept} file(s) modified since install were left in place.",
+                warnings);
+
+        // BUG-018: idempotent no-op — it was already disabled.
+        return new DisableResult(true, null, warnings, $"Already disabled: {modName}");
+    }
+
     return new DisableResult(true, null, warnings);
 }
 
@@ -231,12 +286,18 @@ public EnableResult Enable(string modName)
     if (entry is null)
         return new EnableResult(false, $"No journal entry found for {modName}", warnings);
 
+    var moved = 0;
+    var alreadyEnabled = 0;
+    var nonManaged = 0;
+
     foreach (var file in entry.Files)
     {
         var sections = ManagedSections(file.Path);
         if (sections is null)
         {
+            // BUG-011: framework/core and game-root files are not toggled here.
             warnings.Add($"Not a managed BepInEx file, skipping: {file.Path}");
+            nonManaged++;
             continue;
         }
 
@@ -247,6 +308,7 @@ public EnableResult Enable(string modName)
         if (!File.Exists(disabledPath))
         {
             warnings.Add($"Not in the disabled folder, skipping: {Path.GetFileName(file.Path)}");
+            alreadyEnabled++;
             continue;
         }
 
@@ -258,9 +320,23 @@ public EnableResult Enable(string modName)
 
         Directory.CreateDirectory(Path.GetDirectoryName(file.Path)!);
         File.Move(disabledPath, file.Path);
+        moved++;
     }
 
     PruneEmptyDisabledFolders();
+
+    if (moved == 0)
+    {
+        if (nonManaged > 0)
+            // BUG-011: framework/game-root mods aren't something we toggle here.
+            return new EnableResult(false,
+                $"{modName} is not a managed BepInEx/plugins or BepInEx/patchers mod; framework/game-root mods cannot be enabled here.",
+                warnings);
+
+        // BUG-018: idempotent no-op — it was already enabled.
+        return new EnableResult(true, null, warnings, $"Already enabled: {modName}");
+    }
+
     return new EnableResult(true, null, warnings);
 }
 
@@ -340,36 +416,64 @@ private void PruneEmptyActiveFolders()
 
 public UninstallResult Uninstall(string modName)
     {
-        var entries = _journal.Load();
-        var entry = entries.FirstOrDefault(e => e.ModName == modName);
+    // BUG-040: a missing game folder is distinct from "no journal entry".
+    if (!Directory.Exists(_gameFolderPath))
+        return new UninstallResult(false, $"Game folder not found: {_gameFolderPath}", new List<string>());
 
-        if (entry is null)
-            return new UninstallResult(false, $"No journal entry found for {modName}", new List<string>());
+    var entries = _journal.Load();
+    var entry = entries.FirstOrDefault(e => e.ModName == modName);
 
-        var warnings = new List<string>();
+    if (entry is null)
+        return new UninstallResult(false, $"No journal entry found for {modName}", new List<string>());
 
-        foreach (var file in entry.Files)
+    var warnings = new List<string>();
+    var deleted = 0;
+    var kept = 0;
+
+    foreach (var file in entry.Files)
+    {
+        if (!File.Exists(file.Path))
         {
-            if (!File.Exists(file.Path))
-            {
-                warnings.Add($"File already missing, skipping: {file.Path}");
-                continue;
-            }
-
-            var currentHash = ComputeSha256(file.Path);
-            if (!currentHash.Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
-            {
-                warnings.Add($"File was modified since install, refusing to delete: {file.Path}");
-                continue;
-            }
-
-            File.Delete(file.Path);
+            warnings.Add($"File already missing, skipping: {file.Path}");
+            continue;
         }
 
+        var currentHash = ComputeSha256(file.Path);
+        if (!currentHash.Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
+        {
+            warnings.Add($"File was modified since install, refusing to delete: {file.Path}");
+            kept++;
+            continue;
+        }
+
+        File.Delete(file.Path);
+        deleted++;
+    }
+
+    // BUG-014: only drop the journal entry when every file was actually removed.
+    // If a file was kept (modified), the mod is still on disk and must stay tracked
+    // so it can be cleaned up later instead of being silently stranded.
+    if (kept == 0 && deleted > 0)
+    {
         _journal.Remove(modName);
 
-        return new UninstallResult(true, null, warnings);
+        // BUG-005: if this was the last journaled mod belonging to a pack, clear
+        // the stale pack entry so update detection stops reporting "Update available".
+        if (!string.IsNullOrEmpty(entry.PackId) &&
+            !entries.Any(e => !ReferenceEquals(e, entry) &&
+                              string.Equals(e.PackId, entry.PackId, StringComparison.OrdinalIgnoreCase)))
+        {
+            try { _modpackJournal.Remove(entry.PackId!); }
+            catch { /* best effort; pack journal is advisory */ }
+        }
     }
+    else if (kept > 0)
+    {
+        warnings.Add($"Uninstall incomplete for {modName}: {kept} file(s) were modified and kept; the journal entry is retained.");
+    }
+
+    return new UninstallResult(true, null, warnings);
+}
 
     /// <summary>
     /// Turn a forward-slash relative destination (as ZIP stores it) into a real

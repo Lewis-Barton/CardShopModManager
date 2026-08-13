@@ -8,10 +8,10 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 1 |
-| High     | 13 | 0 |
-| Medium   | 16 | 2 |
-| Low      | 7 | 1 |
-| **Total**| **35** | **5** |
+| High     | 6 | 7 |
+| Medium   | 14 | 4 |
+| Low      | 5 | 3 |
+| **Total**| **25** | **15** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |
@@ -19,21 +19,21 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 | BUG-001 | Critical | archive/classifier (security) | Game-root loader-hijack DLL placed via BepInEx-layout mirror | Fixed | ArchiveClassifier.cs | Denylist of known DLL-hijack target names (winhttp/version/winmm/dbghelp/d3d*/dxgi/…) refused only at the sensitive roots (game root + BepInEx/ root); framework tree (incl. BepInEx/core/doorstop.dll) mirrors freely | BUG-001: allowlist wrongly rejected the framework's own BepInEx/core/doorstop.dll and still let hijack DLLs reach the game root; denylist blocks the exact attack vector without breaking the framework | Verified (unit + 104-test suite + build) |
 | BUG-002 | High | modpack validate | Validator crashes (ArgumentNull) on malformed index/manifest | Open | ModpackSubmissionValidator.cs | | | |
 | BUG-003 | High | update detection | GUI never records pack journal -> feature dead in app | Open | MainWindow.cs, ModpackInstaller.cs | | | |
-| BUG-004 | High | pack journal | Corrupt modpacks.json throws unhandled, blocks all install/upgrade | Open | ModpackJournalStore.cs | | | |
-| BUG-005 | High | pack journal | Uninstall never clears pack journal -> stale "Update available" | Open | ModpackJournalStore.cs, ModInstaller.cs | | | |
+| BUG-004 | High | pack journal | Corrupt modpacks.json throws unhandled, blocks all install/upgrade | Fixed | ModpackJournalStore.cs | `Load()` now catches `JsonException`, backs the bad file up to `.corrupt`, and returns an empty list | BUG-004: a corrupt pack journal must never abort an otherwise-successful install/upgrade | Verified (unit + suite) |
+| BUG-005 | High | pack journal | Uninstall never clears pack journal -> stale "Update available" | Fixed | ModpackJournalStore.cs, ModInstaller.cs | Added `ModpackJournalStore.Remove(packId)`; `Install` now records `PackId` on the per-mod journal entry, and `Uninstall` drops the pack entry when no journaled mod still belongs to it | BUG-005: a pack's last mod being uninstalled must clear the stale "Update available" badge | Verified (unit + suite) |
 | BUG-006 | High | update detection | v-prefixed / pre-release versions never detected as updates | Open | ModpackVersion.cs | | | |
 | BUG-007 | Medium | update detection | Spurious "Update available" on component-count change (1.0 vs 1.0.0) | Open | ModpackVersion.cs | | | |
 | BUG-008 | Medium | UI | Corrupt journal wipes entire Modpacks gallery | Open | MainWindow.cs | | | |
 | BUG-009 | Medium | pack journal | Pack id rename orphans journal entry / breaks tracking | Open | ModpackJournalStore.cs, MainWindow.cs | | | |
 | BUG-010 | Medium | pack journal | Journal write non-atomic, no backup -> self-perpetuating corruption | Open | ModpackJournalStore.cs, JournalStore.cs | | | |
-| BUG-011 | High | lifecycle | disable/enable silent no-op for framework/game-root mods, reports success | Open | ModInstaller.cs | | | |
-| BUG-012 | Medium | lifecycle | `mods list` blind to framework/game-root mods | Open | ModDiscovery.cs | | | |
-| BUG-013 | High | lifecycle | Partial disable leaves modified file active, reports success | Open | ModInstaller.cs | | | |
-| BUG-014 | High | lifecycle | uninstall removes journal entry even when a file was kept -> mod stranded | Open | ModInstaller.cs | | | |
-| BUG-015 | High | lifecycle | corrupt journal breaks every operation, no recovery | Open | JournalStore.cs | | | |
-| BUG-016 | High | lifecycle | re-install disabled mod then disable again -> "The file exists" crash | Open | ModInstaller.cs | | | |
+| BUG-011 | High | lifecycle | disable/enable silent no-op for framework/game-root mods, reports success | Fixed | ModInstaller.cs | `Disable`/`Enable` now count managed/non-managed/skipped files and return non-success when a framework/game-root mod is not something we toggle | BUG-011: toggling a non-managed mod must report failure, not silent success | Verified (unit + suite) |
+| BUG-012 | Medium | lifecycle | `mods list` blind to framework/game-root mods | Fixed | ModDiscovery.cs | Added `BepInEx/core` to `ModDiscovery.ActiveRoots` so framework mods are enumerated | BUG-012: `mods list` must report every installed mod, including framework/core | Verified (unit + suite) |
+| BUG-013 | High | lifecycle | Partial disable leaves modified file active, reports success | Fixed | ModInstaller.cs | `Disable` tracks kept-vs-moved; if any managed file was kept (modified), it returns non-success with a "partially disabled" message | BUG-013: a partial disable must be reported as failure, not success | Verified (unit + suite) |
+| BUG-014 | High | lifecycle | uninstall removes journal entry even when a file was kept -> mod stranded | Fixed | ModInstaller.cs | `Uninstall` only calls `_journal.Remove` when every file was actually deleted; a kept (modified) file retains the entry | BUG-014: an incomplete uninstall must keep the journal entry so the mod stays tracked | Verified (unit + suite) |
+| BUG-015 | High | lifecycle | corrupt journal breaks every operation, no recovery | Fixed | JournalStore.cs | `Load()` now catches `JsonException`, backs the bad file up to `.corrupt`, and returns an empty list | BUG-015: a corrupt per-mod journal must not abort every lifecycle op; recover to empty | Verified (unit + suite) |
+| BUG-016 | High | lifecycle | re-install disabled mod then disable again -> "The file exists" crash | Fixed | ModInstaller | `Disable` now deletes a stale disabled copy before `File.Move` instead of throwing | BUG-016: re-disabling a reinstalled mod must not crash with "file already exists" | Verified (unit + suite) |
 | BUG-017 | High | install | `install` reports success (exit 0) even when a mod fails | Open | DeploymentService.cs, InstallCommand.cs | | | |
-| BUG-018 | Low | lifecycle/UI | enable/disable of never/already-disabled mod reports success doing nothing | Open | ModInstaller.cs | | | |
+| BUG-018 | Low | lifecycle/UI | enable/disable of never/already-disabled mod reports success doing nothing | Fixed | ModInstaller.cs, InstallPlan.cs, ModsCommand.cs | `DisableResult`/`EnableResult` gain a `Message` (e.g. "Already disabled/enabled"); CLI prints it | BUG-018: toggling an already-target-state mod must report a distinct "already" status | Verified (unit + suite) |
 | BUG-019 | Medium | conflicts | install pre-flight conflict ignores already-installed mods | Open | DeploymentService.cs | | | |
 | BUG-020 | Medium | resolver | BepInEx-first ordering NOT enforced for local install/validate | Open | DeploymentService.cs, ModListResolver.cs, ModpackInstaller.cs | | | |
 | BUG-021 | Low | resolver | wrong-case dependency/id refs silently accepted | Open | ModListResolver.cs, DeploymentService.cs | | | |
@@ -55,7 +55,7 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 | BUG-037 | Medium | UI | RunHandler swallows exceptions -> stale UI state on thrown failure | Open | MainWindow.cs | | | |
 | BUG-038 | Medium | UI | WelcomeDetectAsync not wrapped -> unobserved exception at startup risk | Open | MainWindow.cs | | | |
 | BUG-039 | Low | CLI | serve ignores SIGINT headless; no clean shutdown | Open | ServeCommand.cs, LocalHttpServer.cs | | | |
-| BUG-040 | Low | CLI | uninstall on non-existent game folder -> misleading "No journal entry" | Open | ModInstaller.cs, UninstallCommand.cs | | | |
+| BUG-040 | Low | CLI | uninstall on non-existent game folder -> misleading "No journal entry" | Fixed | ModInstaller.cs, UninstallCommand.cs | `Uninstall` returns a distinct "Game folder not found" error; `UninstallCommand` validates the folder up front | BUG-040: a missing game folder must be distinguished from a missing journal entry | Verified (unit + suite) |
 
 ## Fix log
 Detailed entries are appended here as bugs are resolved (files changed, what/why, verification).
@@ -74,3 +74,16 @@ Detailed entries are appended here as bugs are resolved (files changed, what/why
   - BUG-022: `ExtractionResult.RejectedEntries` flow into `InstallPlan`/`InstallResult` (new `RejectedEntries`/`SkippedEntries` fields), and `DeploymentService` surfaces them as warnings/notes — a banned `.exe` is no longer a silent drop behind a success message.
 - **Why:** Each was a silent-failure / partial-install / bypass hole in the archive pipeline. The fixes make the pipeline fail loudly (truncation), refuse nested archives (bypass), and report rejections (executables).
 - **Verification:** New tests `Extract_RejectsNestedZip`, `Extract_FlagsTruncationWhenSizeCapHit`, `CreatePlan_ThrowsOnTruncatedArchive`, `Install_SurfacesRejectedExecutable_WhileInstallingRest` all pass; full Core suite 104/104.
+
+### BUG-004, BUG-005, BUG-010, BUG-011, BUG-012, BUG-013, BUG-014, BUG-015, BUG-016, BUG-018, BUG-040 — Journals & lifecycle (Workstream 2)
+- **Files:** `JournalStore.cs`, `ModpackJournalStore.cs`, `ModDiscovery.cs`, `ModInstaller.cs`, `InstallPlan.cs`, `InstallJournal.cs`, `ModListManifest.cs`, `ModsCommand.cs`, `UninstallCommand.cs` (+ tests `ModInstallerTests.cs`, `ModDiscoveryTests.cs`)
+- **What:**
+  - BUG-015 / BUG-004 (High): `JournalStore.Load` and `ModpackJournalStore.Load` now catch `JsonException`, back the bad file up to `<journal>.corrupt`, and return an empty list — a corrupt journal no longer aborts every operation.
+  - BUG-010 (atomic writes): both stores now write via temp-file + rename and keep a `<journal>.bak`, so a crash mid-write cannot leave an unreadable journal.
+  - BUG-011 / BUG-013 / BUG-016 / BUG-018 (High/High/High/Low): `Disable`/`Enable` now count managed/non-managed/moved/kept files — non-managed framework/game-root mods report non-success (BUG-011), a partial disable reports failure (BUG-013), a stale disabled copy is cleared before `File.Move` (BUG-016), and an already-target-state toggle returns a distinct "Already disabled/enabled" `Message` (BUG-018).
+  - BUG-014 (High): `Uninstall` only drops the journal entry when every file was actually deleted; a kept (modified) file retains the entry so the mod stays tracked.
+  - BUG-005 (High): added `ModpackJournalStore.Remove(packId)`; `Install` records `PackId` on the per-mod entry (added `PackId` to `InstallJournalEntry`/`ModEntry`), and `Uninstall` clears the pack entry when no journaled mod still belongs to it.
+  - BUG-012 (Medium): `ModDiscovery` now includes `BepInEx/core` in its active roots, so framework mods appear in `mods list`.
+  - BUG-040 (Low): `Uninstall` returns a distinct "Game folder not found" error, and `UninstallCommand` validates the folder up front.
+- **Why:** Each was a silent-failure / wrong-status / no-recovery hole in the lifecycle and journaling paths.
+- **Verification:** New tests `Disable_FrameworkMod_ReportsNonSuccess`, `Disable_AlreadyDisabledMod_ReportsAlreadyDisabled`, `Disable_ReinstallThenDisable_DoesNotThrow`, `Uninstall_MissingGameFolder_ReportsGameFolderNotFound`, `Uninstall_KeepsJournalEntryWhenFileModified`, `Uninstall_LastModOfPack_ClearsPackJournal`, `JournalStore_ToleratesCorruptFile`, `ModpackJournalStore_ToleratesCorruptFile`, `Discover_FrameworkModUnderBepInExCore_IsListed`, and the updated `Disable_LeavesModifiedFileInPlaceAndReportsFailure` all pass; full Core suite 113/113.

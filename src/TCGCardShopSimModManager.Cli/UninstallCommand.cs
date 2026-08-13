@@ -12,6 +12,14 @@ public static class UninstallCommand
             return;
         }
 
+        // BUG-040: a missing game folder is distinct from "no journal entry".
+        if (!Directory.Exists(gameFolderPath))
+        {
+            Console.WriteLine($"Game folder not found: {gameFolderPath}");
+            Environment.ExitCode = 1;
+            return;
+        }
+
         var installer = new ModInstaller(gameFolderPath);
         var result = installer.Uninstall(modName);
 
