@@ -287,9 +287,27 @@ public sealed class ModInstallerTests : IDisposable
 
         var result = _installer.Uninstall(mod.Name);
 
-        Assert.True(result.Success);
-        Assert.Contains(result.Warnings, w => w.Contains("modified"));
+        Assert.False(result.Success);
+        Assert.Contains("modified", result.Error);
         Assert.True(File.Exists(installed));
+    }
+
+    [Fact]
+    public void Uninstall_ModifiedFilePreflightLeavesEveryOwnedFileInPlace()
+    {
+        var zip = CreateZip(("First.dll", "first"), ("Second.dll", "second"));
+        var mod = AddZip("two-files.zip", zip);
+        var install = _installer.Install(mod, _sourceDir);
+        Assert.True(install.Success, install.Error);
+        var files = install.InstalledPaths!;
+        File.WriteAllText(files[1], "user-change");
+
+        var result = _installer.Uninstall(mod.Name);
+
+        Assert.False(result.Success);
+        Assert.True(File.Exists(files[0]));
+        Assert.Equal("user-change", File.ReadAllText(files[1]));
+        Assert.Single(new JournalStore(_gameFolder).Load());
     }
 
     [Fact]
@@ -394,8 +412,8 @@ public sealed class ModInstallerTests : IDisposable
 
         var result = _installer.Uninstall(mod.Name);
 
-        Assert.True(result.Success);
-        Assert.Contains(result.Warnings, w => w.Contains("modified"));
+        Assert.False(result.Success);
+        Assert.Contains("modified", result.Error);
         Assert.True(File.Exists(installed));
         // The journal entry must survive so the stranded mod stays tracked.
         Assert.Contains(new JournalStore(_gameFolder).Load(), e => e.ModName == mod.Name);

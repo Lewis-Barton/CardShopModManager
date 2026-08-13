@@ -38,6 +38,7 @@ public static class ProfileCommand
                     "  profile use <name> <gameFolder>\n" +
                     "  profile enable <id> <manifest.json> <sourceDir> <gameFolder>\n" +
                     "  profile disable <id> <manifest.json> <sourceDir> <gameFolder>");
+                Environment.ExitCode = 2;
                 break;
         }
     }
@@ -47,6 +48,7 @@ public static class ProfileCommand
         if (gameFolderPath is null)
         {
             Console.WriteLine("Usage: profile list <gameFolder>");
+            Environment.ExitCode = 2;
             return;
         }
 
@@ -70,6 +72,7 @@ public static class ProfileCommand
         if (name is null || gameFolderPath is null)
         {
             Console.WriteLine("Usage: profile use <name> <gameFolder>");
+            Environment.ExitCode = 2;
             return;
         }
 
@@ -77,6 +80,7 @@ public static class ProfileCommand
         if (!store.Use(name))
         {
             Console.WriteLine($"No profile named '{name}'.");
+            Environment.ExitCode = 1;
             return;
         }
 
@@ -92,32 +96,12 @@ public static class ProfileCommand
         if (modId is null || manifestPath is null || sourceDirectory is null || gameFolderPath is null)
         {
             Console.WriteLine("Usage: profile enable <id> <manifest.json> <sourceDir> <gameFolder>");
+            Environment.ExitCode = 2;
             return;
         }
 
-        var manifest = new ManifestReader().Read(manifestPath);
-        var mod = FindMod(manifest, modId);
-        if (mod is null)
-            return;
-
-        var store = new ProfilesStore(gameFolderPath);
-        if (!store.Exists)
-        {
-            Console.WriteLine($"'{mod.Name}' is already enabled (no profile file, everything enabled).");
-            return;
-        }
-
-        // Check the prospective state before committing anything.
-        var prospective = new HashSet<string>(store.EnabledIdsOrAll()!, StringComparer.OrdinalIgnoreCase);
-        prospective.Add(modId);
-
-        if (!TryResolve(manifest, prospective, out var resolution))
-            return;
-
-        store.Enable(modId);
-        Console.WriteLine($"Enabled {mod.Name} in profile '{store.Load().ActiveProfile}'.");
-
-        ApplyInstallation(resolution, sourceDirectory, new ModInstaller(gameFolderPath));
+        Print(new ProfileService(gameFolderPath).Enable(
+            new ManifestReader().Read(manifestPath), modId, sourceDirectory));
     }
 
     private static void DisableMod(
@@ -129,100 +113,23 @@ public static class ProfileCommand
         if (modId is null || manifestPath is null || sourceDirectory is null || gameFolderPath is null)
         {
             Console.WriteLine("Usage: profile disable <id> <manifest.json> <sourceDir> <gameFolder>");
+            Environment.ExitCode = 2;
             return;
         }
 
-        var manifest = new ManifestReader().Read(manifestPath);
-        var mod = FindMod(manifest, modId);
-        if (mod is null)
-            return;
-
-        var store = new ProfilesStore(gameFolderPath);
-
-        ISet<string> prospective;
-        if (store.Exists)
-        {
-            prospective = new HashSet<string>(store.EnabledIdsOrAll()!, StringComparer.OrdinalIgnoreCase);
-        }
-        else
-        {
-            // No profile yet means "everything on" — disabling the first mod
-            // seeds a default profile with everything except this one.
-            prospective = new HashSet<string>(manifest.Mods.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
-        }
-        prospective.Remove(modId);
-
-        // Disabling must not break a dependency some other enabled mod relies on.
-        if (!TryResolve(manifest, prospective, out _))
-            return;
-
-        if (store.Exists)
-        {
-            store.Disable(modId);
-        }
-        else
-        {
-            store.Save(new ProfilesState(
-                "default",
-                new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["default"] = prospective.ToList()
-                }));
-        }
-
-        Console.WriteLine($"Disabled {mod.Name}.");
-
-        var installer = new ModInstaller(gameFolderPath);
-        if (installer.IsInstalled(mod.Name))
-        {
-            var result = installer.Uninstall(mod.Name);
-            if (result.Success)
-            {
-                Console.WriteLine($"  Removed {mod.Name}'s files from the game.");
-                foreach (var warning in result.Warnings)
-                    Console.WriteLine($"  Warning: {warning}");
-            }
-            else
-            {
-                Console.WriteLine($"  Could not remove files: {result.Error}");
-            }
-        }
+        Print(new ProfileService(gameFolderPath).Disable(
+            new ManifestReader().Read(manifestPath), modId, sourceDirectory));
     }
 
-    private static ModEntry? FindMod(ModListManifest manifest, string modId)
+    private static void Print(ProfileChangeResult result)
     {
-        var mod = manifest.Mods.FirstOrDefault(m => m.Id.Equals(modId, StringComparison.OrdinalIgnoreCase));
-        if (mod is null)
-            Console.WriteLine($"No mod with id '{modId}' in the manifest.");
-        return mod;
-    }
-
-    private static bool TryResolve(ModListManifest manifest, ISet<string> enabledIds, out ResolutionResult resolution)
-    {
-        resolution = new ModListResolver().Resolve(manifest, enabledIds);
-        if (resolution.IsValid)
-            return true;
-
-        Console.WriteLine("That change makes the profile invalid:");
-        foreach (var error in resolution.Errors)
-            Console.WriteLine($"  - {error}");
-        return false;
-    }
-
-    private static void ApplyInstallation(
-        ResolutionResult resolution,
-        string sourceDirectory,
-        ModInstaller installer)
-    {
-        foreach (var mod in resolution.OrderedMods)
-        {
-            if (installer.IsInstalled(mod.Name))
-                continue;
-
-            var result = installer.Install(mod, sourceDirectory);
-            Console.WriteLine(result.Success
-                ? $"  Installed {mod.Name}: {result.InstalledPaths!.Count} file(s)."
-                : $"  Failed to install {mod.Name}: {result.Error}");
-        }
+        foreach (var message in result.Messages)
+            Console.WriteLine(message);
+        if (result.Error is not null)
+            Console.WriteLine(result.Error);
+        foreach (var warning in result.Warnings)
+            Console.WriteLine($"Warning: {warning}");
+        if (!result.Success)
+            Environment.ExitCode = 1;
     }
 }

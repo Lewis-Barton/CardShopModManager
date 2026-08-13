@@ -61,6 +61,9 @@ unit test already covers it, **[manual]** where it needs a real environment.
       clears a journal whose files are already gone
       (`Uninstall_DisabledModDeletesParkedFilesAndJournal`,
       `Uninstall_ClearsJournalWhenAllManagedFilesAreAlreadyMissing`).
+- [ ] **[auto]** Profile changes save only after file operations succeed and
+      leave the previous profile intact on install, dependency, or modified-file
+      failures (`ProfileServiceTests`).
 - [ ] **[manual]** Disable + enable a mod on the real install and confirm the
       game stops/starts loading it.
 - [ ] **[fixed]** A transient test failure turned out to be a real concurrency

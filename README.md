@@ -127,6 +127,10 @@ profile file means every mod in the manifest is enabled (the default). The first
 `profile disable` creates a `default` profile containing everything except the
 disabled mod.
 
+Profile changes are committed only after their file operations succeed. If an
+enable or disable cannot be completed, the manager rolls back its work and
+leaves the saved profile unchanged.
+
 Before copying anything, `install` builds the plan for every archive and refuses
 to proceed if two mods claim the same destination file.
 

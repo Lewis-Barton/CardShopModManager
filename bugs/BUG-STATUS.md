@@ -42,6 +42,12 @@ design review found three additional safety issues, now fixed:
   failures. Downloads and demos aggregate per-mod failures, hosted-pack install
   failures propagate, invalid single-pack validation fails, and Nexus/update
   status errors no longer report process success.
+- **BUG-047 — profile state is saved before files succeed (Medium):** profile
+  enable and disable now run through a Core service that resolves the proposed
+  state, applies file changes, and saves only after success. Failed enables roll
+  back mods installed by that operation; a save failure after disable attempts
+  to restore the removed mod. Uninstall now preflights every tracked file so a
+  modified file stops removal before any sibling file is deleted.
 
 ## Summary
 | Severity | Open | Fixed |

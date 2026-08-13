@@ -518,7 +518,7 @@ private void PruneEmptyActiveFolders()
     }
 }
 
-public UninstallResult Uninstall(string modName)
+    public UninstallResult Uninstall(string modName)
     {
     // BUG-040: a missing game folder is distinct from "no journal entry".
     if (!Directory.Exists(_gameFolderPath))
@@ -531,8 +531,7 @@ public UninstallResult Uninstall(string modName)
         return new UninstallResult(false, $"No journal entry found for {modName}", new List<string>());
 
     var warnings = new List<string>();
-    var deleted = 0;
-    var kept = 0;
+    var filesToDelete = new List<string>();
 
     foreach (var file in entry.Files)
     {
@@ -553,37 +552,30 @@ public UninstallResult Uninstall(string modName)
         var currentHash = ComputeSha256(pathToDelete);
         if (!currentHash.Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
         {
-            warnings.Add($"File was modified since install, refusing to delete: {pathToDelete}");
-            kept++;
-            continue;
+            return new UninstallResult(false,
+                $"Uninstall stopped because a managed file was modified: {pathToDelete}",
+                warnings);
         }
 
-        File.Delete(pathToDelete);
-        deleted++;
+        filesToDelete.Add(pathToDelete);
     }
 
-    // BUG-014: only drop the journal entry when every file was actually removed.
-    // If a file was kept (modified), the mod is still on disk and must stay tracked
-    // so it can be cleaned up later instead of being silently stranded.
-    if (kept == 0)
+    foreach (var path in filesToDelete)
+        File.Delete(path);
+
+    // Every existing file has passed the hash preflight, so deletion cannot leave
+    // a deliberately modified file behind without its journal entry.
+    _journal.Remove(modName);
+
+    // BUG-005: if this was the last journaled mod belonging to a pack, clear
+    // the stale pack entry so update detection stops reporting "Update available".
+    if (!string.IsNullOrEmpty(entry.PackId) &&
+        !entries.Any(e => !ReferenceEquals(e, entry) &&
+                          string.Equals(e.PackId, entry.PackId, StringComparison.OrdinalIgnoreCase)))
     {
-        _journal.Remove(modName);
-
-        // BUG-005: if this was the last journaled mod belonging to a pack, clear
-        // the stale pack entry so update detection stops reporting "Update available".
-        if (!string.IsNullOrEmpty(entry.PackId) &&
-            !entries.Any(e => !ReferenceEquals(e, entry) &&
-                              string.Equals(e.PackId, entry.PackId, StringComparison.OrdinalIgnoreCase)))
-        {
-            try { _modpackJournal.Remove(entry.PackId!); }
-            catch { /* best effort; pack journal is advisory */ }
-        }
+        try { _modpackJournal.Remove(entry.PackId!); }
+        catch { /* best effort; pack journal is advisory */ }
     }
-    else if (kept > 0)
-    {
-        warnings.Add($"Uninstall incomplete for {modName}: {kept} file(s) were modified and kept; the journal entry is retained.");
-    }
-
     PruneEmptyDisabledFolders();
     PruneEmptyActiveFolders();
     return new UninstallResult(true, null, warnings);
