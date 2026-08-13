@@ -21,7 +21,20 @@ public sealed record ModpackSummary(
     /// <see cref="ModEntry.DownloadUrl"/> nor a Nexus id. An http(s) URL is used
     /// as a base; anything else is treated as a local folder.
     /// </summary>
-    string? Source = null);
+    string? Source = null,
+    /// <summary>
+    /// Legacy ids this pack used to publish under. After a pack id rename the
+    /// installed-version journal may still hold the old id; matching against
+    /// these aliases keeps update detection and tracking working (BUG-009).
+    /// </summary>
+    List<string>? FormerIds = null)
+{
+    /// <summary>True when <paramref name="id"/> equals this pack's canonical id
+    /// or any of its legacy <see cref="FormerIds"/>, case-insensitively.</summary>
+    public bool IsId(string id) =>
+        Id.Equals(id, StringComparison.OrdinalIgnoreCase) ||
+        (FormerIds ?? new List<string>()).Any(f => f.Equals(id, StringComparison.OrdinalIgnoreCase));
+}
 
 /// <summary>The modpacks/index.json document.</summary>
 public sealed record ModpackIndex(int Version, List<ModpackSummary> Packs);

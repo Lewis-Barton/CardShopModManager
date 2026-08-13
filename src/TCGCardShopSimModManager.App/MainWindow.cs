@@ -46,7 +46,10 @@ public sealed partial class MainWindow : Window
         if (version is not null)
             Title = $"TCG Card Shop Sim Mod Manager {version}";
 
-        Opened += async (_, _) => await WelcomeDetectAsync();
+        // BUG-038: an exception during startup detection must be caught and
+        // logged, not left as an unobserved async-void exception that can crash
+        // the app at launch. Route it through RunHandler like every button.
+        Opened += async (_, _) => await RunHandler(WelcomeDetectAsync);
     }
 
     // --- click handlers -----------------------------------------------------
@@ -70,7 +73,11 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Log($"Error: {ex.Message}");
+            // BUG-037: surface the full exception (type + message) on screen and
+            // record the detail to the diagnostic log, so a thrown failure is
+            // diagnosable instead of being silently swallowed as one line.
+            Log($"Error: {ex.GetType().Name}: {ex.Message}");
+            Diagnostic.Write(ex.ToString(), "error");
         }
     }
 
@@ -128,9 +135,18 @@ public sealed partial class MainWindow : Window
             var index = await _packReader.FetchIndexAsync();
             _packs = index.Packs;
 
-            // Which packs are already installed, and at what version, so we can
-            // flag updates? None until a game folder is known.
-            _installedPacks = ReadInstalledPacks();
+            // BUG-008: loading the installed-packs journal must not abort gallery
+            // rendering. Isolate it so a corrupt/unreadable journal only suppresses
+            // update badges (with a warning), never the whole gallery.
+            try
+            {
+                _installedPacks = ReadInstalledPacks();
+            }
+            catch (Exception ex)
+            {
+                _installedPacks = new List<InstalledModpack>();
+                PackLog($"Could not read installed modpacks (update badges disabled): {ex.Message}");
+            }
 
             _packsPanel.Children.Clear();
             foreach (var pack in _packs)
@@ -148,13 +164,49 @@ public sealed partial class MainWindow : Window
         var gameFolder = _gameBox.Text;
         if (string.IsNullOrWhiteSpace(gameFolder) || !Directory.Exists(gameFolder))
             return new List<InstalledModpack>();
-        return new ModpackJournalStore(gameFolder).Load();
+
+        var installed = new ModpackJournalStore(gameFolder).Load();
+
+        // BUG-009: a pack-id rename must not orphan the stored entry. Map a legacy
+        // PackId (matching a pack's FormerIds) to its canonical id, and persist the
+        // normalization so the legacy id doesn't linger and the next Record can
+        // cleanly replace it.
+        if (_packs is not null)
+        {
+            var byFormer = _packs
+                .Where(p => p.FormerIds is { Count: > 0 })
+                .SelectMany(p => p.FormerIds!.Select(f => (former: f, canonical: p.Id)))
+                .ToDictionary(x => x.former, x => x.canonical, StringComparer.OrdinalIgnoreCase);
+
+            if (byFormer.Count > 0)
+            {
+                var changed = false;
+                var rewritten = installed.Select(e =>
+                {
+                    if (byFormer.TryGetValue(e.PackId, out var canonical))
+                    {
+                        changed = true;
+                        return e with { PackId = canonical };
+                    }
+                    return e;
+                }).ToList();
+
+                if (changed)
+                {
+                    new ModpackJournalStore(gameFolder).Save(rewritten);
+                    installed = rewritten;
+                }
+            }
+        }
+
+        return installed;
     }
 
     private bool IsUpdateAvailable(ModpackSummary pack)
     {
-        var installed = _installedPacks.FirstOrDefault(p =>
-            p.PackId.Equals(pack.Id, StringComparison.OrdinalIgnoreCase));
+        // BUG-009: match by canonical id or any legacy FormerId, so a pack-id
+        // rename doesn't break update detection for an already-installed pack.
+        var installed = _installedPacks.FirstOrDefault(p => pack.IsId(p.PackId));
         return installed is not null && ModpackVersion.IsNewer(installed.PackVersion, pack.Version);
     }
 

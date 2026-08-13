@@ -4,6 +4,30 @@ using TCGCardShopSimModManager.Core;
 
 namespace TCGCardShopSimModManager.Core.Tests;
 
+public sealed class ModpackSummaryTests
+{
+    [Fact]
+    public void IsId_MatchesCanonicalAndFormerIds_Bug009()
+    {
+        var pack = new ModpackSummary("my-pack", "Pack", "desc", "logo.png", "manifest.json", "1.0.0",
+            FormerIds: new List<string> { "mypack", "my_pack" });
+
+        Assert.True(pack.IsId("my-pack"));
+        Assert.True(pack.IsId("mypack"));      // legacy, case-insensitive
+        Assert.True(pack.IsId("MY_PACK"));       // legacy, different case
+        Assert.False(pack.IsId("other-pack"));
+    }
+
+    [Fact]
+    public void IsId_WithoutFormerIds_MatchesOnlyCanonical()
+    {
+        var pack = new ModpackSummary("my-pack", "Pack", "desc", "logo.png", "manifest.json", "1.0.0");
+
+        Assert.True(pack.IsId("my-pack"));
+        Assert.False(pack.IsId("mypack"));
+    }
+}
+
 public sealed class ModpackTests : IDisposable
 {
     private readonly string _root;

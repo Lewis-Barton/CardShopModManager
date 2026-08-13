@@ -9,9 +9,9 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 |----------|------|-------|
 | Critical | 0 | 1 |
 | High     | 1 | 12 |
-| Medium   | 5 | 12 |
+| Medium   | 1 | 16 |
 | Low      | 1 | 8 |
-| **Total**| **7** | **33** |
+| **Total**| **3** | **37** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |
@@ -23,8 +23,8 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 | BUG-005 | High | pack journal | Uninstall never clears pack journal -> stale "Update available" | Fixed | ModpackJournalStore.cs, ModInstaller.cs | Added `ModpackJournalStore.Remove(packId)`; `Install` now records `PackId` on the per-mod journal entry, and `Uninstall` drops the pack entry when no journaled mod still belongs to it | BUG-005: a pack's last mod being uninstalled must clear the stale "Update available" badge | Verified (unit + suite) |
 | BUG-006 | High | update detection | v-prefixed / pre-release versions never detected as updates | Open | ModpackVersion.cs | | | |
 | BUG-007 | Medium | update detection | Spurious "Update available" on component-count change (1.0 vs 1.0.0) | Open | ModpackVersion.cs | | | |
-| BUG-008 | Medium | UI | Corrupt journal wipes entire Modpacks gallery | Open | MainWindow.cs | | | |
-| BUG-009 | Medium | pack journal | Pack id rename orphans journal entry / breaks tracking | Open | ModpackJournalStore.cs, MainWindow.cs | | | |
+| BUG-008 | Medium | UI | Corrupt journal wipes entire Modpacks gallery | Fixed | MainWindow.cs | `ReadInstalledPacks()` is now wrapped in its own try/catch inside `LoadPacksAsync`, so a corrupt/unreadable pack journal only suppresses update badges (with a warning) and the index gallery still renders | BUG-008: a bad pack journal must never abort gallery rendering | Verified (build + source analysis) |
+| BUG-009 | Medium | pack journal | Pack id rename orphans journal entry / breaks tracking | Fixed | ModpackIndex.cs, ModpackJournalStore.cs, MainWindow.cs | `ModpackSummary` gained `FormerIds` + `IsId()`; `IsUpdateAvailable` matches the canonical id or any legacy `FormerId`, and `ReadInstalledPacks` rewrites a legacy stored `PackId` to its canonical id (persisted) so the entry is not orphaned and the next `Record` can cleanly replace it | BUG-009: a pack-id rename must not break update detection or leave the old journal entry lingering | Verified (unit: IsId + build + source) |
 | BUG-010 | Medium | pack journal | Journal write non-atomic, no backup -> self-perpetuating corruption | Fixed | ModpackJournalStore.cs, JournalStore.cs | Both stores now write via temp-file + rename with a `.bak` of the previous good content | BUG-010: a crash mid-write must not leave an unreadable journal | Verified (unit + suite) |
 | BUG-011 | High | lifecycle | disable/enable silent no-op for framework/game-root mods, reports success | Fixed | ModInstaller.cs | `Disable`/`Enable` now count managed/non-managed/skipped files and return non-success when a framework/game-root mod is not something we toggle | BUG-011: toggling a non-managed mod must report failure, not silent success | Verified (unit + suite) |
 | BUG-012 | Medium | lifecycle | `mods list` blind to framework/game-root mods | Fixed | ModDiscovery.cs | Added `BepInEx/core` to `ModDiscovery.ActiveRoots` so framework mods are enumerated | BUG-012: `mods list` must report every installed mod, including framework/core | Verified (unit + suite) |
@@ -52,8 +52,8 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 | BUG-034 | Low | modpack validate | no path sanitization for logo/manifest refs (traversal/absolute) | Fixed | ModpackSubmissionValidator.cs, ManifestValidator.cs | `ModpackSubmissionValidator` now rejects `..`/rooted `Logo`/`Manifest` references before resolving (consistent with archive handling) | BUG-034: traversal/absolute logo/manifest refs must be rejected | Verified (unit + suite) |
 | BUG-035 | Medium | CLI UX | `modpack install` no-id throws "Unexpected error" after network fetch | Fixed | ModpackCommand.cs | `ModpackCommand` now validates the install id up front (before `FetchIndexAsync`) and prints a usage hint with exit code 2, so no wasted network round-trip | BUG-035: a missing pack id should be a usage hint, not a scary "Unexpected error" after fetching the index | Verified (CLI smoke) |
 | BUG-036 | Medium | CLI UX | missing/bad args collapse into generic "Unexpected error" | Fixed | PlanCommand.cs, DeploymentService.cs | `PlanCommand` now validates the manifest's existence and JSON at the CLI boundary with clear messages and non-zero exit codes; `DeploymentService` already returns friendly not-found/invalid-JSON errors, so bad arguments no longer reach the generic top-level handler | BUG-036: argument *values* must be validated where they enter, reserving "Unexpected error" for genuine crashes | Verified (CLI smoke + suite) |
-| BUG-037 | Medium | UI | RunHandler swallows exceptions -> stale UI state on thrown failure | Open | MainWindow.cs | | | |
-| BUG-038 | Medium | UI | WelcomeDetectAsync not wrapped -> unobserved exception at startup risk | Open | MainWindow.cs | | | |
+| BUG-037 | Medium | UI | RunHandler swallows exceptions -> stale UI state on thrown failure | Fixed | MainWindow.cs | `RunHandler` now logs the full exception type + message to the screen and writes the stack to the diagnostic log, instead of swallowing only `ex.Message` | BUG-037: a thrown failure must be diagnosable, not silently swallowed | Verified (build + source analysis) |
+| BUG-038 | Medium | UI | WelcomeDetectAsync not wrapped -> unobserved exception at startup risk | Fixed | MainWindow.cs | `Opened` now routes `WelcomeDetectAsync` through `RunHandler` (try/catch + log) instead of an unguarded `async void` lambda | BUG-038: a startup-detection failure must be caught and logged, never an unobserved async-void exception | Verified (build + source analysis) |
 | BUG-039 | Low | CLI | serve ignores SIGINT headless; no clean shutdown | Open | ServeCommand.cs, LocalHttpServer.cs | | | |
 | BUG-040 | Low | CLI | uninstall on non-existent game folder -> misleading "No journal entry" | Fixed | ModInstaller.cs, UninstallCommand.cs | `Uninstall` returns a distinct "Game folder not found" error; `UninstallCommand` validates the folder up front | BUG-040: a missing game folder must be distinguished from a missing journal entry | Verified (unit + suite) |
 
@@ -123,5 +123,17 @@ Detailed entries are appended here as bugs are resolved (files changed, what/why
   - BUG-036 (Medium): `PlanCommand` validates the manifest's existence and JSON at the CLI boundary with clear messages; combined with BUG-026, bad arguments no longer collapse into the generic top-level "Unexpected error".
 - **Why:** These were raw-exception leaks and silent zero-exit misuse paths at the CLI boundary.
 - **Verification:** New tests `DeploymentServiceTests.Validate_MalformedManifest_ReturnsFriendlyJsonError_Bug026`, `Install_MalformedManifest_ReturnsFriendlyJsonError_Bug026`; CLI smoke confirms `validate`/`install a b`/`plan` exit 2, `validate bad.json` exits 1 with friendly text, `plan missing.json` exits 2 with "not found", and `modpack install` (no id) exits 2 with a usage hint and no fetch; full Core suite 132/132.
+
+### BUG-008, BUG-009, BUG-037, BUG-038 — GUI robustness (Workstream 6)
+- **Files:** `MainWindow.cs`, `ModpackIndex.cs`, `ModpackJournalStore.cs` (+ tests `ModpackTests.cs`)
+- **What:**
+  - BUG-003 (High): completed in Workstream 4 (GUI forwards the pack into `InstallAsync`).
+  - BUG-008 (Medium): `ReadInstalledPacks()` is now wrapped in its own try/catch inside `LoadPacksAsync`, so a corrupt/unreadable pack journal only suppresses update badges (with a warning) — the index gallery still renders.
+  - BUG-009 (Medium): `ModpackSummary` gained `FormerIds` + `IsId()`; `IsUpdateAvailable` matches the canonical id or any legacy `FormerId`, and `ReadInstalledPacks` rewrites a legacy stored `PackId` to its canonical id (persisted) so a pack-id rename neither orphans the entry nor breaks update detection.
+  - BUG-037 (Medium): `RunHandler` now logs the full exception type + message on screen and writes the stack to the diagnostic log, instead of swallowing only `ex.Message`.
+  - BUG-038 (Medium): `Opened` now routes `WelcomeDetectAsync` through `RunHandler` instead of an unguarded `async void` lambda.
+- **Why:** These were GUI robustness holes — a corrupt journal wiping the gallery, a rename orphaning tracking, and unobserved/swallowed exceptions.
+- **Verification:** New tests `ModpackSummaryTests.IsId_MatchesCanonicalAndFormerIds_Bug009`, `IsId_WithoutFormerIds_MatchesOnlyCanonical`; full Core suite 134/134; solution builds clean (incl. GUI). BUG-008/037/038 verified by build + source analysis (GUI-only, no automated harness).
+
 
 

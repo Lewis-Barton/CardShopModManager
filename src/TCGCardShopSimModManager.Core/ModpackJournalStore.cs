@@ -67,7 +67,8 @@ public sealed class ModpackJournalStore
         Save(entries);
     }
 
-    private void Save(List<InstalledModpack> entries)
+    /// <summary>Persist the installed-pack list (atomic write, BUG-010).</summary>
+    public void Save(List<InstalledModpack> entries)
     {
         var json = JsonSerializer.Serialize(entries, Options);
         AtomicWrite(_journalPath, json);
