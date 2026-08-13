@@ -29,6 +29,42 @@
         <Setter Property="Foreground" Value="#6B7280" />
       </Style>
     </ControlTheme>
+    <ControlTheme x:Key="CheckBoxTheme" TargetType="CheckBox">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="MinHeight" Value="28" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Grid ColumnDefinitions="20,*">
+            <Border x:Name="Box" Width="18" Height="18" VerticalAlignment="Center"
+                    Background="#F1F3F5" BorderBrush="#4B5563" BorderThickness="1"
+                    CornerRadius="3">
+              <Path x:Name="Glyph" Data="M 2,8 L 6,12 L 14,3" Stroke="White"
+                    StrokeThickness="2" IsVisible="False" />
+            </Border>
+            <ContentPresenter x:Name="Label" Grid.Column="1" Margin="8,0,0,0"
+                              VerticalAlignment="Center" Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Foreground="{TemplateBinding Foreground}" />
+          </Grid>
+        </ControlTemplate>
+      </Setter>
+      <Style Selector="^:pointerover /template/ Border#Box">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      </Style>
+      <Style Selector="^:pointerover /template/ ContentPresenter#Label">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      </Style>
+      <Style Selector="^:checked /template/ Border#Box">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      </Style>
+      <Style Selector="^:checked /template/ Path#Glyph">
+        <Setter Property="IsVisible" Value="True" />
+      </Style>
+      <Style Selector="^:disabled">
+        <Setter Property="Opacity" Value="0.55" />
+      </Style>
+    </ControlTheme>
   </Application.Resources>
 
   <Application.Styles>
@@ -83,10 +119,7 @@
     </Style>
 
     <Style Selector="CheckBox">
-      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-    </Style>
-    <Style Selector="CheckBox:checked">
-      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Theme" Value="{DynamicResource CheckBoxTheme}" />
     </Style>
 
     <Style Selector="ProgressBar">

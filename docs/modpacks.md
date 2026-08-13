@@ -72,6 +72,10 @@ Fields:
   metadata used by the desktop filters. `downloadSize` is the total compressed
   download size in bytes. Older index entries can omit these fields.
 
+NSFW packs stay hidden. Nexus requires age verification for restricted content,
+but its documented OAuth token and user-validation response do not expose that
+result to third-party clients. Do not enable the filter based on login alone.
+
 ## manifest.json
 
 The existing `ModListManifest` (name, game, mods[]). The one addition for

@@ -39,22 +39,18 @@
           <Button Grid.Column="1" Content="Refresh" Click="OnRefreshPacksClick" />
         </Grid>
 
-        <Grid Grid.Row="1" Margin="22,0,22,20" ColumnDefinitions="260,*">
+        <Grid Grid.Row="1" Margin="22,0,22,20" ColumnDefinitions="240,*">
           <Border Grid.Column="0" Classes="card filterPanel" Padding="14" Margin="0,0,14,0">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
               <StackPanel Spacing="12">
                 <TextBox x:Name="_packSearch" Watermark="Search modpacks..."
                          TextChanged="OnPackTextFilterChanged" />
-                <ComboBox SelectedIndex="0">
-                  <ComboBoxItem Content="TCG Card Shop Simulator" />
-                </ComboBox>
-
                 <StackPanel Spacing="6">
                   <TextBlock FontWeight="SemiBold" Text="Include" />
                   <CheckBox x:Name="_includeNonFeatured" Content="Non-featured"
                             IsChecked="True" IsCheckedChanged="OnPackCheckFilterChanged" />
-                  <CheckBox x:Name="_includeAdult" Content="18+ content"
-                            IsChecked="False" IsCheckedChanged="OnPackCheckFilterChanged" />
+                  <CheckBox x:Name="_includeAdult" Content="NSFW" IsEnabled="False"
+                            ToolTip.Tip="Nexus does not expose age-verification status to this app." />
                 </StackPanel>
 
                 <StackPanel Spacing="6">

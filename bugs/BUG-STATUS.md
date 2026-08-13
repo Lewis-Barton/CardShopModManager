@@ -66,16 +66,22 @@ design review found three additional safety issues, now fixed:
   now uses a persistent navigation rail with separate Browse, Manage and Settings
   pages. Browse has a fixed filter column, responsive large-card gallery and a
   focused pack-details window. Optional catalog metadata drives search, content,
-  size, mod, tag and installed-pack filters without breaking older indexes.
+  size, mod, tag and installed-pack filters without breaking older indexes. The
+  NSFW filter remains fail-closed because Nexus does not expose age-verification
+  status through its documented OAuth or user response.
+- **BUG-052 — gallery controls lose contrast and waste space (Medium):** the
+  redundant game selector and local age-confirmation flow were removed, cards
+  were reduced to a 3-by-3 default viewport, and checkboxes now use an explicit
+  theme whose checked, unchecked, disabled and hover states stay visible.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 2 |
 | High     | 0 | 16 |
-| Medium   | 0 | 24 |
+| Medium   | 0 | 25 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **51** |
+| **Total**| **0** | **52** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

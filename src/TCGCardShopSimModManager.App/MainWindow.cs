@@ -28,7 +28,6 @@ public sealed partial class MainWindow : Window
     private List<InstalledModpack> _installedPacks = new();
     private readonly HttpClient _http = new();
     private readonly ModpackIndexReader _packReader;
-    private AppSettings _settings = AppSettings.Load();
 
     public MainWindow()
     {
@@ -65,25 +64,7 @@ public sealed partial class MainWindow : Window
     private void OnManageNavClick(object? sender, RoutedEventArgs e) => ShowPage(_managePage, _manageNav);
     private void OnSettingsNavClick(object? sender, RoutedEventArgs e) => ShowPage(_settingsPage, _settingsNav);
     private void OnPackTextFilterChanged(object? sender, TextChangedEventArgs e) => ApplyPackFilters();
-    private async void OnPackCheckFilterChanged(object? sender, RoutedEventArgs e)
-    {
-        if (ReferenceEquals(sender, _includeAdult) && _includeAdult.IsChecked == true &&
-            !_settings.Confirmed18Plus)
-        {
-            var confirmed = await ConfirmDialog.Show(this, "Show 18+ modpacks",
-                "This may show modpacks intended for adults. Confirm that you are at least 18 years old.");
-            if (!confirmed)
-            {
-                _includeAdult.IsChecked = false;
-                return;
-            }
-
-            _settings = _settings with { Confirmed18Plus = true };
-            AppSettings.Save(_settings);
-        }
-
-        ApplyPackFilters();
-    }
+    private void OnPackCheckFilterChanged(object? sender, RoutedEventArgs e) => ApplyPackFilters();
     private void OnPackSizeFilterChanged(object? sender, RangeBaseValueChangedEventArgs e) => ApplyPackFilters();
     private void OnResetFiltersClick(object? sender, RoutedEventArgs e)
     {
@@ -284,15 +265,15 @@ public sealed partial class MainWindow : Window
         var card = new Border
         {
             Classes = { "card", "packCard" },
-            Width = 360,
-            Height = 230,
-            Margin = new Thickness(0, 0, 14, 14),
+            Width = 250,
+            Height = 180,
+            Margin = new Thickness(0, 0, 12, 12),
             Padding = new Thickness(0),
             Cursor = new Cursor(StandardCursorType.Hand)
         };
 
-        var grid = new Grid { RowDefinitions = new RowDefinitions("150,*") };
-        var img = new Image { Height = 150, Stretch = Stretch.UniformToFill };
+        var grid = new Grid { RowDefinitions = new RowDefinitions("110,*") };
+        var img = new Image { Height = 110, Stretch = Stretch.UniformToFill };
 
         // Fetch the logo off the UI thread, then drop it in once it arrives.
         _ = LoadLogoAsync(_packReader.LogoUrl(pack)).ContinueWith(t =>
@@ -302,9 +283,9 @@ public sealed partial class MainWindow : Window
         });
 
         grid.Children.Add(img);
-        var details = new StackPanel { Spacing = 3, Margin = new Thickness(12, 8) };
+        var details = new StackPanel { Spacing = 2, Margin = new Thickness(10, 6) };
         Grid.SetRow(details, 1);
-        details.Children.Add(new TextBlock { Text = pack.Name, FontWeight = FontWeight.SemiBold, FontSize = 15 });
+        details.Children.Add(new TextBlock { Text = pack.Name, FontWeight = FontWeight.SemiBold, FontSize = 14 });
         details.Children.Add(new TextBlock
         {
             Text = pack.ShortDescription,
