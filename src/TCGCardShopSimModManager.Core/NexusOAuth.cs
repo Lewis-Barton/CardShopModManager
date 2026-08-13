@@ -164,7 +164,23 @@ public static class NexusOAuth
         OpenBrowser(url);
 
         log?.Invoke($"Waiting for Nexus to redirect back to {redirectUri} ...");
-        var result = await listener.WaitForCallbackAsync(CancellationToken.None);
+        LoopbackCallback result;
+        using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120)))
+        {
+            try
+            {
+                result = await listener.WaitForCallbackAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                throw new DownloadException(
+                    "Timed out waiting for Nexus to redirect back. The sign-in window may have been closed, " +
+                    "or Nexus rejected the request before redirecting (e.g. an unknown client id). " +
+                    "Check the browser for the error, and confirm NEXUS_OAUTH_CLIENT_ID and the redirect URI " +
+                    "match what Nexus has registered.",
+                    retryable: false);
+            }
+        }
 
         if (result.Error is not null)
         {
