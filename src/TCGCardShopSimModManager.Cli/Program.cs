@@ -118,7 +118,7 @@ static void PrintUsage()
         "  download <manifest> <src> <cache> <out>   fetch archives (src: url | folder | nexus)\n" +
         "  serve <folder> [port]         host a folder over HTTP (run downloads from a second terminal)\n" +
         "  demo / nexus-demo             one-command end-to-end demos\n" +
-        "  nexus set-key|status|clear    manage the Nexus API key\n" +
+        "  nexus set-key|login|logout|status|clear   manage Nexus auth (OAuth login preferred)\n" +
         "  update-check                  compare version with the latest GitHub release\n" +
         "  support-bundle [outDir]       export logs + environment info (never the API key)\n" +
         "  install <manifest> <src> <game>   verify, plan, install, journal\n" +

@@ -42,9 +42,9 @@ public sealed class NexusApi
     public string FilePageUrl(long modId) =>
         $"https://www.nexusmods.com/{_gameDomain}/mods/{modId}?tab=files";
 
-    public async Task<NexusUser> GetUserAsync(string apiKey, CancellationToken cancellationToken)
+    public async Task<NexusUser> GetUserAsync(NexusAuth auth, CancellationToken cancellationToken)
     {
-        using var document = await GetJsonAsync("/users/validate.json", apiKey, cancellationToken);
+        using var document = await GetJsonAsync("/users/validate.json", auth, cancellationToken);
         var root = document.RootElement;
 
         return new NexusUser(
@@ -57,9 +57,9 @@ public sealed class NexusApi
     /// Find the file id whose file_name matches. Used when the manifest knows
     /// the mod but not the exact file id.
     /// </summary>
-    public async Task<long> ResolveFileIdAsync(long modId, string expectedFileName, string apiKey, CancellationToken cancellationToken)
+    public async Task<long> ResolveFileIdAsync(long modId, string expectedFileName, NexusAuth auth, CancellationToken cancellationToken)
     {
-        using var document = await GetJsonAsync($"/games/{_gameDomain}/mods/{modId}/files.json", apiKey, cancellationToken);
+        using var document = await GetJsonAsync($"/games/{_gameDomain}/mods/{modId}/files.json", auth, cancellationToken);
 
         foreach (var file in document.RootElement.EnumerateArray())
         {
@@ -76,11 +76,11 @@ public sealed class NexusApi
     }
 
     /// <summary>Ask Nexus for the authenticated download URI for a specific file.</summary>
-    public async Task<Uri> GetDownloadUriAsync(long modId, long fileId, string apiKey, CancellationToken cancellationToken)
+    public async Task<Uri> GetDownloadUriAsync(long modId, long fileId, NexusAuth auth, CancellationToken cancellationToken)
     {
         using var document = await GetJsonAsync(
             $"/games/{_gameDomain}/mods/{modId}/files/{fileId}/download_link.json",
-            apiKey,
+            auth,
             cancellationToken);
 
         foreach (var entry in document.RootElement.EnumerateArray())
@@ -93,10 +93,10 @@ public sealed class NexusApi
         throw new DownloadException($"Nexus returned no download URI for file {fileId}.", retryable: false);
     }
 
-    private async Task<JsonDocument> GetJsonAsync(string path, string apiKey, CancellationToken cancellationToken)
+    private async Task<JsonDocument> GetJsonAsync(string path, NexusAuth auth, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}{path}");
-        request.Headers.TryAddWithoutValidation("apikey", apiKey);
+        request.Headers.TryAddWithoutValidation(auth.HeaderName, await auth.GetHeaderValueAsync());
         request.Headers.TryAddWithoutValidation("User-Agent", _userAgent);
 
         using var response = await _http.SendAsync(request, cancellationToken);

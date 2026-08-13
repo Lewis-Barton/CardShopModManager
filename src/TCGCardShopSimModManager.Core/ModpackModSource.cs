@@ -12,18 +12,18 @@ public sealed class ModpackModSource : IModSource
 {
     private readonly string _gameDomain;
     private readonly IModSource _fallback;
-    private readonly Func<string?> _apiKeyProvider;
+    private readonly NexusAuth _auth;
     private readonly HttpClient? _http;
 
     public ModpackModSource(
         string gameDomain,
         IModSource fallback,
-        Func<string?>? apiKeyProvider = null,
+        NexusAuth? auth = null,
         HttpClient? http = null)
     {
         _gameDomain = gameDomain;
         _fallback = fallback;
-        _apiKeyProvider = apiKeyProvider ?? ApiKeyStore.TryLoad;
+        _auth = auth ?? NexusAuth.Unified(http);
         _http = http;
     }
 
@@ -36,7 +36,7 @@ public sealed class ModpackModSource : IModSource
 
         if (mod.NexusModId is not null)
             return await new NexusModSource(
-                    NexusApi.ApiBaseUrl(), _gameDomain, _apiKeyProvider, _http)
+                    NexusApi.ApiBaseUrl(), _gameDomain, _auth, _http)
                 .OpenAsync(mod, resumeFromByte, cancellationToken);
 
         return await _fallback.OpenAsync(mod, resumeFromByte, cancellationToken);

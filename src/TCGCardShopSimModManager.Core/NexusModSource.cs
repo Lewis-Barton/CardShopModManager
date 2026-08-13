@@ -15,18 +15,18 @@ public sealed class NexusModSource : IModSource
 {
     private readonly NexusApi _api;
     private readonly HttpClient _http;
-    private readonly Func<string?> _apiKeyProvider;
+    private readonly NexusAuth _auth;
 
     public NexusModSource(
         string apiBaseUrl,
         string gameDomain,
-        Func<string?> apiKeyProvider,
+        NexusAuth auth,
         HttpClient? http = null,
         string userAgent = NexusApi.UserAgent)
     {
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(100) };
         _api = new NexusApi(apiBaseUrl, gameDomain, userAgent, _http);
-        _apiKeyProvider = apiKeyProvider;
+        _auth = auth;
     }
 
     public async Task<DownloadStream> OpenAsync(ModReference mod, long? resumeFromByte, CancellationToken cancellationToken)
@@ -36,12 +36,10 @@ public sealed class NexusModSource : IModSource
                 "This mod has no nexusModId in the manifest — a Nexus source cannot resolve it.",
                 retryable: false);
 
-        var apiKey = _apiKeyProvider()
-            ?? throw new DownloadException(
-                "No Nexus API key stored. Run 'nexus set-key <apikey>' first.",
-                retryable: false);
-
-        var user = await _api.GetUserAsync(apiKey, cancellationToken);
+        // OAuth carries the user in the token (no extra call); the API-key path
+        // validates the key and reports premium via the API.
+        var user = _auth.User
+            ?? await _api.GetUserAsync(_auth, cancellationToken);
 
         if (!user.IsPremium)
         {
@@ -52,9 +50,9 @@ public sealed class NexusModSource : IModSource
         }
 
         var fileId = mod.NexusFileId ??
-            await _api.ResolveFileIdAsync(modId, mod.FileName, apiKey, cancellationToken);
+            await _api.ResolveFileIdAsync(modId, mod.FileName, _auth, cancellationToken);
 
-        var uri = await _api.GetDownloadUriAsync(modId, fileId, apiKey, cancellationToken);
+        var uri = await _api.GetDownloadUriAsync(modId, fileId, _auth, cancellationToken);
 
         // The bytes themselves come from Nexus's CDN link, fetched by the plain
         // HTTP source — same streaming, same Range resume, no Nexus-specific code.

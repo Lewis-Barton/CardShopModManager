@@ -67,10 +67,12 @@ public static class DownloadCommand
     {
         if (sourceSpec.Equals("nexus", StringComparison.OrdinalIgnoreCase))
         {
+            var http = new HttpClient { Timeout = TimeSpan.FromSeconds(100) };
             return new NexusModSource(
                 NexusCommand.ApiBaseUrl(),
                 gameDomain,
-                ApiKeyStore.TryLoad,
+                NexusAuth.Unified(http),
+                http,
                 userAgent: NexusApi.UserAgent);
         }
 

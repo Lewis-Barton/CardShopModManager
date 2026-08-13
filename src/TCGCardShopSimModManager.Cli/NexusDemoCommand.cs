@@ -63,7 +63,7 @@ server.Provider = NexusMock.MakeProvider(
         Console.WriteLine("  (premium user — automatic download flow)\n");
 
         var downloader = new ModDownloader(
-            new NexusModSource(apiBase, manifest.Game, () => "demo-key"),
+            new NexusModSource(apiBase, manifest.Game, NexusAuth.FromApiKey("demo-key")),
             new DownloadOptions { CacheDirectory = cacheDir });
 
         foreach (var entry in manifest.Mods)

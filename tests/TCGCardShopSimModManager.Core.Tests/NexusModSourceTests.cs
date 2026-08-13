@@ -99,7 +99,7 @@ public sealed class NexusModSourceTests : IDisposable
         _server.Provider = NexusMock.MakeProvider(_archives, "tcgcardshopsimulator", _server.Url(""),
             new List<(long, long, string)> { (4000, 7000, "loose-plugin.zip") });
 
-        var source = new NexusModSource(_server.Url("v1"), "tcgcardshopsimulator", () => null);
+        var source = new NexusModSource(_server.Url("v1"), "tcgcardshopsimulator", NexusAuth.FromApiKey(() => null));
         var result = await new ModDownloader(source, new DownloadOptions { RetryBaseDelayMs = 10 })
             .DownloadAsync(Ref("loose-plugin.zip", payload, nexusModId: 4000), Path.Combine(_root, "out"));
 
@@ -153,11 +153,11 @@ public sealed class NexusModSourceTests : IDisposable
 
         var api = new NexusApi(_server.Url("v1"), "tcgcardshopsimulator", "test-agent");
 
-        var limited = await Assert.ThrowsAsync<DownloadException>(() => api.GetUserAsync("key", CancellationToken.None));
+        var limited = await Assert.ThrowsAsync<DownloadException>(() => api.GetUserAsync(NexusAuth.FromApiKey("key"), CancellationToken.None));
         Assert.True(limited.Retryable);
         Assert.Equal(1, limited.RetryAfterSeconds);
 
-        var user = await api.GetUserAsync("key", CancellationToken.None);
+        var user = await api.GetUserAsync(NexusAuth.FromApiKey("key"), CancellationToken.None);
         Assert.True(user.IsPremium);
     }
 
@@ -184,7 +184,7 @@ public sealed class NexusModSourceTests : IDisposable
 
     private async Task<DownloadResult> Download(ModReference mod)
     {
-        var source = new NexusModSource(_server.Url("v1"), "tcgcardshopsimulator", () => "test-key");
+        var source = new NexusModSource(_server.Url("v1"), "tcgcardshopsimulator", NexusAuth.FromApiKey("test-key"));
         return await new ModDownloader(source, new DownloadOptions { RetryBaseDelayMs = 10 })
             .DownloadAsync(mod, Path.Combine(_root, "out"));
     }
