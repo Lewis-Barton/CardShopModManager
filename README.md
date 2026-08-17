@@ -22,18 +22,22 @@ Needs a display (Windows):
 dotnet run --project src/TCGCardShopSimModManager.App
 ```
 
-Pick a game folder, a manifest and the archive folder, then **Validate** (install
-order, or why the list can't be installed), **Plan** (file-by-file preview),
-**Install** (progress bar while it works), or type a mod name and **Uninstall**.
+Browse the hosted modpack gallery, use its filters to find a pack, and open a
+card to review its contents before installing it. The **Manage mods** page lets
+you choose the game folder, inspect installed and manually placed mods, and
+enable, disable or uninstall managed mods. Nexus sign-in and update checks live
+under **Settings**. The CLI retains the local manifest validation, planning and
+installation commands.
 
 On open, the window tries to find TCG Card Shop Simulator through your Steam
 library folders automatically and fills the game folder; if not found, use
-Browse. **List mods** reads what is actually in `BepInEx/plugins`, `patchers`
-and `disabled` and labels it with the journal (installed / modified / disabled /
-unknown; a mod placed in the folder by hand is shown as unknown). Select a mod and use **Enable** /
-**Disable** to move it out of the game into the manager's own disabled folder (beside the executable) — nothing is
-deleted, and a modified file is left alone with a warning. **Update check** and
-**Export bundle** round out the utilities. The title shows the version.
+Browse on the Manage mods page. **Refresh list** reads what is actually in
+`BepInEx/plugins`, `patchers` and `disabled` and labels it with the journal
+(installed / modified / disabled / unknown; a mod placed in the folder by hand
+is shown as unknown). Select a mod and use **Enable** / **Disable** to move it
+out of the game into the manager's own disabled folder (beside the executable)
+— nothing is deleted, and a modified file is left alone with a warning.
+**Uninstall** removes only verified managed files. The title shows the version.
 
 ## Commands
 

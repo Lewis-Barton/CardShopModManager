@@ -48,7 +48,8 @@ Fields:
   ```
 
   (lowercase the output).
-- `installType` — `BepInExPlugin` is the only one so far.
+- `installType` — use `BepInExPlugin` for a plugin. The reserved `bepinex`
+  framework entry uses `BepInEx`.
 - `dependencies` / `conflicts` may be omitted. Dependencies are installed
   first; a circular dependency makes the list invalid. Conflicts mean the two
   mods cannot both be enabled.

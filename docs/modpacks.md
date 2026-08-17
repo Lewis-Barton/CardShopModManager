@@ -131,9 +131,9 @@ BepInEx is the loader every plugin runs inside, so it has to be on disk before
 any plugin is copied in. `ModpackInstaller.EnforceBepInExFirst` guarantees this:
 at install time it makes **every other mod depend on `bepinex`** (if it doesn't
 already), and the resolver orders dependencies first — so pack authors can't
-forget it. A real BepInEx archive (a top-level `BepInEx/` folder, plus
-`winhttp.dll` / `doorstop_config.ini` at the root) is mirrored into the game's
-`BepInEx/` folder and game root automatically by the classifier.
+forget it. The current classifier installs a top-level `BepInEx/` folder but
+rejects root-level loader DLLs such as `winhttp.dll`. Real framework packages
+that rely on that bootstrap file are not yet supported end to end.
 
 The demo pack points `bepinex`'s `downloadUrl` at the committed
 `samples/mod-archives/bepinex-layout.zip` placeholder so the flow is
@@ -164,17 +164,15 @@ folder the user picked.
 
 ## App UI
 
-- A **Modpacks** section with a **grid of cards** (2–3 columns). Each card shows
-  the logo, the pack name, and the short description. Scrolls if there are many.
-- Clicking a card opens a **detail panel**: the logo, name, short description,
-  the full mod list (name + version, read from the manifest), a
-  "View manifest on GitHub" link for transparency, and an **Install modpack**
-  button.
-- **Install modpack** runs the download → install flow above. When a newer
-  version of an already-installed pack is published, its card shows an
-  **"Update available"** badge and the button reads **Update** instead.
-- The current manual **manifest + source boxes** stay, below the gallery, as a
-  "Local pack" option for people who want to install from files on disk.
+- **Browse modpacks** shows a wrapping grid of cards beside fixed search, tag,
+  featured and NSFW filters. Each card shows the logo, name, short description,
+  tags and compressed download size when available.
+- Clicking a card opens a modal with the logo, description and full mod list.
+  The modal owns the **Install modpack** or **Update** action.
+- A newer published version adds an **Update available** badge to its card.
+- **Manage mods** contains game-folder selection and installed-mod lifecycle
+  controls. Local manifest workflows remain available through the CLI.
+- **Settings** contains Nexus sign-in, update checks and support-bundle export.
 
 ## Validating a submission
 
@@ -190,13 +188,13 @@ contacts GitHub — and fails the submission on:
 
 - a missing or non-JSON `index.json` / `manifest.json`;
 - a missing `logo`, or one that isn't a PNG;
-- a manifest that fails `ManifestValidator`;
+- a manifest that fails `ManifestValidator`, including a name that does not
+  match the index entry;
 - a mod with no resolvable source (`DownloadUrl`, `NexusModId`, or a pack-level
   `source`);
 - a pack that omits the required `bepinex` entry (see BepInEx above).
 
-It warns (without failing) on a `manifest.name` that disagrees with the index
-`name`, or a suspiciously small logo.
+It warns (without failing) on a suspiciously small logo.
 
 ## What is reused vs. new
 
