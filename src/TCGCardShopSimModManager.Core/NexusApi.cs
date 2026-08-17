@@ -11,9 +11,10 @@ public sealed record NexusUser(long UserId, string Name, bool IsPremium);
 /// files, and ask for an authenticated download URI. Callers stay behind the
 /// <see cref="IModSource"/> boundary: they never see Nexus types.
 /// </summary>
-public sealed class NexusApi
+public sealed class NexusApi : IDisposable
 {
     private readonly HttpClient _http;
+    private readonly bool _ownsHttp;
     private readonly string _baseUrl;    // e.g. https://api.nexusmods.com/v1
     private readonly string _gameDomain; // e.g. tcgcardshopsimulator
     private readonly string _userAgent;
@@ -35,6 +36,7 @@ public sealed class NexusApi
         _baseUrl = baseUrl.TrimEnd('/');
         _gameDomain = gameDomain;
         _userAgent = userAgent;
+        _ownsHttp = http is null;
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
     }
 
@@ -133,4 +135,10 @@ public sealed class NexusApi
             JsonValueKind.String => element.GetString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true,
             _ => false
         };
+
+    public void Dispose()
+    {
+        if (_ownsHttp)
+            _http.Dispose();
+    }
 }

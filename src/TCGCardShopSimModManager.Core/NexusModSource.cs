@@ -11,11 +11,12 @@ namespace TCGCardShopSimModManager.Core;
 /// Free accounts cannot be auto-downloaded — Nexus only hands premium users a
 /// direct URI, so the free flow tells the user where to grab the file manually.
 /// </summary>
-public sealed class NexusModSource : IModSource
+public sealed class NexusModSource : IModSource, IDisposable
 {
     private readonly NexusApi _api;
     private readonly HttpClient _http;
     private readonly NexusAuth _auth;
+    private readonly bool _ownsHttp;
 
     public NexusModSource(
         string apiBaseUrl,
@@ -24,6 +25,7 @@ public sealed class NexusModSource : IModSource
         HttpClient? http = null,
         string userAgent = NexusApi.UserAgent)
     {
+        _ownsHttp = http is null;
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(100) };
         _api = new NexusApi(apiBaseUrl, gameDomain, userAgent, _http);
         _auth = auth;
@@ -58,5 +60,12 @@ public sealed class NexusModSource : IModSource
         // HTTP source — same streaming, same Range resume, no Nexus-specific code.
         var inner = new HttpModSource(_ => uri.AbsoluteUri, _http);
         return await inner.OpenAsync(mod, resumeFromByte, cancellationToken);
+    }
+
+    public void Dispose()
+    {
+        _api.Dispose();
+        if (_ownsHttp)
+            _http.Dispose();
     }
 }

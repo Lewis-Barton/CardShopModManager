@@ -29,7 +29,8 @@ public static class DownloadCommand
             return;
         }
 
-        var source = CreateSource(sourceSpec, manifest.Game);
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(100) };
+        var source = CreateSource(sourceSpec, manifest.Game, http);
         var downloader = new ModDownloader(source, new DownloadOptions { CacheDirectory = cacheDir });
 
         foreach (var entry in manifest.Mods)
@@ -66,11 +67,10 @@ public static class DownloadCommand
         }
     }
 
-    private static IModSource CreateSource(string sourceSpec, string gameDomain)
+    private static IModSource CreateSource(string sourceSpec, string gameDomain, HttpClient http)
     {
         if (sourceSpec.Equals("nexus", StringComparison.OrdinalIgnoreCase))
         {
-            var http = new HttpClient { Timeout = TimeSpan.FromSeconds(100) };
             return new NexusModSource(
                 NexusCommand.ApiBaseUrl(),
                 gameDomain,
@@ -83,7 +83,7 @@ public static class DownloadCommand
             sourceSpec.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             var baseUrl = sourceSpec.TrimEnd('/');
-            return new HttpModSource(mod => $"{baseUrl}/{Uri.EscapeDataString(mod.FileName)}");
+            return new HttpModSource(mod => $"{baseUrl}/{Uri.EscapeDataString(mod.FileName)}", http);
         }
 
         return new LocalFileSource(sourceSpec);

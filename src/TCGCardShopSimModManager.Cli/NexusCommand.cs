@@ -127,7 +127,7 @@ public static class NexusCommand
 
         try
         {
-            var api = new NexusApi(baseUrl, NexusApi.GameDomain, NexusApi.UserAgent);
+            using var api = new NexusApi(baseUrl, NexusApi.GameDomain, NexusApi.UserAgent);
             var user = await api.GetUserAsync(NexusAuth.FromApiKey(apiKey), CancellationToken.None);
 
             Console.WriteLine($"User: {user.Name} (id {user.UserId})");

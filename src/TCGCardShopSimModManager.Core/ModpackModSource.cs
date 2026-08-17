@@ -8,12 +8,14 @@ namespace TCGCardShopSimModManager.Core;
 /// source. Downstream everything is the same <see cref="IModSource"/> pipeline,
 /// so caching, Range resume and retries are unchanged.
 /// </summary>
-public sealed class ModpackModSource : IModSource
+public sealed class ModpackModSource : IModSource, IDisposable
 {
     private readonly string _gameDomain;
     private readonly IModSource _fallback;
     private readonly NexusAuth _auth;
-    private readonly HttpClient? _http;
+    private readonly HttpClient _http;
+    private readonly bool _ownsHttp;
+    private readonly NexusModSource _nexus;
 
     public ModpackModSource(
         string gameDomain,
@@ -23,8 +25,10 @@ public sealed class ModpackModSource : IModSource
     {
         _gameDomain = gameDomain;
         _fallback = fallback;
-        _auth = auth ?? NexusAuth.Unified(http);
-        _http = http;
+        _ownsHttp = http is null;
+        _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(100) };
+        _auth = auth ?? NexusAuth.Unified(_http);
+        _nexus = new NexusModSource(NexusApi.ApiBaseUrl(), _gameDomain, _auth, _http);
     }
 
     public async Task<DownloadStream> OpenAsync(
@@ -35,10 +39,15 @@ public sealed class ModpackModSource : IModSource
                 .OpenAsync(mod, resumeFromByte, cancellationToken);
 
         if (mod.NexusModId is not null)
-            return await new NexusModSource(
-                    NexusApi.ApiBaseUrl(), _gameDomain, _auth, _http)
-                .OpenAsync(mod, resumeFromByte, cancellationToken);
+            return await _nexus.OpenAsync(mod, resumeFromByte, cancellationToken);
 
         return await _fallback.OpenAsync(mod, resumeFromByte, cancellationToken);
+    }
+
+    public void Dispose()
+    {
+        _nexus.Dispose();
+        if (_ownsHttp)
+            _http.Dispose();
     }
 }

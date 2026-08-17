@@ -11,8 +11,8 @@ public static class UpdateCommand
         var localVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
         Console.WriteLine($"Local version: {localVersion}");
 
-        var result = await new UpdateChecker("Lewis-Barton/TCGCardShopSimModManager", localVersion)
-            .CheckAsync(CancellationToken.None);
+        using var checker = new UpdateChecker("Lewis-Barton/TCGCardShopSimModManager", localVersion);
+        var result = await checker.CheckAsync(CancellationToken.None);
 
         if (result.Error is not null)
         {

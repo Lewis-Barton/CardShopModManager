@@ -464,8 +464,12 @@ public sealed partial class MainWindow : Window
         Log("--- Update check");
         var local = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
 
-        var result = await Task.Run(() =>
-            new UpdateChecker("Lewis-Barton/TCGCardShopSimModManager", local).CheckAsync(CancellationToken.None));
+        var result = await Task.Run(async () =>
+        {
+            using var checker = new UpdateChecker(
+                "Lewis-Barton/TCGCardShopSimModManager", local, _http);
+            return await checker.CheckAsync(CancellationToken.None);
+        });
 
         if (result.Error is not null)
         {

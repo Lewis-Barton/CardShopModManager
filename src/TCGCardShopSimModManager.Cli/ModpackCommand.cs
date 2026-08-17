@@ -59,7 +59,7 @@ public static class ModpackCommand
             return;
         }
 
-        var reader = new ModpackIndexReader();
+        using var reader = new ModpackIndexReader();
         var index = await reader.FetchIndexAsync();
 
         if (sub is not "install")

@@ -15,16 +15,18 @@ public sealed record UpdateCheckResult(
 /// Compares the running version against the newest GitHub release tag for this
 /// project. Runs only when explicitly invoked.
 /// </summary>
-public sealed class UpdateChecker
+public sealed class UpdateChecker : IDisposable
 {
     private readonly string _repo;          // e.g. Lewis-Barton/TCGCardShopSimModManager
     private readonly string _localVersion;  // e.g. 0.1.0
     private readonly HttpClient _http;
+    private readonly bool _ownsHttp;
 
     public UpdateChecker(string repo, string localVersion, HttpClient? http = null)
     {
         _repo = repo;
         _localVersion = localVersion;
+        _ownsHttp = http is null;
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
     }
 
@@ -79,5 +81,11 @@ public sealed class UpdateChecker
         }
 
         return 0;
+    }
+
+    public void Dispose()
+    {
+        if (_ownsHttp)
+            _http.Dispose();
     }
 }

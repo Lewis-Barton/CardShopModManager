@@ -104,15 +104,21 @@ and testing found the following additional issues, now fixed:
   files together as one managed mod. Remaining physical content is labelled as
   unmanaged with its location, framework subdirectories form one entry, and
   same-named folders under different roots are retained separately.
+- **BUG-059 — internally created HTTP clients are never disposed (Medium):**
+  catalog, update and Nexus services now track whether they created their client
+  and dispose only clients they own. Hosted-pack downloads reuse one client and
+  Nexus source for the complete operation; the desktop and CLI inject or dispose
+  clients at their natural lifetime boundaries. Covered by an ownership test
+  that ensures disposing a service never closes a caller-supplied client.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 2 |
 | High     | 0 | 18 |
-| Medium   | 0 | 29 |
+| Medium   | 0 | 30 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **58** |
+| **Total**| **0** | **59** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

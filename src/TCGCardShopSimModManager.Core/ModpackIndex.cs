@@ -59,11 +59,12 @@ public static class ModpackCatalog
 /// Fetches and parses the hosted modpack index, and resolves the absolute URLs
 /// for each pack's logo and manifest.
 /// </summary>
-public sealed class ModpackIndexReader
+public sealed class ModpackIndexReader : IDisposable
 {
     private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
 
     private readonly HttpClient _http;
+    private readonly bool _ownsHttp;
     private readonly string _cachePath;
     private readonly bool _cachePathWasProvided;
     private readonly int _maxAttempts;
@@ -77,6 +78,7 @@ public sealed class ModpackIndexReader
         int maxAttempts = 3,
         int retryBaseDelayMs = 500)
     {
+        _ownsHttp = http is null;
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         _cachePathWasProvided = cachePath is not null;
         _cachePath = cachePath ?? Path.Combine(
@@ -220,4 +222,10 @@ public sealed class ModpackIndexReader
 
     private static string Combine(string baseUrl, string relative) =>
         baseUrl.TrimEnd('/') + "/" + relative.TrimStart('/');
+
+    public void Dispose()
+    {
+        if (_ownsHttp)
+            _http.Dispose();
+    }
 }

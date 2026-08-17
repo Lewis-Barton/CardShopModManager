@@ -60,7 +60,7 @@ public sealed class ModpackInstaller
         // The fallback only matters for mods with neither a DownloadUrl nor a Nexus id; point it at the cache so an already-downloaded file is reused.
         var fallback = fallbackSource ?? new LocalFileSource(cacheDirectory);
 
-        var source = new ModpackModSource(manifest.Game, fallback, http: _http);
+        using var source = new ModpackModSource(manifest.Game, fallback, http: _http);
         var downloader = new ModDownloader(source, new DownloadOptions { CacheDirectory = cacheDirectory });
 
         foreach (var entry in manifest.Mods)
