@@ -116,15 +116,21 @@ and testing found the following additional issues, now fixed:
   latest 500 lines and rebuilds the text box from that bounded queue instead of
   repeatedly appending to an ever-growing string. Covered by large-file tail,
   empty-file and zero-line tests.
+- **BUG-061 — local HTTP server buffers files and abandons client tasks (Medium):**
+  request headers are now read in chunks with the existing 8 KiB limit, folder
+  responses stream full files and ranges from disk, and active client handlers
+  are tracked and cancelled during shutdown. Folder serving also refuses paths
+  outside its configured root. Covered by fragmented-header, large-range and
+  incomplete-request shutdown tests.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 2 |
 | High     | 0 | 18 |
-| Medium   | 0 | 31 |
+| Medium   | 0 | 32 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **60** |
+| **Total**| **0** | **61** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

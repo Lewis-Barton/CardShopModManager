@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -11,7 +12,9 @@ public sealed record HttpResponse(
     byte[] Body,
     string? ContentRange,
     long? ContentLengthOverride = null,
-    string? RetryAfter = null);
+    string? RetryAfter = null,
+    string? FilePath = null,
+    long FileOffset = 0);
 
 /// <summary>
 /// A tiny in-process HTTP server built on TcpListener. Not a product feature —
@@ -22,7 +25,9 @@ public sealed record HttpResponse(
 public sealed class LocalHttpServer : IDisposable
 {
     private readonly CancellationTokenSource _cts = new();
+    private readonly ConcurrentDictionary<int, Task> _clientTasks = new();
     private readonly Task _loop;
+    private int _nextClientId;
     private TcpListener? _listener;
     private bool _disposed;
 
@@ -71,16 +76,25 @@ public sealed class LocalHttpServer : IDisposable
                 continue;
             }
 
-            _ = Task.Run(() => HandleClient(client));
+            var clientId = Interlocked.Increment(ref _nextClientId);
+            var task = HandleClient(client, _cts.Token);
+            _clientTasks[clientId] = task;
+            _ = task.ContinueWith(
+                completedTask => _clientTasks.TryRemove(clientId, out _),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+            if (task.IsCompleted)
+                _clientTasks.TryRemove(clientId, out _);
         }
     }
 
-    private async Task HandleClient(TcpClient client)
+    private async Task HandleClient(TcpClient client, CancellationToken cancellationToken)
     {
         try
         {
             using var netStream = client.GetStream();
-            var head = await ReadHeadAsync(netStream);
+            var head = await ReadHeadAsync(netStream, cancellationToken);
             if (head.Length == 0)
                 return;
 
@@ -108,8 +122,11 @@ public sealed class LocalHttpServer : IDisposable
                 sb.Append($"Retry-After: {response.RetryAfter}\r\n");
             sb.Append("\r\n");
 
-            await netStream.WriteAsync(Encoding.ASCII.GetBytes(sb.ToString()));
-            await netStream.WriteAsync(response.Body);
+            await netStream.WriteAsync(Encoding.ASCII.GetBytes(sb.ToString()), cancellationToken);
+            if (response.FilePath is not null)
+                await WriteFileAsync(netStream, response, contentLength, cancellationToken);
+            else
+                await netStream.WriteAsync(response.Body, cancellationToken);
         }
         catch
         {
@@ -121,31 +138,62 @@ public sealed class LocalHttpServer : IDisposable
         }
     }
 
-    private static async Task<byte[]> ReadHeadAsync(NetworkStream stream)
+    private static async Task<byte[]> ReadHeadAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
         // Read until the "\r\n\r\n" that ends the request head, capped at 8 KiB.
-        using var buffer = new MemoryStream();
-        var chunk = new byte[1];
-        while (buffer.Length < 8192)
+        const int maxHeadBytes = 8192;
+        using var head = new MemoryStream(maxHeadBytes);
+        var chunk = new byte[1024];
+        while (head.Length < maxHeadBytes)
         {
-            var read = await stream.ReadAsync(chunk.AsMemory(0, 1));
+            var remaining = maxHeadBytes - (int)head.Length;
+            var read = await stream.ReadAsync(
+                chunk.AsMemory(0, Math.Min(chunk.Length, remaining)), cancellationToken);
             if (read == 0)
                 break;
 
-            buffer.WriteByte(chunk[0]);
-            var bytes = buffer.ToArray();
-            if (EndsWithDoubleCrlf(bytes))
-                break;
+            head.Write(chunk, 0, read);
+            if (FindHeaderEnd(head.GetBuffer(), (int)head.Length) >= 0)
+                return head.ToArray();
         }
 
-        return buffer.ToArray();
+        return Array.Empty<byte>();
     }
 
-    private static bool EndsWithDoubleCrlf(byte[] bytes)
+    private static int FindHeaderEnd(byte[] bytes, int length)
     {
-        if (bytes.Length < 4)
-            return false;
-        return bytes[^4] == 13 && bytes[^3] == 10 && bytes[^2] == 13 && bytes[^1] == 10;
+        for (var i = Math.Max(0, length - 1027); i <= length - 4; i++)
+        {
+            if (bytes[i] == 13 && bytes[i + 1] == 10 &&
+                bytes[i + 2] == 13 && bytes[i + 3] == 10)
+                return i + 4;
+        }
+
+        return -1;
+    }
+
+    private static async Task WriteFileAsync(
+        NetworkStream destination,
+        HttpResponse response,
+        long contentLength,
+        CancellationToken cancellationToken)
+    {
+        await using var file = new FileStream(
+            response.FilePath!, FileMode.Open, FileAccess.Read, FileShare.Read,
+            bufferSize: 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        file.Seek(response.FileOffset, SeekOrigin.Begin);
+
+        var buffer = new byte[64 * 1024];
+        var remaining = contentLength;
+        while (remaining > 0)
+        {
+            var read = await file.ReadAsync(
+                buffer.AsMemory(0, (int)Math.Min(buffer.Length, remaining)), cancellationToken);
+            if (read == 0)
+                break;
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            remaining -= read;
+        }
     }
 
     private static HttpRequest ParseRequest(byte[] head)
@@ -170,23 +218,29 @@ public sealed class LocalHttpServer : IDisposable
     /// <summary>Serves every file under <paramref name="root"/> with Range support.</summary>
     public static Func<HttpRequest, HttpResponse> FolderProvider(string root)
     {
+        var fullRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         return request =>
         {
-            var path = Path.Combine(root, request.Path.TrimStart('/'));
+            var relative = Uri.UnescapeDataString(request.Path.TrimStart('/'))
+                .Replace('/', Path.DirectorySeparatorChar);
+            var path = Path.GetFullPath(Path.Combine(fullRoot, relative));
+            if (!path.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase))
+                return new HttpResponse(404, Array.Empty<byte>(), null);
             if (!File.Exists(path))
                 return new HttpResponse(404, Array.Empty<byte>(), null);
 
-            var body = File.ReadAllBytes(path);
+            var length = new FileInfo(path).Length;
             if (request.RangeStart is long start)
             {
-                if (start >= body.Length)
-                    return new HttpResponse(416, Array.Empty<byte>(), $"bytes */{body.Length}");
+                if (start >= length)
+                    return new HttpResponse(416, Array.Empty<byte>(), $"bytes */{length}");
 
-                var slice = body.AsSpan((int)start).ToArray();
-                return new HttpResponse(206, slice, $"bytes {start}-{body.Length - 1}/{body.Length}");
+                return new HttpResponse(
+                    206, Array.Empty<byte>(), $"bytes {start}-{length - 1}/{length}",
+                    length - start, FilePath: path, FileOffset: start);
             }
 
-            return new HttpResponse(200, body, null);
+            return new HttpResponse(200, Array.Empty<byte>(), null, length, FilePath: path);
         };
     }
 
@@ -208,7 +262,8 @@ public sealed class LocalHttpServer : IDisposable
 
         try
         {
-            _loop.Wait(TimeSpan.FromSeconds(1));
+            _loop.Wait(TimeSpan.FromSeconds(2));
+            Task.WhenAll(_clientTasks.Values).Wait(TimeSpan.FromSeconds(2));
         }
         catch
         {
