@@ -33,7 +33,8 @@ public sealed record ModpackSummary(
     bool Nsfw = false,
     long? DownloadSize = null,
     List<string>? Tags = null,
-    List<string>? ModIds = null)
+    List<string>? ModIds = null,
+    List<string>? CompatibleGameBuildIds = null)
 {
     /// <summary>True when <paramref name="id"/> equals this pack's canonical id
     /// or any of its legacy <see cref="FormerIds"/>, case-insensitively.</summary>

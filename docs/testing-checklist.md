@@ -104,6 +104,12 @@ unit test already covers it, **[manual]** where it needs a real environment.
 - [ ] **[manual]** Required mods are checked and locked in pack details;
       optional mods start unchecked, selecting one selects its dependencies,
       and clearing a dependency clears optional dependants.
+- [ ] **[manual]** A pack matching the installed Steam build is marked
+      compatible. A mismatch, unknown build or undeclared compatibility is
+      marked “May not be supported” and requires acknowledgement before install.
+- [x] **[auto]** Steam build IDs are read from the selected installation's app
+      manifest and compatibility distinguishes match, mismatch, unknown and
+      undeclared states (`SteamLocatorTests`, `GameCompatibilityTests`).
 - [x] **[auto]** A hosted install downloads and installs required mods plus only
       the optional selection, while legacy manifests still default every entry
       to required (`ModpackSelectionTests`,

@@ -133,6 +133,11 @@ and testing found the following additional issues, now fixed:
   starts optional choices clear, and keeps dependency selections consistent.
   Core resolves and validates the final subset before downloading anything,
   and the pack journal preserves the selection for later updates.
+- **FEATURE-002 — modpacks declare compatible game builds:** the manager reads
+  the selected installation's Steam build id and compares it with build ids in
+  the catalog and manifest. Matching packs are confirmed as compatible;
+  mismatches, unknown builds and undeclared packs are marked as potentially
+  unsupported and require desktop acknowledgement before installation.
 
 ## Summary
 | Severity | Open | Fixed |

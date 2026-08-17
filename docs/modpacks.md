@@ -54,7 +54,8 @@ not the mod list.
       "nsfw": false,
       "downloadSize": 285000000,
       "tags": ["quality-of-life", "starter"],
-      "modIds": ["bepinex", "example-mod"]
+      "modIds": ["bepinex", "example-mod"],
+      "compatibleGameBuildIds": ["19024567"]
     }
   ]
 }
@@ -71,6 +72,9 @@ Fields:
 - `featured`, `nsfw`, `downloadSize`, `tags`, `modIds` — optional gallery
   metadata used by the desktop filters. `downloadSize` is the total compressed
   download size in bytes. Older index entries can omit these fields.
+- `compatibleGameBuildIds` — numeric Steam build IDs tested by the pack author.
+  It must match the same field in the manifest so the gallery can show
+  compatibility before opening the pack.
 
 NSFW packs are hidden by default. A user must explicitly select the NSFW filter
 to include them in the gallery. Nexus account restrictions still determine
@@ -102,8 +106,23 @@ partially download and then stall on a full disk. The per-file gate in
 `ModDownloader` remains as a backstop for any mod whose real size exceeds the
 declared total.
 
-`DownloadUrl`, `required`, and the optional top-level `totalSize` are the hosted
-pack schema additions; `NexusModId`/`NexusFileId` already exist on `ModEntry`.
+`DownloadUrl`, `required`, `compatibleGameBuildIds`, and the optional top-level
+`totalSize` are the hosted pack schema additions; `NexusModId`/`NexusFileId`
+already exist on `ModEntry`.
+
+### Game build compatibility
+
+Pack authors list tested Steam builds in `compatibleGameBuildIds` at the top of
+the manifest and repeat the same list in `index.json`. Steam records the current
+installation's numeric `buildid` in `appmanifest_3070070.acf`; the manager reads
+that value for the selected game folder.
+
+A matching build is shown as compatible. A different build, an installation
+whose build cannot be read, or a pack with no declared builds is marked **May
+not be supported** on the gallery card and in pack details. The user can still
+install after explicitly acknowledging the warning. The CLI prints the same
+warning before continuing. This is intentionally advisory because a mod may
+still work after a game update even before its author has retested it.
 
 ### Required and optional mods
 
@@ -214,6 +233,8 @@ contacts GitHub — and fails the submission on:
 - a pack that omits the required `bepinex` entry (see BepInEx above).
 
 It warns (without failing) on a suspiciously small logo.
+It also warns when no compatible Steam builds are declared, and fails when the
+index and manifest build lists differ or contain malformed build IDs.
 
 ## What is reused vs. new
 

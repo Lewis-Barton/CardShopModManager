@@ -96,6 +96,10 @@ public static class ModpackCommand
         }
 
         var manifest = await reader.FetchManifestAsync(summary);
+        var installedBuildId = new SteamLocator().FindGameBuildId(
+            gameFolder, SteamLocator.GameAppId);
+        PrintCompatibility(GameCompatibility.Evaluate(
+            manifest.CompatibleGameBuildIds, installedBuildId));
         var allOptionalIds = manifest.Mods.Where(mod => !mod.Required).Select(mod => mod.Id).ToArray();
         var installedPack = new ModpackJournalStore(gameFolder).Load()
             .FirstOrDefault(entry => summary.IsId(entry.PackId));
@@ -135,5 +139,29 @@ public static class ModpackCommand
             Console.WriteLine($"  error: {error}");
         foreach (var warning in result.Warnings)
             Console.WriteLine($"  warning: {warning}");
+    }
+
+    private static void PrintCompatibility(GameCompatibilityResult compatibility)
+    {
+        switch (compatibility.Status)
+        {
+            case GameCompatibilityStatus.Compatible:
+                Console.WriteLine($"Game compatibility: Steam build {compatibility.InstalledBuildId} is supported.");
+                break;
+            case GameCompatibilityStatus.Incompatible:
+                Console.WriteLine(
+                    $"WARNING: Steam build {compatibility.InstalledBuildId} may not be supported by this modpack. " +
+                    $"Declared builds: {string.Join(", ", compatibility.CompatibleBuildIds)}.");
+                break;
+            case GameCompatibilityStatus.InstalledBuildUnknown:
+                Console.WriteLine(
+                    "WARNING: The installed Steam build could not be determined, so this modpack may not be supported. " +
+                    $"Declared builds: {string.Join(", ", compatibility.CompatibleBuildIds)}.");
+                break;
+            default:
+                Console.WriteLine(
+                    "WARNING: This modpack does not declare compatible game builds and may not be supported.");
+                break;
+        }
     }
 }

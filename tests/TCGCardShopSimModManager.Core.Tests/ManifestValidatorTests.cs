@@ -109,4 +109,35 @@ public sealed class ManifestValidatorTests
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.Contains("no mods"));
     }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("1.2.3")]
+    [InlineData("current")]
+    public void Validate_RejectsInvalidCompatibleBuildId(string buildId)
+    {
+        var manifest = Manifest(Mod("example", "BepInExPlugin", "example.zip")) with
+        {
+            CompatibleGameBuildIds = new List<string> { buildId }
+        };
+
+        var result = new ManifestValidator().Validate(manifest);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Contains("digits only"));
+    }
+
+    [Fact]
+    public void Validate_RejectsDuplicateCompatibleBuildIds()
+    {
+        var manifest = Manifest(Mod("example", "BepInExPlugin", "example.zip")) with
+        {
+            CompatibleGameBuildIds = new List<string> { "123", "123" }
+        };
+
+        var result = new ManifestValidator().Validate(manifest);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Contains("duplicates"));
+    }
 }

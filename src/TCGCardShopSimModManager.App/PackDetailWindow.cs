@@ -26,9 +26,16 @@ public sealed class PackDetailWindow : Window
     private readonly ModpackIndexReader _reader;
     private readonly HttpClient _http;
     private readonly InstalledModpack? _installedPack;
+    private readonly string? _installedGameBuildId;
     private readonly ProgressBar _progress = new() { IsIndeterminate = true, IsVisible = false };
     private readonly Button _install = new() { Content = "Install modpack", IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _compatibility = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly CheckBox _acknowledgeCompatibility = new()
+    {
+        Content = "Install even though this game build may not be supported",
+        IsVisible = false
+    };
     private readonly Dictionary<string, CheckBox> _modChoices = new(StringComparer.OrdinalIgnoreCase);
     private bool _updatingChoices;
     private ModListManifest? _manifest;
@@ -38,13 +45,15 @@ public sealed class PackDetailWindow : Window
         string? gameFolder,
         HttpClient http,
         ModpackIndexReader reader,
-        InstalledModpack? installedPack = null)
+        InstalledModpack? installedPack = null,
+        string? installedGameBuildId = null)
     {
         _pack = pack;
         _gameFolder = gameFolder;
         _http = http;
         _reader = reader;
         _installedPack = installedPack;
+        _installedGameBuildId = installedGameBuildId;
         Title = pack.Name;
         Width = 560;
         Height = 500;
@@ -61,6 +70,7 @@ public sealed class PackDetailWindow : Window
 
         var mods = new StackPanel { Spacing = 4 };
         _install.Click += async (_, _) => await InstallAsync();
+        _acknowledgeCompatibility.IsCheckedChanged += (_, _) => RefreshInstallAvailability();
 
         Content = new ScrollViewer
         {
@@ -73,6 +83,8 @@ public sealed class PackDetailWindow : Window
                     img,
                     new TextBlock { Text = pack.Name, FontWeight = FontWeight.Bold, FontSize = 16, HorizontalAlignment = HorizontalAlignment.Center },
                     new TextBlock { Text = pack.ShortDescription, TextWrapping = TextWrapping.Wrap },
+                    _compatibility,
+                    _acknowledgeCompatibility,
                     new TextBlock { Text = "Includes:", FontWeight = FontWeight.Bold },
                     new ScrollViewer { MaxHeight = 220, Content = mods },
                     _progress,
@@ -96,6 +108,7 @@ public sealed class PackDetailWindow : Window
                 _status.Text = "This modpack is invalid: " + string.Join(" ", validation.Errors);
                 return;
             }
+            ShowCompatibility(_manifest.CompatibleGameBuildIds);
             foreach (var mod in _manifest.Mods)
             {
                 var version = string.IsNullOrWhiteSpace(mod.Version) ? "" : $" {mod.Version}";
@@ -109,7 +122,7 @@ public sealed class PackDetailWindow : Window
                 _modChoices[mod.Id] = choice;
                 mods.Children.Add(choice);
             }
-            _install.IsEnabled = !string.IsNullOrWhiteSpace(_gameFolder);
+            RefreshInstallAvailability();
             if (string.IsNullOrWhiteSpace(_gameFolder))
                 _status.Text = "Set the game folder on the Manage tab first.";
         }
@@ -117,6 +130,32 @@ public sealed class PackDetailWindow : Window
         {
             _status.Text = $"Could not read manifest: {ex.Message}";
         }
+    }
+
+    private void ShowCompatibility(IEnumerable<string>? compatibleBuildIds)
+    {
+        var result = GameCompatibility.Evaluate(compatibleBuildIds, _installedGameBuildId);
+        _compatibility.Foreground = new SolidColorBrush(
+            result.Status == GameCompatibilityStatus.Compatible ? Colors.LightGreen : Colors.Orange);
+        _compatibility.Text = result.Status switch
+        {
+            GameCompatibilityStatus.Compatible =>
+                $"Compatible with installed Steam build {result.InstalledBuildId}.",
+            GameCompatibilityStatus.Incompatible =>
+                $"May not be supported: installed Steam build {result.InstalledBuildId} is not listed by this modpack. " +
+                $"Declared builds: {string.Join(", ", result.CompatibleBuildIds)}.",
+            GameCompatibilityStatus.InstalledBuildUnknown =>
+                "May not be supported: the installed Steam build could not be determined. " +
+                $"Declared builds: {string.Join(", ", result.CompatibleBuildIds)}.",
+            _ => "May not be supported: this modpack does not declare compatible game builds."
+        };
+        _acknowledgeCompatibility.IsVisible = result.MayBeUnsupported;
+    }
+
+    private void RefreshInstallAvailability()
+    {
+        _install.IsEnabled = !string.IsNullOrWhiteSpace(_gameFolder) &&
+            (!_acknowledgeCompatibility.IsVisible || _acknowledgeCompatibility.IsChecked == true);
     }
 
     private bool IsPreviouslySelected(ModEntry mod)
@@ -211,7 +250,7 @@ public sealed class PackDetailWindow : Window
         finally
         {
             _progress.IsVisible = false;
-            _install.IsEnabled = true;
+            RefreshInstallAvailability();
         }
     }
 

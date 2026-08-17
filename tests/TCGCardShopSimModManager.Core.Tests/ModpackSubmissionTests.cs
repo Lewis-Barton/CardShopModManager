@@ -25,6 +25,7 @@ public sealed class ModpackSubmissionTests : IDisposable
         WriteValidPack("essential-qol");
         var result = new ModpackSubmissionValidator(_root).ValidatePack("essential-qol");
         Assert.True(result.IsValid, string.Join("\n", result.Errors));
+        Assert.Contains(result.Warnings, warning => warning.Contains("compatible Steam build ids"));
     }
 
     [Fact]
@@ -118,6 +119,22 @@ public sealed class ModpackSubmissionTests : IDisposable
         var result = new ModpackSubmissionValidator(_root).ValidatePack("unsafe");
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.Contains("unsafe"));
+    }
+
+    [Fact]
+    public void ValidatePack_Fails_WhenIndexAndManifestBuildsDiffer()
+    {
+        WriteValidPack("essential-qol");
+        var indexPath = Path.Combine(_root, "index.json");
+        var index = File.ReadAllText(indexPath).Replace(
+            "\"version\":\"1.0.0\"",
+            "\"version\":\"1.0.0\",\"compatibleGameBuildIds\":[\"123\"]");
+        File.WriteAllText(indexPath, index);
+
+        var result = new ModpackSubmissionValidator(_root).ValidatePack("essential-qol");
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Contains("differ"));
     }
 
     // --- helpers ---------------------------------------------------------

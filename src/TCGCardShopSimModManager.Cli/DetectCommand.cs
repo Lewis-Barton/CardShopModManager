@@ -24,6 +24,7 @@ public static class DetectCommand
         }
 
         Console.WriteLine($"Game found: {result.GameExecutablePath}");
+        PrintBuildId(folderPath);
     }
 
     private static void RunSteamDetection()
@@ -46,6 +47,7 @@ public static class DetectCommand
         if (check.IsValid)
         {
             Console.WriteLine($"Detected via Steam: {check.GameExecutablePath}");
+            PrintBuildId(installPath);
             return;
         }
 
@@ -53,5 +55,14 @@ public static class DetectCommand
             $"Detected TCG Card Shop Simulator via Steam at: {installPath}\n" +
             $"  (the expected executable '{SteamLocator.GameExecutableName}' was not found there — " +
             "check GameDetector.GameExecutableName / SteamLocator.GameExecutableName if the game renamed it)");
+    }
+
+    private static void PrintBuildId(string gameFolderPath)
+    {
+        var buildId = new SteamLocator().FindGameBuildId(
+            gameFolderPath, SteamLocator.GameAppId);
+        Console.WriteLine(buildId is null
+            ? "Steam build: could not be determined"
+            : $"Steam build: {buildId}");
     }
 }

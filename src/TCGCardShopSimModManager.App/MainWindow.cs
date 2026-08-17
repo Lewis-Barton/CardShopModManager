@@ -31,6 +31,7 @@ public sealed partial class MainWindow : Window
     private readonly HttpClient _http = new();
     private readonly ModpackIndexReader _packReader;
     private bool _usingCachedPackIndex;
+    private string? _installedGameBuildId;
 
     public MainWindow()
     {
@@ -160,6 +161,11 @@ public sealed partial class MainWindow : Window
         _packProgress.IsVisible = true;
         try
         {
+            var gameFolder = _gameBox.Text;
+            _installedGameBuildId = string.IsNullOrWhiteSpace(gameFolder)
+                ? null
+                : await Task.Run(() => new SteamLocator().FindGameBuildId(
+                    gameFolder, SteamLocator.GameAppId));
             var index = await _packReader.FetchIndexAsync();
             _packs = index.Packs;
             _usingCachedPackIndex = _packReader.LastFetchUsedCache;
@@ -311,10 +317,14 @@ public sealed partial class MainWindow : Window
             MaxLines = 2
         });
 
-        if (updateAvailable)
+        var compatibility = GameCompatibility.Evaluate(
+            pack.CompatibleGameBuildIds, _installedGameBuildId);
+        if (updateAvailable || compatibility.MayBeUnsupported)
             details.Children.Add(new TextBlock
             {
-                Text = "Update available",
+                Text = updateAvailable && compatibility.MayBeUnsupported
+                    ? "Update available · May not be supported"
+                    : updateAvailable ? "Update available" : "May not be supported",
                 Foreground = new SolidColorBrush(Colors.Orange),
                 FontSize = 11,
                 FontWeight = FontWeight.Bold
@@ -328,8 +338,14 @@ public sealed partial class MainWindow : Window
 
     private async Task OpenPack(ModpackSummary pack)
     {
+        var gameFolder = _gameBox.Text;
+        _installedGameBuildId = string.IsNullOrWhiteSpace(gameFolder)
+            ? null
+            : await Task.Run(() => new SteamLocator().FindGameBuildId(
+                gameFolder, SteamLocator.GameAppId));
         var installed = _installedPacks.FirstOrDefault(entry => pack.IsId(entry.PackId));
-        var detail = new PackDetailWindow(pack, _gameBox.Text, _http, _packReader, installed);
+        var detail = new PackDetailWindow(
+            pack, gameFolder, _http, _packReader, installed, _installedGameBuildId);
         await detail.ShowDialog(this);
         await LoadPacksAsync();
     }

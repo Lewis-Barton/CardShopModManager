@@ -27,7 +27,10 @@ public sealed record ModListManifest(
     /// <summary>Optional total download size in bytes, declared by the pack
     /// author. When present, the installer pre-flights disk space (download temp
     /// + game folder) before fetching anything.</summary>
-    long? TotalSize = null);
+    long? TotalSize = null,
+    /// <summary>Steam build ids this list has been tested against. An absent or
+    /// empty list means compatibility has not been declared.</summary>
+    List<string>? CompatibleGameBuildIds = null);
 
 /// <summary>
 /// One mod in the list. <see cref="Id"/> is the stable key dependencies and

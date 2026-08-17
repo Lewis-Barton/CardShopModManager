@@ -102,6 +102,14 @@ public sealed class ModpackSubmissionValidator
         if (!manifest.Name.Equals(entry.Name, StringComparison.OrdinalIgnoreCase))
             errors.Add($"Manifest name '{manifest.Name}' does not match index name '{entry.Name}'.");
 
+        var indexBuildIds = entry.CompatibleGameBuildIds ?? new List<string>();
+        var manifestBuildIds = manifest.CompatibleGameBuildIds ?? new List<string>();
+        if (!indexBuildIds.ToHashSet(StringComparer.OrdinalIgnoreCase)
+                .SetEquals(manifestBuildIds))
+            errors.Add("Compatible game build ids differ between index.json and the manifest.");
+        if (manifestBuildIds.Count == 0)
+            warnings.Add("Pack does not declare compatible Steam build ids; users will see a compatibility warning.");
+
         // Every mod needs a way to actually be fetched.
         foreach (var mod in manifest.Mods)
         {

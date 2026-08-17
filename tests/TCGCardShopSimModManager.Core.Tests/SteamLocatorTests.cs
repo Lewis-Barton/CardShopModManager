@@ -37,6 +37,7 @@ public sealed class SteamLocatorTests : IDisposable
             "  \"appid\" \"3070070\"\n" +
             "  \"name\" \"TCG Card Shop Simulator\"\n" +
             "  \"installdir\" \"TCG Card Shop Simulator\"\n" +
+            "  \"buildid\" \"19024567\"\n" +
             "}\n";
         File.WriteAllText(Path.Combine(_library2, "steamapps", "appmanifest_3070070.acf"), manifest);
     }
@@ -94,6 +95,23 @@ public sealed class SteamLocatorTests : IDisposable
         var installDir = SteamLocator.ParseManifestInstallDir(manifestPath);
 
         Assert.Equal("TCG Card Shop Simulator", installDir);
+    }
+
+    [Fact]
+    public void FindGameBuildId_ReadsBuildForSelectedInstallFolder()
+    {
+        var buildId = new SteamLocator(_steamRoot).FindGameBuildId(
+            _gameCommon, SteamLocator.GameAppId);
+
+        Assert.Equal("19024567", buildId);
+    }
+
+    [Fact]
+    public void ParseManifestBuildId_ReadsSteamBuildId()
+    {
+        var manifestPath = Path.Combine(_library2, "steamapps", "appmanifest_3070070.acf");
+
+        Assert.Equal("19024567", SteamLocator.ParseManifestBuildId(manifestPath));
     }
 
     private static string EscapeVdf(string path) => path.Replace("\\", "\\\\");

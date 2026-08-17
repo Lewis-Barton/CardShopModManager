@@ -24,6 +24,16 @@ public sealed class ManifestValidator
         if (string.IsNullOrWhiteSpace(manifest.Name))
             errors.Add("Manifest name is required.");
 
+        foreach (var buildId in manifest.CompatibleGameBuildIds ?? new List<string>())
+        {
+            if (string.IsNullOrWhiteSpace(buildId) || buildId.Any(character => !char.IsDigit(character)))
+                errors.Add($"Compatible game build id '{buildId}' must contain digits only.");
+        }
+
+        if (manifest.CompatibleGameBuildIds?.Distinct(StringComparer.OrdinalIgnoreCase).Count() !=
+            manifest.CompatibleGameBuildIds?.Count)
+            errors.Add("Compatible game build ids must not contain duplicates.");
+
         // BUG-028: an empty mod list installs nothing useful — surface it.
         var mods = manifest.Mods;
         if (mods is null || mods.Count == 0)

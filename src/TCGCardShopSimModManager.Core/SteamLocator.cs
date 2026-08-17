@@ -40,7 +40,8 @@ public sealed class SteamLocator
 
         foreach (var library in libraries)
         {
-            var manifestPath = Path.Combine(library, "steamapps", $"appmanifest_{appId}.acf");
+            var steamApps = SteamAppsPath(library);
+            var manifestPath = Path.Combine(steamApps, $"appmanifest_{appId}.acf");
             if (!File.Exists(manifestPath))
                 continue;
 
@@ -48,9 +49,39 @@ public sealed class SteamLocator
             if (string.IsNullOrWhiteSpace(installDir))
                 continue;
 
-            var gamePath = Path.Combine(library, "steamapps", "common", installDir);
+            var gamePath = Path.Combine(steamApps, "common", installDir);
             if (Directory.Exists(gamePath))
                 return gamePath;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Reads the installed Steam build id for a selected game folder. The direct
+    /// parent lookup also works when the user browsed to a library that is not
+    /// present in Steam's current libraryfolders.vdf.
+    /// </summary>
+    public string? FindGameBuildId(string gameFolderPath, int appId)
+    {
+        if (string.IsNullOrWhiteSpace(gameFolderPath))
+            return null;
+
+        var fullGamePath = NormalizePath(gameFolderPath);
+        var common = Directory.GetParent(fullGamePath);
+        var directSteamApps = common?.Parent?.FullName;
+        if (directSteamApps is not null &&
+            TryReadBuildId(directSteamApps, fullGamePath, appId, out var directBuildId))
+            return directBuildId;
+
+        var steamRoot = _steamPathOverride ?? ReadRegistrySteamPath();
+        if (string.IsNullOrEmpty(steamRoot) || !Directory.Exists(steamRoot))
+            return null;
+
+        foreach (var library in Libraries(steamRoot))
+        {
+            if (TryReadBuildId(SteamAppsPath(library), fullGamePath, appId, out var buildId))
+                return buildId;
         }
 
         return null;
@@ -116,4 +147,44 @@ public sealed class SteamLocator
         var match = Regex.Match(File.ReadAllText(manifestPath), "\"installdir\"\\s+\"([^\"]+)\"", RegexOptions.IgnoreCase);
         return match.Success ? match.Groups[1].Value.Replace("\\\\", "\\").Trim() : null;
     }
+
+    /// <summary>Parse the Steam build id out of an app manifest.</summary>
+    public static string? ParseManifestBuildId(string manifestPath)
+    {
+        var match = Regex.Match(
+            File.ReadAllText(manifestPath), "\"buildid\"\\s+\"([^\"]+)\"", RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value.Trim() : null;
+    }
+
+    private static bool TryReadBuildId(
+        string steamAppsPath,
+        string gameFolderPath,
+        int appId,
+        out string? buildId)
+    {
+        buildId = null;
+        var manifestPath = Path.Combine(steamAppsPath, $"appmanifest_{appId}.acf");
+        if (!File.Exists(manifestPath))
+            return false;
+
+        var installDir = ParseManifestInstallDir(manifestPath);
+        if (string.IsNullOrWhiteSpace(installDir))
+            return false;
+
+        var manifestGamePath = NormalizePath(Path.Combine(steamAppsPath, "common", installDir));
+        if (!manifestGamePath.Equals(gameFolderPath, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        buildId = ParseManifestBuildId(manifestPath);
+        return !string.IsNullOrWhiteSpace(buildId);
+    }
+
+    private static string SteamAppsPath(string libraryPath) =>
+        Path.GetFileName(libraryPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+            .Equals("steamapps", StringComparison.OrdinalIgnoreCase)
+            ? libraryPath
+            : Path.Combine(libraryPath, "steamapps");
+
+    private static string NormalizePath(string path) =>
+        Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 }

@@ -92,6 +92,7 @@ once the new state is proven valid.
   "manifestVersion": 1,
   "name": "Development Test List",
   "game": "tcgcardshopsimulator",
+  "compatibleGameBuildIds": ["19024567"],
   "mods": [
     {
       "id": "example-mod",
@@ -113,6 +114,9 @@ once the new state is proven valid.
 - `required` defaults to `true`. Hosted packs show required mods as locked
   selections and let the user opt into entries marked `false`. Selecting an
   optional mod also selects its optional dependencies.
+- `compatibleGameBuildIds` lists the numeric Steam build IDs the list author
+  has tested. The app reads the installed build from Steam's app manifest and
+  marks the pack as potentially unsupported when it cannot confirm a match.
 - For the Nexus backend add `nexusModId` (and optionally `nexusFileId`; with only
   the mod id the file is found by `archive` name via the files API).
 
