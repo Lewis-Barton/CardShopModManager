@@ -227,6 +227,47 @@ public sealed class NexusModSourceTests : IDisposable
     }
 
     [Fact]
+    public async Task ListFiles_AllowsNullAndStringNumericMetadata()
+    {
+        _server.Provider = request => request.Path switch
+        {
+            "/v1/games/tcgcardshopsimulator/mods/577/files.json" => Json(new
+            {
+                files = new object[]
+                {
+                    new
+                    {
+                        file_id = (object)"9001",
+                        name = "File without a reported size",
+                        file_name = "no-size.zip",
+                        version = "1.0",
+                        category_name = "MAIN",
+                        size_in_bytes = (long?)null
+                    },
+                    new
+                    {
+                        file_id = (object?)null,
+                        name = "Incomplete record",
+                        file_name = "ignored.zip",
+                        version = "1.0",
+                        category_name = "MAIN",
+                        size_in_bytes = (long?)null
+                    }
+                }
+            }),
+            _ => new HttpResponse(404, Array.Empty<byte>(), null)
+        };
+        using var api = new NexusApi(_server.Url("v1"), "tcgcardshopsimulator", "test-agent");
+
+        var files = await api.ListFilesAsync(
+            577, NexusAuth.FromApiKey("key"), CancellationToken.None);
+
+        var file = Assert.Single(files);
+        Assert.Equal(9001, file.FileId);
+        Assert.Null(file.SizeBytes);
+    }
+
+    [Fact]
     public async Task ApiKeyStore_RoundTripAndDelete()
     {
         try

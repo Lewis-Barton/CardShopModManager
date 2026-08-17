@@ -209,15 +209,21 @@ boundaries were fixed before work continued on application-state defects.
   reparse-point checked so a tampered record cannot reach outside managed
   storage. Covered by interrupted new-install, update, hosted-pack, committed
   transaction, and hostile-record recovery tests.
+- **BUG-075 — Nexus file discovery crashes on null numeric metadata (Medium,
+  fixed):** Nexus file-list records may explicitly set fields such as
+  `size_in_bytes` or `file_id` to null. Numeric parsing now accepts numbers or
+  numeric strings, treats null or malformed optional values as absent, and
+  skips records without a usable file id. Covered by null/string metadata tests
+  and a successful live lookup of mod 577.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 3 |
 | High     | 0 | 27 |
-| Medium   | 0 | 35 |
+| Medium   | 0 | 36 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **74** |
+| **Total**| **0** | **75** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

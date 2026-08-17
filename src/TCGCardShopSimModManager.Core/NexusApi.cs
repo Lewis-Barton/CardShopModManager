@@ -58,7 +58,7 @@ public sealed class NexusApi : IDisposable
         var root = document.RootElement;
 
         return new NexusUser(
-            root.TryGetProperty("user_id", out var id) ? id.GetInt64() : 0,
+            ReadInt64(root, "user_id") ?? 0,
             root.TryGetProperty("name", out var name) ? name.GetString() ?? "" : "",
             root.TryGetProperty("is_premium", out var premium) ? IsPremium(premium) : false);
     }
@@ -87,9 +87,7 @@ public sealed class NexusApi : IDisposable
         var version = root.TryGetProperty("version", out var versionValue)
             ? versionValue.GetString()
             : null;
-        var size = root.TryGetProperty("size_in_bytes", out var sizeValue) && sizeValue.TryGetInt64(out var bytes)
-            ? bytes
-            : (long?)null;
+        var size = ReadInt64(root, "size_in_bytes");
         var displayName = root.TryGetProperty("name", out var displayNameValue)
             ? displayNameValue.GetString()
             : null;
@@ -115,22 +113,21 @@ public sealed class NexusApi : IDisposable
         var result = new List<NexusFileInfo>();
         foreach (var file in files.EnumerateArray())
         {
-            if (!file.TryGetProperty("file_id", out var idValue) || !idValue.TryGetInt64(out var fileId) || fileId <= 0)
+            var fileId = ReadInt64(file, "file_id");
+            if (fileId is null or <= 0)
                 continue;
             var fileName = file.TryGetProperty("file_name", out var nameValue) ? nameValue.GetString() : null;
             if (string.IsNullOrWhiteSpace(fileName))
                 continue;
             var version = file.TryGetProperty("version", out var versionValue) ? versionValue.GetString() : null;
-            var size = file.TryGetProperty("size_in_bytes", out var sizeValue) && sizeValue.TryGetInt64(out var bytes)
-                ? bytes
-                : (long?)null;
+            var size = ReadInt64(file, "size_in_bytes");
             var displayName = file.TryGetProperty("name", out var displayNameValue)
                 ? displayNameValue.GetString()
                 : null;
             var category = file.TryGetProperty("category_name", out var categoryValue)
                 ? categoryValue.GetString()
                 : null;
-            result.Add(new NexusFileInfo(fileId, fileName, version, size, displayName, category));
+            result.Add(new NexusFileInfo(fileId.Value, fileName, version, size, displayName, category));
         }
 
         return result;
@@ -211,6 +208,19 @@ public sealed class NexusApi : IDisposable
             JsonValueKind.String => element.GetString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true,
             _ => false
         };
+
+    private static long? ReadInt64(JsonElement parent, string propertyName)
+    {
+        if (!parent.TryGetProperty(propertyName, out var value))
+            return null;
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.Number when value.TryGetInt64(out var number) => number,
+            JsonValueKind.String when long.TryParse(value.GetString(), out var number) => number,
+            _ => null
+        };
+    }
 
     public void Dispose()
     {
