@@ -6,7 +6,13 @@ namespace TCGCardShopSimModManager.Core;
 
 public sealed record NexusUser(long UserId, string Name, bool IsPremium);
 public sealed record NexusModInfo(long ModId, string Name);
-public sealed record NexusFileInfo(long FileId, string FileName, string? Version, long? SizeBytes);
+public sealed record NexusFileInfo(
+    long FileId,
+    string FileName,
+    string? Version,
+    long? SizeBytes,
+    string? DisplayName = null,
+    string? Category = null);
 
 /// <summary>
 /// A thin client for the Nexus Mods v1 API — validate the key, list a mod's
@@ -84,7 +90,50 @@ public sealed class NexusApi : IDisposable
         var size = root.TryGetProperty("size_in_bytes", out var sizeValue) && sizeValue.TryGetInt64(out var bytes)
             ? bytes
             : (long?)null;
-        return new NexusFileInfo(fileId, fileName, version, size);
+        var displayName = root.TryGetProperty("name", out var displayNameValue)
+            ? displayNameValue.GetString()
+            : null;
+        var category = root.TryGetProperty("category_name", out var categoryValue)
+            ? categoryValue.GetString()
+            : null;
+        return new NexusFileInfo(fileId, fileName, version, size, displayName, category);
+    }
+
+    public async Task<IReadOnlyList<NexusFileInfo>> ListFilesAsync(
+        long modId, NexusAuth auth, CancellationToken cancellationToken)
+    {
+        using var document = await GetJsonAsync(
+            $"/games/{_gameDomain}/mods/{modId}/files.json", auth, cancellationToken);
+        var root = document.RootElement;
+        var files = root.ValueKind == JsonValueKind.Array
+            ? root
+            : root.TryGetProperty("files", out var nested) && nested.ValueKind == JsonValueKind.Array
+                ? nested
+                : throw new DownloadException(
+                    $"Nexus returned an invalid file list for mod {modId}.", retryable: false);
+
+        var result = new List<NexusFileInfo>();
+        foreach (var file in files.EnumerateArray())
+        {
+            if (!file.TryGetProperty("file_id", out var idValue) || !idValue.TryGetInt64(out var fileId) || fileId <= 0)
+                continue;
+            var fileName = file.TryGetProperty("file_name", out var nameValue) ? nameValue.GetString() : null;
+            if (string.IsNullOrWhiteSpace(fileName))
+                continue;
+            var version = file.TryGetProperty("version", out var versionValue) ? versionValue.GetString() : null;
+            var size = file.TryGetProperty("size_in_bytes", out var sizeValue) && sizeValue.TryGetInt64(out var bytes)
+                ? bytes
+                : (long?)null;
+            var displayName = file.TryGetProperty("name", out var displayNameValue)
+                ? displayNameValue.GetString()
+                : null;
+            var category = file.TryGetProperty("category_name", out var categoryValue)
+                ? categoryValue.GetString()
+                : null;
+            result.Add(new NexusFileInfo(fileId, fileName, version, size, displayName, category));
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -93,15 +142,10 @@ public sealed class NexusApi : IDisposable
     /// </summary>
     public async Task<long> ResolveFileIdAsync(long modId, string expectedFileName, NexusAuth auth, CancellationToken cancellationToken)
     {
-        using var document = await GetJsonAsync($"/games/{_gameDomain}/mods/{modId}/files.json", auth, cancellationToken);
-
-        foreach (var file in document.RootElement.EnumerateArray())
+        foreach (var file in await ListFilesAsync(modId, auth, cancellationToken))
         {
-            var fileName = file.TryGetProperty("file_name", out var name) ? name.GetString() : null;
-            var fileId = file.TryGetProperty("file_id", out var id) ? (long?)id.GetInt64() : null;
-
-            if (fileId is not null && fileName?.Equals(expectedFileName, StringComparison.OrdinalIgnoreCase) == true)
-                return fileId.Value;
+            if (file.FileName.Equals(expectedFileName, StringComparison.OrdinalIgnoreCase))
+                return file.FileId;
         }
 
         throw new DownloadException(

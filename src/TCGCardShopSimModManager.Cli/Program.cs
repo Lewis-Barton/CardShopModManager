@@ -128,6 +128,7 @@ static void PrintUsage()
         "  profile list|use|enable|disable ...\n" +
         "  modpack list                  show modpacks hosted on GitHub\n" +
         "  modpack install <id> [game] [optionalIds|all]   install a hosted modpack\n" +
+        "  modpack files <Nexus URL|modId>                 list stable Nexus file selectors\n" +
         "  modpack import <links.txt> <packFolder> [name]  create a manifest draft from Nexus links\n" +
         "  --version                     print the version");
 }

@@ -241,31 +241,41 @@ index and manifest build lists differ or contain malformed build IDs.
 
 ## Importing a large Nexus list
 
-The temporary authoring command below creates a manifest draft from exact Nexus
-file links. It downloads each selected ZIP once to calculate the SHA-256 used by
+The temporary authoring commands below turn a Nexus Files-tab page into stable
+file selectors, then create a manifest draft. The importer downloads each
+selected ZIP once to calculate the SHA-256 used by
 the normal installer; those archives stay in a local authoring cache and are not
 added to the modpack folder or published.
 
 ```powershell
 dotnet run --project src/TCGCardShopSimModManager.Cli -- `
+  modpack files "https://www.nexusmods.com/tcgcardshopsimulator/mods/698?tab=files"
+
+dotnet run --project src/TCGCardShopSimModManager.Cli -- `
   modpack import nexus-links.txt modpacks/my-pack "My Pack"
 ```
+
+`modpack files` lists every file Nexus currently exposes for the mod, grouped
+with its category, display name, filename, version and size. Each result includes
+a copy-ready selector such as `required nexus:698:12345`. This uses Nexus's
+public API identifiers rather than the website's `/api/files/.../download` URL,
+which does not carry the mod id and is not stored in a published manifest.
 
 Put one link on each line. Bare links and `required` links become required mods;
 use `optional` for entries users may select, and mark exactly one framework
 archive as `bepinex`. Blank lines and lines beginning with `#` are ignored.
 
 ```text
-bepinex https://www.nexusmods.com/tcgcardshopsimulator/mods/10?tab=files&file_id=100
-required https://www.nexusmods.com/tcgcardshopsimulator/mods/20?tab=files&file_id=200
-optional https://www.nexusmods.com/tcgcardshopsimulator/mods/30?tab=files&file_id=300
+bepinex nexus:10:100
+required nexus:20:200
+optional nexus:30:300
 ```
 
-NXM links containing both a mod id and file id are accepted too. General mod
-pages are rejected because the command cannot safely guess which file or
-version the pack author intended. Nexus only provides automatic download links
-to Premium accounts, so the stored OAuth session or personal API key must belong
-to a Premium user.
+Exact website links containing `file_id` and NXM links containing both ids are
+accepted too. A general mod page produces guidance to run `modpack files`
+because the importer cannot safely guess which file or version the pack author
+intended. Nexus only provides automatic download links to Premium accounts, so
+the stored OAuth session or personal API key must belong to a Premium user.
 
 The command reads names, versions, filenames and sizes from Nexus, downloads and
 hashes every archive, and writes `manifest.json`. If that file already exists it

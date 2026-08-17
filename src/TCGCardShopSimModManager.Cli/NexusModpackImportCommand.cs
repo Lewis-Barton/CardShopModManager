@@ -205,8 +205,14 @@ public static class NexusModpackImportCommand
             }
 
             if (!NexusFileLink.TryParse(value, out var link) || link is null)
+            {
+                if (NexusModLink.TryParse(value, out var mod) && mod is not null)
+                    throw new FormatException(
+                        $"Line {lineNumber} identifies Nexus mod {mod.ModId}, but not a file. " +
+                        $"Run 'modpack files {mod.ModId}', then paste the chosen nexus:{mod.ModId}:<fileId> selector here.");
                 throw new FormatException(
-                    $"Line {lineNumber} is not an exact Nexus file link with a file_id: {original}");
+                    $"Line {lineNumber} is not an exact Nexus file link or nexus:<modId>:<fileId> selector: {original}");
+            }
 
             requests.Add(new ImportRequest(
                 lineNumber, original.Trim(), link, role != "optional", role == "bepinex"));
