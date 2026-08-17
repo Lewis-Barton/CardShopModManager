@@ -99,15 +99,20 @@ and testing found the following additional issues, now fixed:
   restored in reverse mod order and the original journal is written back. This
   preserves both newly installed and previously updated mods as one transaction.
   Covered by new-install and update rollback tests.
+- **BUG-058 — folder-first discovery loses or invents mods (Medium):** inventory
+  now starts with journal ownership, keeping root, framework, plugin and patcher
+  files together as one managed mod. Remaining physical content is labelled as
+  unmanaged with its location, framework subdirectories form one entry, and
+  same-named folders under different roots are retained separately.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 2 |
 | High     | 0 | 18 |
-| Medium   | 0 | 28 |
+| Medium   | 0 | 29 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **57** |
+| **Total**| **0** | **58** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

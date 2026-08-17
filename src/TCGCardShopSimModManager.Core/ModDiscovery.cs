@@ -19,99 +19,198 @@ public sealed record DiscoveredMod(
     string? ActiveRoot);
 
 /// <summary>
-/// What is actually in the game's mod folders right now — read from disk, with
-/// the journal used to explain it — rather than trusting the journal alone.
-/// A user is not required to have a fresh install.
+/// Builds inventory from journal ownership first, then adds physical content
+/// which no journal claims. This keeps one managed mod together even when its
+/// files span several roots, while unmanaged folders retain their locations so
+/// same-named folders are never silently merged.
 /// </summary>
 public static class ModDiscovery
 {
-    // BUG-012: framework mods live under BepInEx/core (and other BepInEx subfolders),
-    // not just plugins/patchers, so they must be discoverable too.
-    private static readonly string[] ActiveRoots = { "BepInEx/plugins", "BepInEx/patchers", "BepInEx/core" };
+    private static readonly (string Relative, string Label)[] FolderRoots =
+    {
+        ("BepInEx/plugins", "BepInEx/plugins"),
+        ("BepInEx/patchers", "BepInEx/patchers")
+    };
 
     public static List<DiscoveredMod> Discover(string gameFolderPath, string? disabledRoot = null)
     {
         disabledRoot ??= ModInstaller.DisabledRoot;
         var journal = new JournalStore(gameFolderPath).Load();
-        var mods = new Dictionary<string, (ModInventoryState State, int Count, string? Root)>(
-            StringComparer.OrdinalIgnoreCase);
+        var claimed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var discovered = new List<DiscoveredMod>();
 
-        foreach (var root in ActiveRoots)
+        foreach (var entry in journal)
         {
-            var fullRoot = Path.Combine(gameFolderPath, root.Replace('/', Path.DirectorySeparatorChar));
-            if (!Directory.Exists(fullRoot))
-                continue;
-
-            foreach (var folder in Directory.EnumerateDirectories(fullRoot))
+            foreach (var file in entry.Files)
             {
-                var name = Path.GetFileName(folder);
-                var count = Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories).Count();
-
-                if (!mods.ContainsKey(name))
-                    mods[name] = (StateOf(name, folder, journal), count, root);
+                claimed.Add(Normalize(file.Path));
+                if (DisabledPath(file.Path, gameFolderPath, disabledRoot) is { } disabledPath)
+                    claimed.Add(Normalize(disabledPath));
             }
+
+            discovered.Add(FromJournal(entry, gameFolderPath, disabledRoot));
         }
 
-        var disabledFull = disabledRoot;
-        if (Directory.Exists(disabledFull))
-        {
-            foreach (var folder in Directory.EnumerateDirectories(disabledFull))
-            {
-                var name = Path.GetFileName(folder);
-                var count = Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories).Count();
+        foreach (var (relative, label) in FolderRoots)
+            AddUnmanagedFolders(discovered, claimed, Path.Combine(gameFolderPath, ToNative(relative)), label);
 
-                // An emptied disabled folder is just leftover scaffolding.
-                if (count == 0)
-                    continue;
+        AddUnmanagedFramework(discovered, claimed, gameFolderPath);
+        AddUnmanagedFolders(discovered, claimed, disabledRoot, "Disabled storage");
 
-                // A mod can be both present in the active tree (leftover files
-                // after a partial disable) and in disabled; disabled takes
-                // precedence for reporting, but we keep the active root if set.
-                if (mods.ContainsKey(name))
-                    mods[name] = (ModInventoryState.Disabled, count, mods[name].Root);
-                else
-                    mods[name] = (ModInventoryState.Disabled, count, disabledRoot);
-            }
-        }
-
-        return mods
-            .Select(kv => new DiscoveredMod(kv.Key, kv.Value.State, kv.Value.Count, kv.Value.Root))
-            .OrderBy(m => m.ModName, StringComparer.OrdinalIgnoreCase)
+        return discovered
+            .OrderBy(mod => mod.ModName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(mod => mod.ActiveRoot, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
-    /// <summary>
-    /// A folder in the active tree is Installed if every file matches its
-    /// journal hash, Modified if any file differs or a journaled one is
-    /// missing, and Unknown if there is no journal entry at all.
-    /// </summary>
-    private static ModInventoryState StateOf(string modName, string folder, List<InstallJournalEntry> journal)
+    private static DiscoveredMod FromJournal(
+        InstallJournalEntry entry,
+        string gameFolderPath,
+        string disabledRoot)
     {
-        var entry = journal.FirstOrDefault(e => e.ModName == modName);
-        if (entry is null)
-            return ModInventoryState.Unknown;
+        var active = 0;
+        var disabled = 0;
+        var modified = entry.Files.Count == 0;
 
-        var byPath = entry.Files.ToDictionary(f => Normalize(f.Path), StringComparer.OrdinalIgnoreCase);
-
-        var anyModified = false;
-        foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+        foreach (var expected in entry.Files)
         {
-            if (!byPath.TryGetValue(Normalize(file), out var expected))
+            var activeExists = File.Exists(expected.Path);
+            var disabledPath = DisabledPath(expected.Path, gameFolderPath, disabledRoot);
+            var disabledExists = disabledPath is not null && File.Exists(disabledPath);
+
+            if (activeExists && disabledExists)
             {
-                anyModified = true; // extra file that isn't one we installed
+                modified = true;
+                active++;
+                disabled++;
                 continue;
             }
 
-            if (!HashMatches(file, expected.Sha256))
-                anyModified = true;
+            if (activeExists)
+            {
+                active++;
+                modified |= !HashMatches(expected.Path, expected.Sha256);
+            }
+            else if (disabledExists)
+            {
+                disabled++;
+                modified |= !HashMatches(disabledPath!, expected.Sha256);
+            }
+            else
+            {
+                modified = true;
+            }
         }
 
-        // A journaled file that isn't on disk counts as modified too.
-        if (byPath.Values.Any(f => !File.Exists(f.Path)))
-            anyModified = true;
+        var state = modified || (active > 0 && disabled > 0)
+            ? ModInventoryState.Modified
+            : disabled == entry.Files.Count
+                ? ModInventoryState.Disabled
+                : ModInventoryState.Installed;
 
-        return anyModified ? ModInventoryState.Modified : ModInventoryState.Installed;
+        return new DiscoveredMod(entry.ModName, state, active + disabled, JournalLocation(entry, gameFolderPath));
     }
+
+    private static void AddUnmanagedFolders(
+        List<DiscoveredMod> discovered,
+        HashSet<string> claimed,
+        string root,
+        string label)
+    {
+        if (!Directory.Exists(root))
+            return;
+
+        foreach (var folder in Directory.EnumerateDirectories(root))
+        {
+            var files = Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories)
+                .Where(file => !claimed.Contains(Normalize(file)))
+                .ToList();
+            if (files.Count == 0)
+                continue;
+
+            discovered.Add(new DiscoveredMod(
+                $"{Path.GetFileName(folder)} (unmanaged, {label})",
+                ModInventoryState.Unknown,
+                files.Count,
+                label));
+        }
+
+        var looseFiles = Directory.EnumerateFiles(root)
+            .Count(file => !claimed.Contains(Normalize(file)));
+        if (looseFiles > 0)
+        {
+            discovered.Add(new DiscoveredMod(
+                $"Loose files (unmanaged, {label})",
+                ModInventoryState.Unknown,
+                looseFiles,
+                label));
+        }
+    }
+
+    private static void AddUnmanagedFramework(
+        List<DiscoveredMod> discovered,
+        HashSet<string> claimed,
+        string gameFolderPath)
+    {
+        var root = Path.Combine(gameFolderPath, "BepInEx", "core");
+        if (!Directory.Exists(root))
+            return;
+
+        var count = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+            .Count(file => !claimed.Contains(Normalize(file)));
+        if (count > 0)
+        {
+            discovered.Add(new DiscoveredMod(
+                "BepInEx framework files (unmanaged)",
+                ModInventoryState.Unknown,
+                count,
+                "BepInEx/core"));
+        }
+    }
+
+    private static string JournalLocation(InstallJournalEntry entry, string gameFolderPath)
+    {
+        var game = Normalize(gameFolderPath).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var roots = entry.Files.Select(file =>
+        {
+            var full = Normalize(file.Path);
+            if (!full.StartsWith(game, StringComparison.OrdinalIgnoreCase))
+                return "Outside game folder";
+
+            var parts = full[game.Length..].Replace('\\', '/').Split('/');
+            if (parts.Length == 1)
+                return "Game root";
+            if (parts[0].Equals("BepInEx", StringComparison.OrdinalIgnoreCase) && parts.Length > 1)
+                return $"BepInEx/{parts[1]}";
+            return parts[0];
+        }).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        return roots.Count switch
+        {
+            0 => "Journal",
+            1 => roots[0],
+            _ => "Multiple locations"
+        };
+    }
+
+    private static string? DisabledPath(string filePath, string gameFolderPath, string disabledRoot)
+    {
+        var game = Normalize(gameFolderPath).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var full = Normalize(filePath);
+        if (!full.StartsWith(game, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var sections = full[game.Length..].Replace('\\', '/').Split('/');
+        if (sections.Length < 3 ||
+            !sections[0].Equals("BepInEx", StringComparison.OrdinalIgnoreCase) ||
+            !(sections[1].Equals("plugins", StringComparison.OrdinalIgnoreCase) ||
+              sections[1].Equals("patchers", StringComparison.OrdinalIgnoreCase)))
+            return null;
+
+        return Path.Combine(new[] { disabledRoot }.Concat(sections.Skip(2)).ToArray());
+    }
+
+    private static string ToNative(string path) => path.Replace('/', Path.DirectorySeparatorChar);
 
     private static string Normalize(string path) => Path.GetFullPath(path);
 

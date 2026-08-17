@@ -4,8 +4,8 @@ namespace TCGCardShopSimModManager.Cli;
 
 /// <summary>
 /// Inspect and toggle the mods actually present in a game folder. The list is
-/// read from disk (BepInEx/plugins + patchers + disabled) and explained with
-/// the journal; disabling moves a mod's files into BepInEx/disabled and
+/// built from journal ownership plus unclaimed files under the BepInEx and
+/// disabled roots; disabling moves a mod's files into manager-owned storage and
 /// enabling moves them back — no destructive deletes.
 /// </summary>
 public static class ModsCommand

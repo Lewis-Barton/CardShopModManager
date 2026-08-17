@@ -64,6 +64,9 @@ unit test already covers it, **[manual]** where it needs a real environment.
 
 - [ ] **[auto]** A mod placed in `BepInEx/plugins` by hand (no journal) is listed
       as Unknown (`Discover_HandInstalledMod_IsUnknown`).
+- [ ] **[auto]** Journaled framework/root files stay grouped as one mod,
+      unmanaged framework subdirectories do not become fake mods, and matching
+      folder names in different roots remain distinct (`ModDiscoveryTests`).
 - [ ] **[auto]** Disabling moves files out of the game into the manager's disabled folder and enabling moves
       them back (`Disable_MovesFilesToDisabledAndReportsDisabled`,
       `Enable_MovesFilesBackAndReportsInstalled`).

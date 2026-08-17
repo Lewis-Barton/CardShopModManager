@@ -44,7 +44,7 @@ public sealed class ModDiscoveryTests : IDisposable
         File.WriteAllText(Path.Combine(folder, "Hand.dll"), "bytes");
 
         var mod = Assert.Single(ModDiscovery.Discover(_gameFolder, _disabledRoot));
-        Assert.Equal("Hand Mod", mod.ModName);
+        Assert.Equal("Hand Mod (unmanaged, BepInEx/plugins)", mod.ModName);
         Assert.Equal(ModInventoryState.Unknown, mod.State);
     }
 
@@ -143,6 +143,59 @@ public sealed class ModDiscoveryTests : IDisposable
 
         Assert.Equal("BepInEx/core", fw.ActiveRoot);
         Assert.Equal(ModInventoryState.Installed, fw.State);
+    }
+
+    [Fact]
+    public void Discover_JournaledFrameworkAcrossRootAndCore_IsOneMod()
+    {
+        var zipPath = CreateZip(
+            ("BepInEx/core/Framework.dll", "framework"),
+            ("doorstop_config.ini", "config"));
+        File.Copy(zipPath, Path.Combine(_sourceDir, "framework.zip"), overwrite: true);
+        var mod = new ModEntry("framework", "Framework", null, "framework.zip",
+            ComputeSha256(Path.Combine(_sourceDir, "framework.zip")),
+            "BepInEx", new List<string>(), new List<string>());
+        Assert.True(_installer.Install(mod, _sourceDir).Success);
+
+        var discovered = Assert.Single(ModDiscovery.Discover(_gameFolder, _disabledRoot));
+
+        Assert.Equal("Framework", discovered.ModName);
+        Assert.Equal(ModInventoryState.Installed, discovered.State);
+        Assert.Equal(2, discovered.FileCount);
+        Assert.Equal("Multiple locations", discovered.ActiveRoot);
+    }
+
+    [Fact]
+    public void Discover_UnmanagedCoreSubdirectories_AreOneFrameworkEntry()
+    {
+        var first = Path.Combine(_gameFolder, "BepInEx", "core", "A");
+        var second = Path.Combine(_gameFolder, "BepInEx", "core", "B");
+        Directory.CreateDirectory(first);
+        Directory.CreateDirectory(second);
+        File.WriteAllText(Path.Combine(first, "a.dll"), "a");
+        File.WriteAllText(Path.Combine(second, "b.dll"), "b");
+
+        var discovered = Assert.Single(ModDiscovery.Discover(_gameFolder, _disabledRoot));
+
+        Assert.Equal("BepInEx framework files (unmanaged)", discovered.ModName);
+        Assert.Equal(2, discovered.FileCount);
+    }
+
+    [Fact]
+    public void Discover_SameNamedUnmanagedFoldersInDifferentRoots_AreNotMerged()
+    {
+        var plugin = Path.Combine(_gameFolder, "BepInEx", "plugins", "Shared");
+        var patcher = Path.Combine(_gameFolder, "BepInEx", "patchers", "Shared");
+        Directory.CreateDirectory(plugin);
+        Directory.CreateDirectory(patcher);
+        File.WriteAllText(Path.Combine(plugin, "plugin.dll"), "plugin");
+        File.WriteAllText(Path.Combine(patcher, "patcher.dll"), "patcher");
+
+        var discovered = ModDiscovery.Discover(_gameFolder, _disabledRoot);
+
+        Assert.Equal(2, discovered.Count);
+        Assert.Contains(discovered, mod => mod.ModName == "Shared (unmanaged, BepInEx/plugins)");
+        Assert.Contains(discovered, mod => mod.ModName == "Shared (unmanaged, BepInEx/patchers)");
     }
 
     // --- helpers -----------------------------------------------------------

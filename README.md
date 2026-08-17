@@ -31,10 +31,11 @@ installation commands.
 
 On open, the window tries to find TCG Card Shop Simulator through your Steam
 library folders automatically and fills the game folder; if not found, use
-Browse on the Manage mods page. **Refresh list** reads what is actually in
-`BepInEx/plugins`, `patchers` and `disabled` and labels it with the journal
-(installed / modified / disabled / unknown; a mod placed in the folder by hand
-is shown as unknown). Select a mod and use **Enable** / **Disable** to move it
+Browse on the Manage mods page. **Refresh list** starts with journal ownership
+across the game root and BepInEx tree, then adds clearly labelled unmanaged
+content found under `plugins`, `patchers`, `core` and disabled storage. It marks
+entries as installed, modified, disabled or unknown. Select a managed mod and
+use **Enable** / **Disable** to move it
 out of the game into the manager's own disabled folder (beside the executable)
 — nothing is deleted, and a modified file is left alone with a warning.
 **Uninstall** removes only verified managed files. The title shows the version.
