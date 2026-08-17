@@ -11,10 +11,12 @@ $rid = "win-x64"
 $publishArgs = @("-c", "Release", "-r", $rid, "--self-contained", ($SelfContained.ToString().ToLowerInvariant()))
 
 Write-Host "Publishing TCGCardShopSimModManager.Cli ..."
-dotnet publish src/TCGCardShopSimModManager.Cli/TCGCardShopSimModManager.Cli.csproj @publishArgs -p:PublishSingleFile=true -o "$Output/cli"
+dotnet publish src/TCGCardShopSimModManager.Cli/TCGCardShopSimModManager.Cli.csproj @publishArgs -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "$Output/cli"
 
 Write-Host "Publishing TCGCardShopSimModManager.App ..."
-dotnet publish src/TCGCardShopSimModManager.App/TCGCardShopSimModManager.App.csproj @publishArgs -p:PublishSingleFile=true -o "$Output/app"
+dotnet publish src/TCGCardShopSimModManager.App/TCGCardShopSimModManager.App.csproj @publishArgs -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "$Output/app"
+
+Copy-Item LICENSE, PRIVACY.md, THIRD-PARTY-NOTICES.md -Destination $Output
 
 Write-Host ""
 Write-Host "Publish complete. Output:"

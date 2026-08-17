@@ -1,10 +1,13 @@
 # Privacy
 
-TCG Card Shop Sim Mod Manager collects nothing and sends nothing on its own.
+TCG Card Shop Sim Mod Manager does not collect telemetry or upload personal
+data. It does make the network requests needed to show and download online
+content.
 
-- **No telemetry.** The app makes no network calls on its own. The only network calls are ones
-  you start: downloading mods (`download`), and `update-check`, which asks GitHub
-  for the latest release tag when you run it.
+- **No telemetry.** The desktop app fetches the hosted modpack catalog and its
+  images from GitHub when it opens or you refresh it. Other network calls follow
+  actions you start: checking for an app update, signing in to Nexus, and
+  downloading mods. None of these requests are analytics or usage tracking.
 - **Crash data stays local.** An unexpected error is written to a diagnostic log
   on this machine only. Nothing is uploaded, and there is no opt-in anywhere
   that would send it.

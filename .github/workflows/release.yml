@@ -65,6 +65,7 @@ jobs:
           New-Item -ItemType Directory -Path release -Force | Out-Null
           Copy-Item release-build/cli/TCGCardShopSimModManager.Cli.exe release/
           Copy-Item release-build/app/TCGCardShopSimModManager.App.exe release/
+          Copy-Item LICENSE, PRIVACY.md, THIRD-PARTY-NOTICES.md release/
 
           Get-ChildItem release/*.exe | Sort-Object Name | ForEach-Object {
               $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()

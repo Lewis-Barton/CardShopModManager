@@ -122,15 +122,20 @@ and testing found the following additional issues, now fixed:
   are tracked and cancelled during shutdown. Folder serving also refuses paths
   outside its configured root. Covered by fragmented-header, large-range and
   incomplete-request shutdown tests.
+- **BUG-062 — desktop release omits native runtime libraries (High):** the
+  publish script now embeds native dependencies in the self-extracting
+  single-file executables, matching the two executable assets uploaded by the
+  release workflow. Local and GitHub packages also include the license, privacy
+  policy and third-party notices.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 2 |
-| High     | 0 | 18 |
+| High     | 0 | 19 |
 | Medium   | 0 | 32 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **61** |
+| **Total**| **0** | **62** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

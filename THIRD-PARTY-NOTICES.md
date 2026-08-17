@@ -10,9 +10,9 @@ This project uses the following third-party libraries.
 | [xunit](https://xunit.net) + xunit.runner.visualstudio | Test framework (development only) | Apache-2.0 |
 | Microsoft.NET.Test.Sdk / coverlet.collector | Test runner + coverage (development only) | MIT |
 
-Licenses are available at the linked project homepages and from NuGet. This
-project does not redistribute any of the above; it only references them as
-packages.
+Licenses are available at the linked project homepages and from NuGet. Release
+builds include the runtime libraries needed by the application inside the
+self-contained executables.
 
 Unrelated to software: **TCG Card Shop Simulator** is a game, not a library.
 This tool is not affiliated with its developer and distributes no game assets.
