@@ -59,6 +59,11 @@ unit test already covers it, **[manual]** where it needs a real environment.
       back with their previous files and journal entries intact
       (`Install_ReportsFailureWhenAModInstallsNothing_Bug017`,
       `Install_LaterFailureRestoresEarlierUpdatedModAndJournal`).
+- [x] **[auto]** An operation interrupted after files change but before commit is
+      recovered from its durable record when the next game lock is acquired.
+      Committed work remains, hosted recovery restores both journals, and a
+      hostile recovery path cannot escape managed storage
+      (`DurableRecoveryTests`).
 
 ## Mod inventory and enable/disable
 

@@ -110,7 +110,7 @@ public sealed class DeploymentService
         {
             operation = GameOperationLock.Acquire(gameFolderPath);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or InvalidDataException)
         {
             return DeploymentReport.Failure(lines, ex.Message);
         }
@@ -246,6 +246,8 @@ public sealed class DeploymentService
                 }
                 return DeploymentReport.Failure(lines, null);
             }
+
+            snapshot.Commit();
         }
 
         return DeploymentReport.Ok(lines);
@@ -342,112 +344,36 @@ public sealed class DeploymentService
 
     private sealed class DeploymentSnapshot : IDisposable
     {
-        private readonly string _gameFolderPath;
-        private readonly string _backupRoot;
-        private readonly List<InstallJournalEntry> _journalEntries;
-        private readonly List<List<FileSnapshot>> _mods;
+        private readonly DurableRecoveryTransaction _transaction;
 
-        private DeploymentSnapshot(
-            string gameFolderPath,
-            string backupRoot,
-            List<InstallJournalEntry> journalEntries,
-            List<List<FileSnapshot>> mods)
-        {
-            _gameFolderPath = Path.GetFullPath(gameFolderPath);
-            _backupRoot = backupRoot;
-            _journalEntries = journalEntries;
-            _mods = mods;
-        }
+        private DeploymentSnapshot(DurableRecoveryTransaction transaction) =>
+            _transaction = transaction;
 
         public static DeploymentSnapshot Capture(
             string gameFolderPath,
             IReadOnlyList<ModEntry> mods,
             IReadOnlyList<InstallPlan> plans)
         {
-            var backupRoot = Path.Combine(
-                Path.GetTempPath(), "cardshopmodmanager-deployment", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(backupRoot);
-
-            try
+            var journalEntries = new JournalStore(gameFolderPath).Load();
+            var paths = new List<string>();
+            for (var i = 0; i < mods.Count; i++)
             {
-                var journalEntries = new JournalStore(gameFolderPath).Load();
-                var snapshots = new List<List<FileSnapshot>>(mods.Count);
-                for (var i = 0; i < mods.Count; i++)
-                {
-                    var mod = mods[i];
-                    var previous = FindJournalEntry(journalEntries, mod);
-                    var paths = (previous?.Files.Select(file => Path.GetFullPath(file.Path))
-                                 ?? Enumerable.Empty<string>())
-                        .Concat(plans[i].Files.Select(file => DestinationPath(gameFolderPath, file.DestinationRelativePath)))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList();
-
-                    var modSnapshots = new List<FileSnapshot>(paths.Count);
-                    for (var fileIndex = 0; fileIndex < paths.Count; fileIndex++)
-                    {
-                        var path = paths[fileIndex];
-                        if (!File.Exists(path))
-                        {
-                            modSnapshots.Add(new FileSnapshot(path, null));
-                            continue;
-                        }
-
-                        var backup = Path.Combine(backupRoot, $"mod-{i + 1}", (fileIndex + 1).ToString());
-                        Directory.CreateDirectory(Path.GetDirectoryName(backup)!);
-                        File.Copy(path, backup);
-                        modSnapshots.Add(new FileSnapshot(path, backup));
-                    }
-                    snapshots.Add(modSnapshots);
-                }
-
-                return new DeploymentSnapshot(gameFolderPath, backupRoot, journalEntries, snapshots);
+                var previous = FindJournalEntry(journalEntries, mods[i]);
+                paths.AddRange(previous?.Files.Select(file => Path.GetFullPath(file.Path))
+                               ?? Enumerable.Empty<string>());
+                paths.AddRange(plans[i].Files.Select(file =>
+                    DestinationPath(gameFolderPath, file.DestinationRelativePath)));
             }
-            catch
-            {
-                TemporaryDirectory.DeleteBestEffort(backupRoot);
-                throw;
-            }
+
+            return new DeploymentSnapshot(
+                DurableRecoveryTransaction.CaptureDeployment(gameFolderPath, paths));
         }
 
-        public List<string> Rollback()
-        {
-            var errors = new List<string>();
-            foreach (var mod in _mods.AsEnumerable().Reverse())
-            {
-                foreach (var file in mod.AsEnumerable().Reverse())
-                {
-                    try
-                    {
-                        if (file.BackupPath is not null)
-                        {
-                            Directory.CreateDirectory(Path.GetDirectoryName(file.Path)!);
-                            File.Copy(file.BackupPath, file.Path, overwrite: true);
-                        }
-                        else if (File.Exists(file.Path))
-                        {
-                            File.Delete(file.Path);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        errors.Add($"Could not restore {file.Path}: {ex.Message}");
-                    }
-                }
-            }
+        public List<string> Rollback() => _transaction.Rollback();
 
-            try
-            {
-                new JournalStore(_gameFolderPath).Save(_journalEntries);
-            }
-            catch (Exception ex)
-            {
-                errors.Add($"Could not restore the install journal: {ex.Message}");
-            }
+        public void Commit() => _transaction.Commit();
 
-            return errors;
-        }
-
-        public void Dispose() => TemporaryDirectory.DeleteBestEffort(_backupRoot);
+        public void Dispose() => _transaction.Dispose();
 
         private static InstallJournalEntry? FindJournalEntry(
             IEnumerable<InstallJournalEntry> entries,
@@ -468,7 +394,5 @@ public sealed class DeploymentService
                 gameFolderPath, destination, "Deployment destination");
             return destination;
         }
-
-        private sealed record FileSnapshot(string Path, string? BackupPath);
     }
 }

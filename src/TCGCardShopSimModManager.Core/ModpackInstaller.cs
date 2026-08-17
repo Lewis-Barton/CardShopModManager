@@ -111,7 +111,7 @@ public sealed class ModpackInstaller
             {
                 operation = GameOperationLock.Acquire(_gameFolderPath);
             }
-            catch (IOException ex)
+            catch (Exception ex) when (ex is IOException or InvalidDataException)
             {
                 return DeploymentReport.Failure(new List<string>(), ex.Message);
             }
@@ -124,14 +124,14 @@ public sealed class ModpackInstaller
                     if (pack is not null)
                         snapshot = PackInstallSnapshot.Capture(_gameFolderPath, pack.Id);
 
-                var report = new DeploymentService().InstallWithLockHeld(
-                    manifest, cacheDirectory, _gameFolderPath);
-                if (!report.Success)
-                {
-                    if (snapshot is not null)
-                        AddRollbackResult(report.Lines, snapshot.Rollback());
-                    return report;
-                }
+                    var report = new DeploymentService().InstallWithLockHeld(
+                        manifest, cacheDirectory, _gameFolderPath);
+                    if (!report.Success)
+                    {
+                        if (snapshot is not null)
+                            AddRollbackResult(report.Lines, snapshot.Rollback());
+                        return report;
+                    }
 
                     if (pack is not null)
                     {
@@ -262,6 +262,7 @@ public sealed class ModpackInstaller
         private readonly List<InstallJournalEntry> _journalEntries;
         private readonly List<InstalledModpack> _packEntries;
         private readonly List<FileSnapshot> _files;
+        private readonly DurableRecoveryTransaction _durable;
         private bool _committed;
 
         private PackInstallSnapshot(
@@ -270,7 +271,8 @@ public sealed class ModpackInstaller
             string backupRoot,
             List<InstallJournalEntry> journalEntries,
             List<InstalledModpack> packEntries,
-            List<FileSnapshot> files)
+            List<FileSnapshot> files,
+            DurableRecoveryTransaction durable)
         {
             _gameFolderPath = gameFolderPath;
             _packId = packId;
@@ -278,6 +280,7 @@ public sealed class ModpackInstaller
             _journalEntries = journalEntries;
             _packEntries = packEntries;
             _files = files;
+            _durable = durable;
         }
 
         public static PackInstallSnapshot Capture(string gameFolderPath, string packId)
@@ -305,8 +308,9 @@ public sealed class ModpackInstaller
                     files.Add(new FileSnapshot(physicalPath, backupPath));
                 }
 
+                var durable = DurableRecoveryTransaction.CapturePack(gameFolderPath, packId);
                 return new PackInstallSnapshot(
-                    gameFolderPath, packId, backupRoot, journalEntries, packEntries, files);
+                    gameFolderPath, packId, backupRoot, journalEntries, packEntries, files, durable);
             }
             catch
             {
@@ -315,12 +319,20 @@ public sealed class ModpackInstaller
             }
         }
 
-        public void Commit() => _committed = true;
+        public void Commit()
+        {
+            _durable.Commit();
+            _committed = true;
+        }
 
         public List<string> Rollback()
         {
             if (_committed)
                 return new List<string>();
+
+            var durableErrors = _durable.Rollback();
+            if (durableErrors.Count > 0)
+                return durableErrors;
 
             var errors = new List<string>();
             try
@@ -363,7 +375,11 @@ public sealed class ModpackInstaller
             return errors;
         }
 
-        public void Dispose() => TemporaryDirectory.DeleteBestEffort(_backupRoot);
+        public void Dispose()
+        {
+            _durable.Dispose();
+            TemporaryDirectory.DeleteBestEffort(_backupRoot);
+        }
 
         private static string? ExistingPath(string path, string gameFolderPath)
         {

@@ -27,7 +27,7 @@ public sealed class ProfileService
             using var operation = GameOperationLock.Acquire(_gameFolderPath);
             return EnableLocked(manifest, modId, sourceDirectory);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or InvalidDataException)
         {
             return Failure(ex.Message);
         }
@@ -92,7 +92,7 @@ public sealed class ProfileService
             using var operation = GameOperationLock.Acquire(_gameFolderPath);
             return DisableLocked(manifest, modId, sourceDirectory);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or InvalidDataException)
         {
             return Failure(ex.Message);
         }

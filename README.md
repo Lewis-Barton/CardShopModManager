@@ -263,7 +263,8 @@ Settings page exposes the same sign-in, status and sign-out flow.
   to one destination. Symbolic links and junctions below the selected game root
   cannot redirect file operations elsewhere. If any mod in a deployment fails,
   earlier mods from that deployment are rolled back and previous versions are
-  restored.
+  restored. A durable recovery record also restores interrupted deployment or
+  hosted-pack changes on the next operation after a process or machine stop.
 - Every installed file is hashed in `cardshopmodmanager.journal.json` in the
   game folder, so uninstall can prove a file is still what we installed before
   deleting it.

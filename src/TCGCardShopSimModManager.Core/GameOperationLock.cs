@@ -24,8 +24,18 @@ internal sealed class GameOperationLock : IDisposable
         {
             try
             {
-                return new GameOperationLock(new FileStream(
-                    lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None));
+                var stream = new FileStream(
+                    lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                try
+                {
+                    DurableRecoveryTransaction.RecoverPending(gameFolderPath);
+                    return new GameOperationLock(stream);
+                }
+                catch
+                {
+                    stream.Dispose();
+                    throw;
+                }
             }
             catch (IOException) when (DateTime.UtcNow < deadline)
             {

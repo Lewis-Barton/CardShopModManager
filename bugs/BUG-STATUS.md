@@ -200,22 +200,24 @@ boundaries were fixed before work continued on application-state defects.
   can no longer interrupt the workflow after tagging but before all checked and
   hashed assets have been uploaded.
 - **BUG-074 — process termination can leave an unjournaled partial deployment
-  (High, open):** caught failures roll back in memory, but deployment snapshots
-  live in temporary storage and have no durable transaction marker. If the
-  process or machine stops after files change but before journals commit, the
-  next run cannot identify and recover that interrupted operation. This is the
-  highest-priority remaining fix and needs a durable write-ahead recovery record
-  with startup recovery tests; it should not be folded into the already large
-  path and pack-state patch without that coverage.
+  (High, fixed):** deployments and hosted-pack changes now write their original
+  files and journals to a durable transaction directory before changing managed
+  state. Backups and transaction markers are flushed to disk, successful work
+  writes a committed marker before cleanup, and the next game-locked operation
+  automatically rolls back any uncommitted records. Hosted recovery covers both
+  journals and active or disabled pack files. Recovery paths are containment and
+  reparse-point checked so a tampered record cannot reach outside managed
+  storage. Covered by interrupted new-install, update, hosted-pack, committed
+  transaction, and hostile-record recovery tests.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 3 |
-| High     | 1 | 26 |
+| High     | 0 | 27 |
 | Medium   | 0 | 35 |
 | Low      | 0 | 9 |
-| **Total**| **1** | **73** |
+| **Total**| **0** | **74** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |
