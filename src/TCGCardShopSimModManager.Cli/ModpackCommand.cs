@@ -14,6 +14,12 @@ public static class ModpackCommand
 {
     public static async Task Run(string? sub, string? arg1, string? arg2, string? arg3 = null)
     {
+        if (sub is "import")
+        {
+            await NexusModpackImportCommand.Run(arg1, arg2, arg3);
+            return;
+        }
+
         // `validate` is a local authoring check against modpacks/ on disk — it
         // never touches GitHub, so handle it before the live-index path.
         if (sub is "validate")
@@ -54,7 +60,7 @@ public static class ModpackCommand
 
         if (sub is not (null or "list" or "install"))
         {
-            Console.WriteLine("Usage: modpack <list | install <id> [game] [optionalIds|all] | validate [id] [root]>");
+            Console.WriteLine("Usage: modpack <list | install <id> [game] [optionalIds|all] | validate [id] [root] | import <links.txt> <packFolder> [packName]>");
             Environment.ExitCode = 2;
             return;
         }

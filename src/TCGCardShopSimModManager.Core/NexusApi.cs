@@ -5,6 +5,8 @@ using System.Text.Json;
 namespace TCGCardShopSimModManager.Core;
 
 public sealed record NexusUser(long UserId, string Name, bool IsPremium);
+public sealed record NexusModInfo(long ModId, string Name);
+public sealed record NexusFileInfo(long FileId, string FileName, string? Version, long? SizeBytes);
 
 /// <summary>
 /// A thin client for the Nexus Mods v1 API — validate the key, list a mod's
@@ -53,6 +55,36 @@ public sealed class NexusApi : IDisposable
             root.TryGetProperty("user_id", out var id) ? id.GetInt64() : 0,
             root.TryGetProperty("name", out var name) ? name.GetString() ?? "" : "",
             root.TryGetProperty("is_premium", out var premium) ? IsPremium(premium) : false);
+    }
+
+    public async Task<NexusModInfo> GetModInfoAsync(long modId, NexusAuth auth, CancellationToken cancellationToken)
+    {
+        using var document = await GetJsonAsync(
+            $"/games/{_gameDomain}/mods/{modId}.json", auth, cancellationToken);
+        var root = document.RootElement;
+        var name = root.TryGetProperty("name", out var value) ? value.GetString() : null;
+        if (string.IsNullOrWhiteSpace(name))
+            throw new DownloadException($"Nexus returned no name for mod {modId}.", retryable: false);
+        return new NexusModInfo(modId, name);
+    }
+
+    public async Task<NexusFileInfo> GetFileInfoAsync(
+        long modId, long fileId, NexusAuth auth, CancellationToken cancellationToken)
+    {
+        using var document = await GetJsonAsync(
+            $"/games/{_gameDomain}/mods/{modId}/files/{fileId}.json", auth, cancellationToken);
+        var root = document.RootElement;
+        var fileName = root.TryGetProperty("file_name", out var name) ? name.GetString() : null;
+        if (string.IsNullOrWhiteSpace(fileName))
+            throw new DownloadException($"Nexus returned no filename for file {fileId}.", retryable: false);
+
+        var version = root.TryGetProperty("version", out var versionValue)
+            ? versionValue.GetString()
+            : null;
+        var size = root.TryGetProperty("size_in_bytes", out var sizeValue) && sizeValue.TryGetInt64(out var bytes)
+            ? bytes
+            : (long?)null;
+        return new NexusFileInfo(fileId, fileName, version, size);
     }
 
     /// <summary>

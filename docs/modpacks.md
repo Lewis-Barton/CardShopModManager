@@ -239,6 +239,43 @@ It warns (without failing) on a suspiciously small logo.
 It also warns when no compatible Steam builds are declared, and fails when the
 index and manifest build lists differ or contain malformed build IDs.
 
+## Importing a large Nexus list
+
+The temporary authoring command below creates a manifest draft from exact Nexus
+file links. It downloads each selected ZIP once to calculate the SHA-256 used by
+the normal installer; those archives stay in a local authoring cache and are not
+added to the modpack folder or published.
+
+```powershell
+dotnet run --project src/TCGCardShopSimModManager.Cli -- `
+  modpack import nexus-links.txt modpacks/my-pack "My Pack"
+```
+
+Put one link on each line. Bare links and `required` links become required mods;
+use `optional` for entries users may select, and mark exactly one framework
+archive as `bepinex`. Blank lines and lines beginning with `#` are ignored.
+
+```text
+bepinex https://www.nexusmods.com/tcgcardshopsimulator/mods/10?tab=files&file_id=100
+required https://www.nexusmods.com/tcgcardshopsimulator/mods/20?tab=files&file_id=200
+optional https://www.nexusmods.com/tcgcardshopsimulator/mods/30?tab=files&file_id=300
+```
+
+NXM links containing both a mod id and file id are accepted too. General mod
+pages are rejected because the command cannot safely guess which file or
+version the pack author intended. Nexus only provides automatic download links
+to Premium accounts, so the stored OAuth session or personal API key must belong
+to a Premium user.
+
+The command reads names, versions, filenames and sizes from Nexus, downloads and
+hashes every archive, and writes `manifest.json`. If that file already exists it
+writes `manifest.imported.json` instead and leaves the existing manifest alone.
+Reruns reuse the cache under `%LOCALAPPDATA%\TCGCardShopSimModManager`.
+
+Before publishing, review required/optional choices and add dependencies,
+conflicts and `compatibleGameBuildIds`. Add the pack metadata and logo to
+`index.json`, then run `modpack validate` as usual.
+
 ## What is reused vs. new
 
 Reused as-is: `ModDownloader`, `HttpModSource`, `NexusModSource`,

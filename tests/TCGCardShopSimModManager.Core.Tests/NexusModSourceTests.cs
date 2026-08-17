@@ -162,6 +162,35 @@ public sealed class NexusModSourceTests : IDisposable
     }
 
     [Fact]
+    public async Task AuthoringMetadata_ReadsModAndExactFileDetails()
+    {
+        _server.Provider = request => request.Path switch
+        {
+            "/v1/games/tcgcardshopsimulator/mods/4000.json" => Json(new
+            {
+                mod_id = 4000L,
+                name = "Better Shelves"
+            }),
+            "/v1/games/tcgcardshopsimulator/mods/4000/files/7000.json" => Json(new
+            {
+                file_id = 7000L,
+                file_name = "better-shelves.zip",
+                version = "2.1.0",
+                size_in_bytes = 12345L
+            }),
+            _ => new HttpResponse(404, Array.Empty<byte>(), null)
+        };
+        using var api = new NexusApi(_server.Url("v1"), "tcgcardshopsimulator", "test-agent");
+        var auth = NexusAuth.FromApiKey("key");
+
+        var mod = await api.GetModInfoAsync(4000, auth, CancellationToken.None);
+        var file = await api.GetFileInfoAsync(4000, 7000, auth, CancellationToken.None);
+
+        Assert.Equal(new NexusModInfo(4000, "Better Shelves"), mod);
+        Assert.Equal(new NexusFileInfo(7000, "better-shelves.zip", "2.1.0", 12345), file);
+    }
+
+    [Fact]
     public async Task ApiKeyStore_RoundTripAndDelete()
     {
         try

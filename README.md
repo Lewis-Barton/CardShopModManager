@@ -60,6 +60,7 @@ dotnet run --project src/TCGCardShopSimModManager.Cli -- uninstall <modName> <ga
 dotnet run --project src/TCGCardShopSimModManager.Cli -- profile  <list|use|enable|disable> ...
 dotnet run --project src/TCGCardShopSimModManager.Cli -- mods     <list <gameFolder> | disable <name> <gameFolder> | enable <name> <gameFolder>>
 dotnet run --project src/TCGCardShopSimModManager.Cli -- modpack install <id> [gameFolder] [optionalId1,optionalId2|all]
+dotnet run --project src/TCGCardShopSimModManager.Cli -- modpack import <links.txt> <packFolder> [packName]
 ```
 
 - `detect`    — with a path, check it's a game install. With no path, auto-detect the game through Steam (reads the Steam library folders — no API key needed).
