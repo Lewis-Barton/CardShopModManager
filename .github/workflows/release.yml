@@ -1,0 +1,102 @@
+name: Release Windows build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "Directory.Build.props"
+      - "publish.ps1"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore TCGCardShopSimModManager.slnx
+
+      - name: Build
+        run: dotnet build TCGCardShopSimModManager.slnx -c Release --no-restore
+
+      - name: Test
+        run: dotnet test tests/TCGCardShopSimModManager.Core.Tests/TCGCardShopSimModManager.Core.Tests.csproj -c Release --no-build
+
+      - name: Validate hosted modpacks
+        run: dotnet run --project src/TCGCardShopSimModManager.Cli -c Release --no-build -- modpack validate
+
+      - name: Publish Windows executables
+        shell: pwsh
+        run: ./publish.ps1 -Output release-build
+
+      - name: Prepare release files
+        id: release
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content Directory.Build.props
+          $version = $props.Project.PropertyGroup.Version
+          if ([string]::IsNullOrWhiteSpace($version)) {
+              throw "Directory.Build.props does not contain a Version."
+          }
+
+          $tag = "v$version"
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          Copy-Item release-build/cli/TCGCardShopSimModManager.Cli.exe release/
+          Copy-Item release-build/app/TCGCardShopSimModManager.App.exe release/
+
+          Get-ChildItem release/*.exe | Sort-Object Name | ForEach-Object {
+              $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              "$hash  $($_.Name)"
+          } | Set-Content release/SHA256SUMS.txt
+
+      - name: Update version tag
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag --force "${{ steps.release.outputs.tag }}" "$env:GITHUB_SHA"
+          git push origin "refs/tags/${{ steps.release.outputs.tag }}" --force
+
+      - name: Create or update GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ steps.release.outputs.tag }}"
+          $title = "TCG Card Shop Sim Mod Manager $tag"
+          @"
+          Automated Windows build from commit $env:GITHUB_SHA.
+
+          The desktop app and CLI are self-contained win-x64 executables. Use SHA256SUMS.txt to verify downloads.
+          "@ | Set-Content release-notes.md
+
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+              gh release edit $tag --target $env:GITHUB_SHA --title $title --notes-file release-notes.md --latest
+              gh release upload $tag release/* --clobber
+          }
+          else {
+              gh release create $tag release/* --target $env:GITHUB_SHA --title $title --notes-file release-notes.md --latest
+          }

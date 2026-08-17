@@ -23,6 +23,11 @@ collects logs and environment info **without** including your Nexus API key.
 - Write the commit message like a human would: short, imperative, describing the
   *why*, not the *what*.
 
+Changes to the application on `main` automatically rebuild the Windows CLI and
+desktop executables and update the GitHub release for the version in
+`Directory.Build.props`. Change that version when the work should start a new
+release rather than replace the current release build.
+
 ## A note on the Nexus API key
 
 The Nexus Mods API key is stored only on your machine (DPAPI-encrypted under
