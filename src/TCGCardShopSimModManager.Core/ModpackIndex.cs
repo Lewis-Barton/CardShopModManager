@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 
@@ -63,18 +64,55 @@ public sealed class ModpackIndexReader
     private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
 
     private readonly HttpClient _http;
+    private readonly string _cachePath;
+    private readonly bool _cachePathWasProvided;
+    private readonly int _maxAttempts;
+    private readonly int _retryBaseDelayMs;
 
-    public ModpackIndexReader(HttpClient? http = null)
+    public bool LastFetchUsedCache { get; private set; }
+
+    public ModpackIndexReader(
+        HttpClient? http = null,
+        string? cachePath = null,
+        int maxAttempts = 3,
+        int retryBaseDelayMs = 500)
     {
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        _cachePathWasProvided = cachePath is not null;
+        _cachePath = cachePath ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TCGCardShopSimModManager",
+            "modpack-index.json");
+        _maxAttempts = Math.Max(1, maxAttempts);
+        _retryBaseDelayMs = Math.Max(0, retryBaseDelayMs);
     }
 
     public async Task<ModpackIndex> FetchIndexAsync(string? baseUrl = null, CancellationToken cancellationToken = default)
     {
         var url = Combine(baseUrl ?? ModpackCatalog.DefaultIndexBaseUrl, "index.json");
-        var json = await _http.GetStringAsync(url, cancellationToken);
-        return JsonSerializer.Deserialize<ModpackIndex>(json, Options)
-            ?? throw new InvalidOperationException($"Failed to parse modpack index: {url}");
+        var useCache = baseUrl is null || _cachePathWasProvided;
+        LastFetchUsedCache = false;
+
+        try
+        {
+            var json = await FetchStringWithRetryAsync(url, cancellationToken);
+            var index = JsonSerializer.Deserialize<ModpackIndex>(json, Options)
+                ?? throw new InvalidOperationException($"Failed to parse modpack index: {url}");
+
+            if (useCache)
+                WriteCacheBestEffort(index);
+            return index;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (useCache && TryReadCache(out var cached))
+        {
+            LastFetchUsedCache = true;
+            LogBestEffort($"Using cached modpack index after refresh failed: {ex.Message}");
+            return cached!;
+        }
     }
 
     public string LogoUrl(ModpackSummary summary, string? baseUrl = null) =>
@@ -86,7 +124,7 @@ public sealed class ModpackIndexReader
     public async Task<ModListManifest> FetchManifestAsync(
         ModpackSummary summary, string? baseUrl = null, CancellationToken cancellationToken = default)
     {
-        var json = await _http.GetStringAsync(ManifestUrl(summary, baseUrl), cancellationToken);
+        var json = await FetchStringWithRetryAsync(ManifestUrl(summary, baseUrl), cancellationToken);
         var manifest = JsonSerializer.Deserialize<ModListManifest>(json, Options)
             ?? throw new InvalidOperationException($"Failed to parse manifest for pack '{summary.Id}'.");
 
@@ -102,6 +140,82 @@ public sealed class ModpackIndexReader
                 })
                 .ToList()
         };
+    }
+
+    private async Task<string> FetchStringWithRetryAsync(string url, CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.TryAddWithoutValidation("User-Agent", "TCGCardShopSimModManager");
+            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+                return await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (attempt >= _maxAttempts || !IsTransient(response.StatusCode))
+            {
+                response.EnsureSuccessStatusCode();
+                throw new HttpRequestException($"Request failed: {url}");
+            }
+
+            var delay = RetryDelay(response, attempt);
+            LogBestEffort($"Modpack request returned {(int)response.StatusCode}; retrying in {delay.TotalSeconds:0.##} seconds.");
+            await Task.Delay(delay, cancellationToken);
+        }
+    }
+
+    private static bool IsTransient(HttpStatusCode statusCode) =>
+        statusCode == HttpStatusCode.TooManyRequests || (int)statusCode >= 500;
+
+    private TimeSpan RetryDelay(HttpResponseMessage response, int attempt)
+    {
+        var retryAfter = response.Headers.RetryAfter;
+        if (retryAfter?.Delta is { } delta)
+            return ClampDelay(delta);
+        if (retryAfter?.Date is { } date)
+            return ClampDelay(date - DateTimeOffset.UtcNow);
+
+        return TimeSpan.FromMilliseconds(_retryBaseDelayMs * Math.Pow(2, attempt - 1));
+    }
+
+    private static TimeSpan ClampDelay(TimeSpan delay) =>
+        TimeSpan.FromMilliseconds(Math.Clamp(delay.TotalMilliseconds, 0, 10_000));
+
+    private void WriteCacheBestEffort(ModpackIndex index)
+    {
+        try
+        {
+            CacheFile().Write(index);
+        }
+        catch (Exception ex)
+        {
+            LogBestEffort($"Could not cache the modpack index: {ex.Message}");
+        }
+    }
+
+    private bool TryReadCache(out ModpackIndex? index)
+    {
+        try
+        {
+            index = CacheFile().Read();
+            return index is not null;
+        }
+        catch (Exception ex)
+        {
+            LogBestEffort($"Could not read the cached modpack index: {ex.Message}");
+            index = null;
+            return false;
+        }
+    }
+
+    private AtomicJsonFile<ModpackIndex?> CacheFile() =>
+        new(_cachePath, Options, () => null, recoverCorrupt: true);
+
+    private static void LogBestEffort(string message)
+    {
+        try { Diagnostic.Write(message, "modpack-index"); }
+        catch { /* diagnostics must not replace the catalog result */ }
     }
 
     private static string Combine(string baseUrl, string relative) =>

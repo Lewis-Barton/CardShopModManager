@@ -6,8 +6,8 @@ Tracks the known bugs found in the 2026-08-13 red-team review and their fix stat
 
 ## 2026-08-13 follow-up review
 
-The original table below remains the record of the first 40 bugs. A broader
-design review found three additional safety issues, now fixed:
+The original table below remains the record of the first 40 bugs. Later reviews
+and testing found the following additional issues, now fixed:
 
 - **BUG-041 — unsafe modpack cache cleanup (Critical):** hosted installs now use
   a GUID-named internal workspace instead of deriving a directory from the
@@ -87,15 +87,20 @@ design review found three additional safety issues, now fixed:
   renewal now detects a missing refresh token before making a request and asks
   the user to sign in again. OAuth exchanges also dispose the HTTP client when
   the helper created it, while leaving caller-owned clients alone.
+- **BUG-056 — a transient GitHub failure empties the modpack gallery (Medium):**
+  catalog and manifest requests now retry rate limits and server errors with
+  bounded backoff, honoring `Retry-After`. A successfully parsed index is saved
+  atomically and used as a clearly labelled fallback when a later refresh fails.
+  Covered by rate-limit recovery and last-good-cache tests.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 2 |
 | High     | 0 | 17 |
-| Medium   | 0 | 27 |
+| Medium   | 0 | 28 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **55** |
+| **Total**| **0** | **56** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

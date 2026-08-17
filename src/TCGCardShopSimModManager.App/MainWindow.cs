@@ -28,6 +28,7 @@ public sealed partial class MainWindow : Window
     private List<InstalledModpack> _installedPacks = new();
     private readonly HttpClient _http = new();
     private readonly ModpackIndexReader _packReader;
+    private bool _usingCachedPackIndex;
 
     public MainWindow()
     {
@@ -159,6 +160,7 @@ public sealed partial class MainWindow : Window
         {
             var index = await _packReader.FetchIndexAsync();
             _packs = index.Packs;
+            _usingCachedPackIndex = _packReader.LastFetchUsedCache;
 
             // BUG-008: loading the installed-packs journal must not abort gallery
             // rendering. Isolate it so a corrupt/unreadable journal only suppresses
@@ -265,9 +267,12 @@ public sealed partial class MainWindow : Window
         _packsPanel.Children.Clear();
         foreach (var pack in visible)
             _packsPanel.Children.Add(BuildPackCard(pack, IsUpdateAvailable(pack)));
-        _packStatus.Text = visible.Count == _packs.Count
+        var countText = visible.Count == _packs.Count
             ? $"{visible.Count} modpack(s) available."
             : $"Showing {visible.Count} of {_packs.Count} modpack(s).";
+        _packStatus.Text = _usingCachedPackIndex
+            ? $"{countText} Showing the last saved catalog because GitHub could not be reached."
+            : countText;
     }
 
     private Border BuildPackCard(ModpackSummary pack, bool updateAvailable)

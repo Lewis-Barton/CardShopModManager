@@ -96,6 +96,9 @@ unit test already covers it, **[manual]** where it needs a real environment.
 - [ ] **[auto]** An expired Nexus session without a refresh token asks the user
       to sign in again without making a token request
       (`RefreshAsync_MissingRefreshToken_AsksForSignInWithoutCallingNexus`).
+- [ ] **[auto]** A GitHub 429 is retried, and a refresh that remains unavailable
+      uses the last successfully saved catalog (`IndexReader_RetriesRateLimitResponse`,
+      `IndexReader_UsesLastGoodCacheAfterRetriesFail`).
 - [ ] **[auto]** BepInEx is ordered first when a pack includes it
       (`EnforceBepInExFirst_MakesBepInExAResolverDependency`,
       `ModpackInstaller_InstallsBepInExFirstAndRecordsPack`).

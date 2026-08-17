@@ -82,6 +82,48 @@ public sealed class ModpackTests : IDisposable
     }
 
     [Fact]
+    public async Task IndexReader_RetriesRateLimitResponse()
+    {
+        var requests = 0;
+        _server.Provider = _ => ++requests == 1
+            ? new HttpResponse(429, Array.Empty<byte>(), null, RetryAfter: "0")
+            : Json(IndexJson());
+        var cachePath = Path.Combine(_root, "retry-index.json");
+        var reader = new ModpackIndexReader(cachePath: cachePath, retryBaseDelayMs: 1);
+
+        var index = await reader.FetchIndexAsync(_server.Url(""));
+
+        Assert.Single(index.Packs);
+        Assert.Equal(2, requests);
+        Assert.False(reader.LastFetchUsedCache);
+        Assert.True(File.Exists(cachePath));
+    }
+
+    [Fact]
+    public async Task IndexReader_UsesLastGoodCacheAfterRetriesFail()
+    {
+        var cachePath = Path.Combine(_root, "fallback-index.json");
+        _server.Provider = _ => Json(IndexJson());
+        var initialReader = new ModpackIndexReader(cachePath: cachePath, retryBaseDelayMs: 1);
+        await initialReader.FetchIndexAsync(_server.Url(""));
+
+        var requests = 0;
+        _server.Provider = _ =>
+        {
+            requests++;
+            return new HttpResponse(429, Array.Empty<byte>(), null, RetryAfter: "0");
+        };
+        var fallbackReader = new ModpackIndexReader(
+            cachePath: cachePath, maxAttempts: 3, retryBaseDelayMs: 1);
+
+        var index = await fallbackReader.FetchIndexAsync(_server.Url(""));
+
+        Assert.Single(index.Packs);
+        Assert.Equal(3, requests);
+        Assert.True(fallbackReader.LastFetchUsedCache);
+    }
+
+    [Fact]
     public async Task ModSource_UsesDownloadUrl_WhenPresent()
     {
         var archiveBytes = MakePayload(200);
