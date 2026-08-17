@@ -197,8 +197,9 @@ Hosted-pack downloads use a persistent, SHA-256-keyed cache under
 `%LOCALAPPDATA%\TCGCardShopSimModManager\download-cache`. A failed planning or
 installation attempt keeps verified archives there, so retrying does not
 download them again. Archive extraction remains bounded, but its production
-limits allow large game assets: up to 16 GiB for one file, 32 GiB extracted per
-archive and 100,000 entries.
+limits allow large game assets: up to 32 GiB for one file, 64 GiB extracted per
+archive and 100,000 entries. The archive limit is not a limit on the combined
+size of a modpack; packs containing multiple archives may be larger.
 
 Try it in one terminal:
 

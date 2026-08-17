@@ -33,8 +33,8 @@ public sealed class ZipArchiveExtractorTests : IDisposable
     [Fact]
     public void DefaultProtection_AllowsLargeGameModArchives()
     {
-        Assert.True(ArchiveProtectionSettings.Default.MaxSingleFileBytes >= 16L * 1024 * 1024 * 1024);
-        Assert.True(ArchiveProtectionSettings.Default.MaxTotalBytes >= 32L * 1024 * 1024 * 1024);
+        Assert.True(ArchiveProtectionSettings.Default.MaxSingleFileBytes >= 32L * 1024 * 1024 * 1024);
+        Assert.True(ArchiveProtectionSettings.Default.MaxTotalBytes >= 64L * 1024 * 1024 * 1024);
         Assert.True(ArchiveProtectionSettings.Default.MaxEntries >= 100000);
     }
 

@@ -12,8 +12,8 @@ public sealed record ArchiveProtectionSettings(
 {
     public static ArchiveProtectionSettings Default { get; } = new(
         MaxEntries: 100000,
-        MaxSingleFileBytes: 16L * 1024 * 1024 * 1024, // 16 GiB per file
-        MaxTotalBytes: 32L * 1024 * 1024 * 1024,      // 32 GiB total
+        MaxSingleFileBytes: 32L * 1024 * 1024 * 1024, // 32 GiB per file
+        MaxTotalBytes: 64L * 1024 * 1024 * 1024,      // 64 GiB per archive
         // Executables and nested archives are both refused: a nested archive
         // would bypass every protection check below, and executables must never
         // be dropped into a game folder.

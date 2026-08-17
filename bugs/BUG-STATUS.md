@@ -241,10 +241,12 @@ boundaries were fixed before work continued on application-state defects.
   directing the user to logs.
 - **BUG-080 — large archives are rejected and failed retries redownload the pack
   (High, fixed):** production extraction limits now accommodate large game-mod
-  assets while retaining path, type, entry-count, per-file and total-size
-  protection. Hosted installs keep hash-verified archives in a persistent local
-  cache separate from their disposable workspace, so a planning or installation
-  failure can be retried without contacting the source again. Covered by the
+  assets, including archives up to 64 GiB extracted, while retaining path, type,
+  entry-count, per-file and total-size protection. The limit applies per archive,
+  not to the combined pack. Hosted installs keep hash-verified archives in a
+  persistent local cache separate from their disposable workspace, so a
+  planning or installation failure can be retried without contacting the source
+  again. Covered by the
   large-archive policy and failed-planning cache-reuse regressions.
 
 ## Summary
