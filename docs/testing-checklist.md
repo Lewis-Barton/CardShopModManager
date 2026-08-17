@@ -119,6 +119,10 @@ unit test already covers it, **[manual]** where it needs a real environment.
 - [ ] **[manual]** Starting a hosted install shows a confirmation listing the
       selected optional mods, including the no-selection case, before any
       download begins.
+- [ ] **[manual]** With no Nexus OAuth session or personal API key, a pack that
+      contains selected Nexus mods disables installation and offers both sign-in
+      and API-key setup in pack details. Saving either credential enables the
+      install without reopening the pack.
 - [ ] **[manual]** A pack matching the installed Steam build is marked
       compatible. A mismatch, unknown build or undeclared compatibility is
       marked “May not be supported” and requires acknowledgement before install.
@@ -158,6 +162,8 @@ unit test already covers it, **[manual]** where it needs a real environment.
 - [x] **[auto]** Hosted installs report the current mod and byte counts while
       downloading, followed by the install phase
       (`ModpackInstaller_ReportsDownloadAndInstallProgress`).
+- [ ] **[manual]** Force a hosted download failure and confirm pack details show
+      the returned reason instead of only directing the user to logs.
 - [x] **[auto]** `modpack validate` passes a well-formed pack and fails one
       missing the `bepinex` entry, a mod with no source, or a missing logo
       (`ModpackSubmissionTests`).

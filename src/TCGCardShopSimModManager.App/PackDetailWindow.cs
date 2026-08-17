@@ -32,6 +32,15 @@ public sealed class PackDetailWindow : Window
     private readonly TextBlock _progressStatus = new() { TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly TextBlock _downloadStats = new() { TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly TextBlock _optionalSummary = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _nexusAccess = new() { TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly Button _nexusLogin = new() { Content = "Sign in to Nexus" };
+    private readonly Button _nexusApiKey = new() { Content = "Enter API key", Classes = { "secondary" } };
+    private readonly StackPanel _nexusActions = new()
+    {
+        Orientation = Orientation.Horizontal,
+        Spacing = 8,
+        IsVisible = false
+    };
     private readonly Button _install = new() { Content = "Install modpack", IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _compatibility = new() { TextWrapping = TextWrapping.Wrap };
@@ -80,6 +89,10 @@ public sealed class PackDetailWindow : Window
         var optionalMods = new StackPanel { Spacing = 4 };
         _install.Click += async (_, _) => await InstallAsync();
         _acknowledgeCompatibility.IsCheckedChanged += (_, _) => RefreshInstallAvailability();
+        _nexusLogin.Click += async (_, _) => await SignInToNexusAsync();
+        _nexusApiKey.Click += async (_, _) => await EnterNexusApiKeyAsync();
+        _nexusActions.Children.Add(_nexusLogin);
+        _nexusActions.Children.Add(_nexusApiKey);
 
         Content = new ScrollViewer
         {
@@ -111,6 +124,8 @@ public sealed class PackDetailWindow : Window
                     },
                     new ScrollViewer { MaxHeight = 150, Content = optionalMods },
                     _optionalSummary,
+                    _nexusAccess,
+                    _nexusActions,
                     _progress,
                     _progressStatus,
                     _downloadStats,
@@ -151,6 +166,7 @@ public sealed class PackDetailWindow : Window
             if (optionalMods.Children.Count == 0)
                 optionalMods.Children.Add(new TextBlock { Text = "This pack has no optional mods.", Opacity = 0.7 });
             RefreshOptionalSummary();
+            RefreshNexusAccess();
             RefreshInstallAvailability();
             if (string.IsNullOrWhiteSpace(_gameFolder))
                 _status.Text = "Set the game folder on the Manage tab first.";
@@ -184,6 +200,7 @@ public sealed class PackDetailWindow : Window
     private void RefreshInstallAvailability()
     {
         _install.IsEnabled = !string.IsNullOrWhiteSpace(_gameFolder) &&
+            (!SelectedInstallNeedsNexus() || HasNexusCredentials()) &&
             (!_acknowledgeCompatibility.IsVisible || _acknowledgeCompatibility.IsChecked == true);
     }
 
@@ -215,6 +232,8 @@ public sealed class PackDetailWindow : Window
             _updatingChoices = false;
         }
         RefreshOptionalSummary();
+        RefreshNexusAccess();
+        RefreshInstallAvailability();
     }
 
     private void SelectDependencies(ModEntry mod, HashSet<string> visited)
@@ -288,7 +307,10 @@ public sealed class PackDetailWindow : Window
                     progress: progress));
             _status.Text = report.Success
                 ? $"Installed {_pack.Name}."
-                : "Install did not complete — see the logs / run a support bundle.";
+                : "Install did not complete: " +
+                  (report.Lines.Count == 0
+                      ? "No further details were returned."
+                      : string.Join(Environment.NewLine, report.Lines));
         }
         catch (Exception ex)
         {
@@ -305,6 +327,76 @@ public sealed class PackDetailWindow : Window
                 _progressStatus.Text = "Installation complete.";
                 _downloadStats.Text = string.Empty;
             }
+            else
+            {
+                _progress.IsIndeterminate = false;
+                _progressStatus.Text = "Installation stopped.";
+            }
+            RefreshInstallAvailability();
+        }
+    }
+
+    private bool SelectedInstallNeedsNexus()
+    {
+        if (_manifest is null)
+            return false;
+        return _manifest.Mods.Any(mod =>
+            mod.NexusModId is not null &&
+            (mod.Required || _modChoices.TryGetValue(mod.Id, out var choice) && choice.IsChecked == true));
+    }
+
+    private static bool HasNexusCredentials() =>
+        NexusTokenStore.TryLoad() is not null || ApiKeyStore.TryLoad() is not null;
+
+    private void RefreshNexusAccess()
+    {
+        var needsNexus = SelectedInstallNeedsNexus();
+        var hasCredentials = HasNexusCredentials();
+        _nexusAccess.IsVisible = needsNexus;
+        _nexusActions.IsVisible = needsNexus && !hasCredentials;
+        _nexusAccess.Foreground = new SolidColorBrush(hasCredentials ? Colors.LightGreen : Colors.Orange);
+        _nexusAccess.Text = hasCredentials
+            ? "Nexus access is ready for the selected mods."
+            : "This selection downloads from Nexus Mods. Sign in or enter a personal API key before installing.";
+    }
+
+    private async Task EnterNexusApiKeyAsync()
+    {
+        _nexusApiKey.IsEnabled = false;
+        try
+        {
+            var dialog = new NexusCredentialWindow(_http, ApiKeyStore.Exists);
+            await dialog.ShowDialog(this);
+        }
+        finally
+        {
+            _nexusApiKey.IsEnabled = true;
+            RefreshNexusAccess();
+            RefreshInstallAvailability();
+        }
+    }
+
+    private async Task SignInToNexusAsync()
+    {
+        _nexusLogin.IsEnabled = false;
+        _nexusAccess.Text = "Opening Nexus Mods in your browser...";
+        string? failure = null;
+        try
+        {
+            var user = await NexusOAuth.LoginAsync(_http);
+            _nexusAccess.Text = $"Signed in as {user.Name}.";
+        }
+        catch (Exception ex)
+        {
+            failure = $"Nexus sign-in failed: {ex.Message}";
+            Diagnostic.Write(ex.ToString(), "nexus-login");
+        }
+        finally
+        {
+            _nexusLogin.IsEnabled = true;
+            RefreshNexusAccess();
+            if (failure is not null)
+                _nexusAccess.Text = failure;
             RefreshInstallAvailability();
         }
     }

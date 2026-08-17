@@ -233,15 +233,21 @@ boundaries were fixed before work continued on application-state defects.
   download speed, then clearly marks the file-installation phase. Optional
   choices are locked while work is running. Core progress reporting is covered
   by `ModpackInstaller_ReportsDownloadAndInstallProgress`.
+- **BUG-079 — Nexus packs can start without credentials and hide the failure
+  (Medium, fixed):** pack details now detect whether the selected required and
+  optional mods use Nexus. Without OAuth or a saved personal API key, the
+  install button stays disabled and the dialog offers both setup routes. Other
+  install failures now display the report returned by Core instead of only
+  directing the user to logs.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 3 |
 | High     | 0 | 27 |
-| Medium   | 0 | 37 |
+| Medium   | 0 | 38 |
 | Low      | 0 | 11 |
-| **Total**| **0** | **78** |
+| **Total**| **0** | **79** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

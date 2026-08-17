@@ -25,7 +25,8 @@ dotnet run --project src/TCGCardShopSimModManager.App
 Browse the hosted modpack gallery, use its filters to find a pack, and open a
 card to review required and optional mods before installing it. The app confirms
 your optional choices and shows per-download progress and speed during the
-install. The **Manage mods** page lets
+install. Packs that download from Nexus prompt for sign-in or a personal API key
+before installation can begin. The **Manage mods** page lets
 you choose the game folder, inspect installed and manually placed mods, and
 enable, disable or uninstall managed mods. Nexus sign-in and update checks live
 under **Settings**. The CLI retains the local manifest validation, planning and
