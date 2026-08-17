@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -27,7 +28,10 @@ public sealed class PackDetailWindow : Window
     private readonly HttpClient _http;
     private readonly InstalledModpack? _installedPack;
     private readonly string? _installedGameBuildId;
-    private readonly ProgressBar _progress = new() { IsIndeterminate = true, IsVisible = false };
+    private readonly ProgressBar _progress = new() { Minimum = 0, Maximum = 100, IsVisible = false };
+    private readonly TextBlock _progressStatus = new() { TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly TextBlock _downloadStats = new() { TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly TextBlock _optionalSummary = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button _install = new() { Content = "Install modpack", IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _compatibility = new() { TextWrapping = TextWrapping.Wrap };
@@ -39,6 +43,10 @@ public sealed class PackDetailWindow : Window
     private readonly Dictionary<string, CheckBox> _modChoices = new(StringComparer.OrdinalIgnoreCase);
     private bool _updatingChoices;
     private ModListManifest? _manifest;
+    private readonly Stopwatch _speedTimer = new();
+    private int _progressModIndex;
+    private long _lastProgressBytes;
+    private TimeSpan _lastProgressTime;
 
     public PackDetailWindow(
         ModpackSummary pack,
@@ -68,7 +76,8 @@ public sealed class PackDetailWindow : Window
                 Dispatcher.UIThread.Post(() => img.Source = bmp);
         });
 
-        var mods = new StackPanel { Spacing = 4 };
+        var requiredMods = new StackPanel { Spacing = 4 };
+        var optionalMods = new StackPanel { Spacing = 4 };
         _install.Click += async (_, _) => await InstallAsync();
         _acknowledgeCompatibility.IsCheckedChanged += (_, _) => RefreshInstallAvailability();
 
@@ -85,19 +94,36 @@ public sealed class PackDetailWindow : Window
                     new TextBlock { Text = pack.ShortDescription, TextWrapping = TextWrapping.Wrap },
                     _compatibility,
                     _acknowledgeCompatibility,
-                    new TextBlock { Text = "Includes:", FontWeight = FontWeight.Bold },
-                    new ScrollViewer { MaxHeight = 220, Content = mods },
+                    new TextBlock { Text = "Required mods", FontWeight = FontWeight.Bold },
+                    new TextBlock
+                    {
+                        Text = "These are always installed with the pack.",
+                        FontSize = 12,
+                        Opacity = 0.7
+                    },
+                    new ScrollViewer { MaxHeight = 150, Content = requiredMods },
+                    new TextBlock { Text = "Optional mods", FontWeight = FontWeight.Bold, Margin = new Thickness(0, 6, 0, 0) },
+                    new TextBlock
+                    {
+                        Text = "Choose any extras you want before installing.",
+                        FontSize = 12,
+                        Opacity = 0.7
+                    },
+                    new ScrollViewer { MaxHeight = 150, Content = optionalMods },
+                    _optionalSummary,
                     _progress,
+                    _progressStatus,
+                    _downloadStats,
                     _install,
                     _status
                 }
             }
         };
 
-        _ = LoadManifestAsync(mods);
+        _ = LoadManifestAsync(requiredMods, optionalMods);
     }
 
-    private async Task LoadManifestAsync(StackPanel mods)
+    private async Task LoadManifestAsync(StackPanel requiredMods, StackPanel optionalMods)
     {
         try
         {
@@ -114,14 +140,17 @@ public sealed class PackDetailWindow : Window
                 var version = string.IsNullOrWhiteSpace(mod.Version) ? "" : $" {mod.Version}";
                 var choice = new CheckBox
                 {
-                    Content = $"{mod.Name}{version} — {(mod.Required ? "Required" : "Optional")}",
+                    Content = $"{mod.Name}{version}",
                     IsChecked = mod.Required || IsPreviouslySelected(mod),
                     IsEnabled = !mod.Required
                 };
                 choice.IsCheckedChanged += (_, _) => OnModChoiceChanged(mod);
                 _modChoices[mod.Id] = choice;
-                mods.Children.Add(choice);
+                (mod.Required ? requiredMods : optionalMods).Children.Add(choice);
             }
+            if (optionalMods.Children.Count == 0)
+                optionalMods.Children.Add(new TextBlock { Text = "This pack has no optional mods.", Opacity = 0.7 });
+            RefreshOptionalSummary();
             RefreshInstallAvailability();
             if (string.IsNullOrWhiteSpace(_gameFolder))
                 _status.Text = "Set the game folder on the Manage tab first.";
@@ -185,6 +214,7 @@ public sealed class PackDetailWindow : Window
         {
             _updatingChoices = false;
         }
+        RefreshOptionalSummary();
     }
 
     private void SelectDependencies(ModEntry mod, HashSet<string> visited)
@@ -227,18 +257,35 @@ public sealed class PackDetailWindow : Window
             return;
         }
 
+        var selectedOptionalMods = _manifest.Mods
+            .Where(mod => !mod.Required && _modChoices[mod.Id].IsChecked == true)
+            .ToArray();
+        var confirmation = new OptionalSelectionConfirmationWindow(_pack.Name, selectedOptionalMods);
+        if (!await confirmation.ShowDialog<bool>(this))
+            return;
+
         _progress.IsVisible = true;
+        _progressStatus.IsVisible = true;
+        _downloadStats.IsVisible = true;
+        _progress.IsIndeterminate = true;
+        _progress.Value = 0;
+        _progressStatus.Text = "Preparing downloads...";
+        _downloadStats.Text = string.Empty;
         _install.IsEnabled = false;
+        SetOptionalChoicesEnabled(false);
+        _speedTimer.Restart();
+        _progressModIndex = 0;
+        _lastProgressBytes = 0;
+        _lastProgressTime = TimeSpan.Zero;
         try
         {
             var fallback = BuildFallback(_pack);
-            var selectedOptionalIds = _manifest.Mods
-                .Where(mod => !mod.Required && _modChoices[mod.Id].IsChecked == true)
-                .Select(mod => mod.Id)
-                .ToArray();
+            var selectedOptionalIds = selectedOptionalMods.Select(mod => mod.Id).ToArray();
+            var progress = new Progress<ModpackInstallProgress>(UpdateInstallProgress);
             var report = await Task.Run(() => new ModpackInstaller(_gameFolder, _http)
                 .InstallAsync(_manifest, fallback, pack: _pack,
-                    selectedOptionalIds: selectedOptionalIds));
+                    selectedOptionalIds: selectedOptionalIds,
+                    progress: progress));
             _status.Text = report.Success
                 ? $"Installed {_pack.Name}."
                 : "Install did not complete — see the logs / run a support bundle.";
@@ -249,9 +296,96 @@ public sealed class PackDetailWindow : Window
         }
         finally
         {
-            _progress.IsVisible = false;
+            _speedTimer.Stop();
+            SetOptionalChoicesEnabled(true);
+            if (_status.Text?.StartsWith("Installed ", StringComparison.Ordinal) == true)
+            {
+                _progress.IsIndeterminate = false;
+                _progress.Value = 100;
+                _progressStatus.Text = "Installation complete.";
+                _downloadStats.Text = string.Empty;
+            }
             RefreshInstallAvailability();
         }
+    }
+
+    private void SetOptionalChoicesEnabled(bool enabled)
+    {
+        if (_manifest is null)
+            return;
+        foreach (var mod in _manifest.Mods.Where(mod => !mod.Required))
+            _modChoices[mod.Id].IsEnabled = enabled;
+    }
+
+    private void RefreshOptionalSummary()
+    {
+        if (_manifest is null)
+            return;
+        var optionalCount = _manifest.Mods.Count(mod => !mod.Required);
+        var selectedCount = _manifest.Mods.Count(mod =>
+            !mod.Required && _modChoices.TryGetValue(mod.Id, out var choice) && choice.IsChecked == true);
+        _optionalSummary.Text = optionalCount == 0
+            ? "No optional mods are available."
+            : $"Optional mods selected: {selectedCount} of {optionalCount}.";
+    }
+
+    private void UpdateInstallProgress(ModpackInstallProgress update)
+    {
+        if (update.Stage == ModpackInstallStage.Installing)
+        {
+            _progress.IsIndeterminate = true;
+            _progressStatus.Text = "Downloads complete. Installing files...";
+            _downloadStats.Text = string.Empty;
+            return;
+        }
+
+        if (_progressModIndex != update.ModIndex)
+        {
+            _progressModIndex = update.ModIndex;
+            _lastProgressBytes = update.DownloadedBytes;
+            _lastProgressTime = _speedTimer.Elapsed;
+        }
+
+        _progressStatus.Text = $"Downloading {update.ModIndex} of {update.ModCount}: {update.ModName}";
+        if (update.FromCache)
+        {
+            _progress.IsIndeterminate = false;
+            _progress.Value = 100;
+            _downloadStats.Text = $"{FormatBytes(update.DownloadedBytes)} ready from cache.";
+            return;
+        }
+
+        var elapsed = _speedTimer.Elapsed;
+        var interval = elapsed - _lastProgressTime;
+        var byteDelta = update.DownloadedBytes - _lastProgressBytes;
+        var bytesPerSecond = interval.TotalSeconds > 0.2 && byteDelta >= 0
+            ? byteDelta / interval.TotalSeconds
+            : 0;
+        if (interval.TotalSeconds > 0.2)
+        {
+            _lastProgressBytes = update.DownloadedBytes;
+            _lastProgressTime = elapsed;
+        }
+
+        _progress.IsIndeterminate = update.TotalBytes is not > 0;
+        if (update.TotalBytes is > 0)
+            _progress.Value = Math.Clamp(update.DownloadedBytes * 100d / update.TotalBytes.Value, 0, 100);
+        var total = update.TotalBytes is > 0 ? $" of {FormatBytes(update.TotalBytes.Value)}" : string.Empty;
+        var speed = bytesPerSecond > 0 ? $" — {FormatBytes((long)bytesPerSecond)}/s" : string.Empty;
+        _downloadStats.Text = $"{FormatBytes(update.DownloadedBytes)}{total}{speed}";
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB"];
+        double value = bytes;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+        return $"{value:0.#} {units[unit]}";
     }
 
     private static IModSource? BuildFallback(ModpackSummary pack)

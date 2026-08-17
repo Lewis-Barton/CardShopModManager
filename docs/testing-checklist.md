@@ -112,9 +112,13 @@ unit test already covers it, **[manual]** where it needs a real environment.
 - [ ] **[manual]** Settings opens Nexus API Access, validates and saves a
       personal API key, uses it for Nexus downloads after restart, and removes
       it without exposing the key in logs or support bundles.
-- [ ] **[manual]** Required mods are checked and locked in pack details;
-      optional mods start unchecked, selecting one selects its dependencies,
-      and clearing a dependency clears optional dependants.
+- [ ] **[manual]** Required and optional mods appear in separate sections in
+      pack details. Required mods are checked and locked; optional mods start
+      unchecked, selecting one selects its dependencies, and clearing a
+      dependency clears optional dependants.
+- [ ] **[manual]** Starting a hosted install shows a confirmation listing the
+      selected optional mods, including the no-selection case, before any
+      download begins.
 - [ ] **[manual]** A pack matching the installed Steam build is marked
       compatible. A mismatch, unknown build or undeclared compatibility is
       marked “May not be supported” and requires acknowledgement before install.
@@ -148,7 +152,12 @@ unit test already covers it, **[manual]** where it needs a real environment.
       shows "Update available" and the button reads "Update". Running it should
       not corrupt the existing install.
 - [ ] **[manual]** During a large hosted install, move and resize the desktop
-      window and confirm it remains responsive until the report appears.
+      window and confirm it remains responsive. Confirm the current mod, file
+      number, transferred bytes, progress bar and download speed update until
+      the install phase begins.
+- [x] **[auto]** Hosted installs report the current mod and byte counts while
+      downloading, followed by the install phase
+      (`ModpackInstaller_ReportsDownloadAndInstallProgress`).
 - [x] **[auto]** `modpack validate` passes a well-formed pack and fails one
       missing the `bepinex` entry, a mod with no source, or a missing logo
       (`ModpackSubmissionTests`).

@@ -15,6 +15,21 @@ public sealed record ModReference(
 
 public sealed record DownloadProgress(long DownloadedBytes, long? TotalBytes);
 
+public enum ModpackInstallStage
+{
+    Downloading,
+    Installing
+}
+
+public sealed record ModpackInstallProgress(
+    ModpackInstallStage Stage,
+    string? ModName,
+    int ModIndex,
+    int ModCount,
+    long DownloadedBytes = 0,
+    long? TotalBytes = null,
+    bool FromCache = false);
+
 public sealed record DownloadResult(
     bool Success,
     string? DestinationPath,

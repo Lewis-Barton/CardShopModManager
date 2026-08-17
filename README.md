@@ -23,7 +23,9 @@ dotnet run --project src/TCGCardShopSimModManager.App
 ```
 
 Browse the hosted modpack gallery, use its filters to find a pack, and open a
-card to review its contents before installing it. The **Manage mods** page lets
+card to review required and optional mods before installing it. The app confirms
+your optional choices and shows per-download progress and speed during the
+install. The **Manage mods** page lets
 you choose the game folder, inspect installed and manually placed mods, and
 enable, disable or uninstall managed mods. Nexus sign-in and update checks live
 under **Settings**. The CLI retains the local manifest validation, planning and
@@ -116,7 +118,8 @@ once the new state is proven valid.
 - `version` is optional. `dependencies`/`conflicts` are optional (empty when absent).
 - `required` defaults to `true`. Hosted packs show required mods as locked
   selections and let the user opt into entries marked `false`. Selecting an
-  optional mod also selects its optional dependencies.
+  optional mod also selects its optional dependencies. The desktop app confirms
+  the selected optional mods before starting the download.
 - `compatibleGameBuildIds` lists the numeric Steam build IDs the list author
   has tested. The app reads the installed build from Steam's app manifest and
   marks the pack as potentially unsupported when it cannot confirm a match.

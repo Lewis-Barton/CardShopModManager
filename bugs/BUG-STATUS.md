@@ -226,15 +226,22 @@ boundaries were fixed before work continued on application-state defects.
   orderly EOF or the Windows reset/abort socket results that mean the server
   closed the connection. A connection that remains open until the timeout still
   fails.
+- **BUG-078 — hosted installs give no useful progress or option review (Medium,
+  fixed):** pack details now separate required and optional mods, show the
+  optional selection count, and require a final review of those choices before
+  downloading. The install view reports the current file, byte progress and
+  download speed, then clearly marks the file-installation phase. Optional
+  choices are locked while work is running. Core progress reporting is covered
+  by `ModpackInstaller_ReportsDownloadAndInstallProgress`.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 3 |
 | High     | 0 | 27 |
-| Medium   | 0 | 36 |
+| Medium   | 0 | 37 |
 | Low      | 0 | 11 |
-| **Total**| **0** | **77** |
+| **Total**| **0** | **78** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

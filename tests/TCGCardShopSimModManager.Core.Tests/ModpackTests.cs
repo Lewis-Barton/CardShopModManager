@@ -175,6 +175,37 @@ public sealed class ModpackTests : IDisposable
     }
 
     [Fact]
+    public async Task ModpackInstaller_ReportsDownloadAndInstallProgress()
+    {
+        var archiveBytes = MakeZip(("ExampleMod.dll", "dll-bytes"));
+        _server.Provider = _ => new HttpResponse(200, archiveBytes, null);
+        var mod = new ModEntry(
+            "example-mod", "Example Mod", null, "ExampleMod.zip", Sha(archiveBytes),
+            "BepInExPlugin", new List<string>(), new List<string>(),
+            DownloadUrl: _server.Url("ExampleMod.zip"));
+        var manifest = new ModListManifest(
+            1, "Test Pack", "tcgcardshopsimulator", new List<ModEntry> { mod });
+        var gameFolder = Path.Combine(_root, "progress-game");
+        Directory.CreateDirectory(gameFolder);
+        var updates = new List<ModpackInstallProgress>();
+
+        var report = await new ModpackInstaller(gameFolder).InstallAsync(
+            manifest, progress: new RecordingProgress<ModpackInstallProgress>(updates.Add));
+
+        Assert.True(report.Success, string.Join("\n", report.Lines));
+        Assert.Contains(updates, update =>
+            update.Stage == ModpackInstallStage.Downloading &&
+            update.ModName == "Example Mod" &&
+            update.ModIndex == 1 &&
+            update.ModCount == 1);
+        Assert.Contains(updates, update =>
+            update.Stage == ModpackInstallStage.Downloading &&
+            update.DownloadedBytes == archiveBytes.Length &&
+            update.TotalBytes == archiveBytes.Length);
+        Assert.Equal(ModpackInstallStage.Installing, updates[^1].Stage);
+    }
+
+    [Fact]
     public async Task ModpackInstaller_RejectsUnsafeManifestBeforeDownloading()
     {
         var requests = 0;
@@ -607,6 +638,11 @@ public sealed class ModpackTests : IDisposable
         for (var i = 0; i < length; i++)
             bytes[i] = (byte)(i % 251);
         return bytes;
+    }
+
+    private sealed class RecordingProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 
     private static byte[] MakeZip(params (string Name, string Content)[] entries)

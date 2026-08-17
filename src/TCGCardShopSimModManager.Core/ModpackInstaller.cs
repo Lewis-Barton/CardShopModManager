@@ -27,7 +27,8 @@ public sealed class ModpackInstaller
         string? cacheDirectory = null,
         ModpackSummary? pack = null,
         CancellationToken cancellationToken = default,
-        IEnumerable<string>? selectedOptionalIds = null)
+        IEnumerable<string>? selectedOptionalIds = null,
+        IProgress<ModpackInstallProgress>? progress = null)
     {
         manifest = EnforceBepInExFirst(manifest);
         var validation = new ManifestValidator().Validate(manifest);
@@ -94,17 +95,44 @@ public sealed class ModpackInstaller
             using var source = new ModpackModSource(manifest.Game, fallback, http: _http);
             var downloader = new ModDownloader(source, new DownloadOptions { CacheDirectory = cacheDirectory });
 
-            foreach (var entry in manifest.Mods)
+            for (var index = 0; index < manifest.Mods.Count; index++)
             {
+                var entry = manifest.Mods[index];
                 var mod = new ModReference(
                     entry.Id, entry.Archive, entry.Sha256, entry.Version,
                     entry.NexusModId, entry.NexusFileId, entry.DownloadUrl);
 
-                var result = await downloader.DownloadAsync(mod, cacheDirectory, cancellationToken: cancellationToken);
+                progress?.Report(new ModpackInstallProgress(
+                    ModpackInstallStage.Downloading, entry.Name, index + 1, manifest.Mods.Count));
+                var result = await downloader.DownloadAsync(
+                    mod,
+                    cacheDirectory,
+                    download => progress?.Report(new ModpackInstallProgress(
+                        ModpackInstallStage.Downloading,
+                        entry.Name,
+                        index + 1,
+                        manifest.Mods.Count,
+                        download.DownloadedBytes,
+                        download.TotalBytes)),
+                    cancellationToken);
                 if (!result.Success)
                     return DeploymentReport.Failure(
                         new List<string>(), $"Failed to download {entry.Name}: {result.Error}");
+                var completedBytes = result.DestinationPath is { } path && File.Exists(path)
+                    ? new FileInfo(path).Length
+                    : 0;
+                progress?.Report(new ModpackInstallProgress(
+                    ModpackInstallStage.Downloading,
+                    entry.Name,
+                    index + 1,
+                    manifest.Mods.Count,
+                    completedBytes,
+                    completedBytes > 0 ? completedBytes : null,
+                    result.FromCache));
             }
+
+            progress?.Report(new ModpackInstallProgress(
+                ModpackInstallStage.Installing, null, manifest.Mods.Count, manifest.Mods.Count));
 
             GameOperationLock operation;
             try
