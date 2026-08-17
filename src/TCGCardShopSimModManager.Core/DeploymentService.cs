@@ -197,37 +197,54 @@ public sealed class DeploymentService
                 return DeploymentReport.Failure(lines, reason);
         }
 
-        var anyFailure = false;
-        foreach (var mod in toInstall)
+        DeploymentSnapshot snapshot;
+        try
         {
-            var updating = installer.HasJournalEntry(mod);
-            var result = installer.Install(mod, sourceDirectory);
-            lines.Add(result.Success
-                ? $"{(updating ? "Updated" : "Installed")} {Label(mod)}: {result.InstalledPaths!.Count} file(s)."
-                : $"Failed to install {Label(mod)}: {result.Error}");
+            snapshot = DeploymentSnapshot.Capture(gameFolderPath, toInstall, plans);
+        }
+        catch (Exception ex)
+        {
+            return DeploymentReport.Failure(lines, $"Could not prepare deployment rollback: {ex.Message}");
+        }
 
-            if (result.RejectedEntries is { Count: > 0 })
+        using (snapshot)
+        {
+            for (var i = 0; i < toInstall.Count; i++)
             {
-                lines.Add($"  warning: {result.RejectedEntries.Count} file(s) rejected during extraction:");
-                lines.AddRange(result.RejectedEntries.Select(r => $"    - {r}"));
-            }
+                var mod = toInstall[i];
+                var updating = installer.HasJournalEntry(mod);
+                var result = installer.Install(mod, sourceDirectory);
+                lines.Add(result.Success
+                    ? $"{(updating ? "Updated" : "Installed")} {Label(mod)}: {result.InstalledPaths!.Count} file(s)."
+                    : $"Failed to install {Label(mod)}: {result.Error}");
 
-            if (result.SkippedEntries is { Count: > 0 })
-                lines.AddRange(result.SkippedEntries.Select(s => $"  note: skipped {s}"));
+                if (result.RejectedEntries is { Count: > 0 })
+                {
+                    lines.Add($"  warning: {result.RejectedEntries.Count} file(s) rejected during extraction:");
+                    lines.AddRange(result.RejectedEntries.Select(r => $"    - {r}"));
+                }
 
-            if (!result.Success)
-            {
-                anyFailure = true;
+                if (result.SkippedEntries is { Count: > 0 })
+                    lines.AddRange(result.SkippedEntries.Select(s => $"  note: skipped {s}"));
+
+                if (result.Success)
+                    continue;
+
                 Diagnostic.Write($"install failed for {mod.Id}: {result.Error}", "install");
+                lines.Add($"Rolling back {i} earlier mod change(s).");
+                var rollbackErrors = snapshot.Rollback();
+                if (rollbackErrors.Count == 0)
+                    lines.Add("Deployment rollback completed.");
+                else
+                {
+                    lines.Add("Deployment rollback was incomplete:");
+                    lines.AddRange(rollbackErrors.Select(error => $"  - {error}"));
+                }
+                return DeploymentReport.Failure(lines, null);
             }
         }
 
-        // BUG-017: a failed mod must make the whole command fail, not report
-        // success just because some other mod installed. The CLI reads
-        // report.Success to set the process exit code.
-        return anyFailure
-            ? DeploymentReport.Failure(lines, null)
-            : DeploymentReport.Ok(lines);
+        return DeploymentReport.Ok(lines);
     }
 
     public IReadOnlyList<PlanPreview> Preview(string manifestPath, string sourceDirectory)
@@ -317,5 +334,132 @@ public sealed class DeploymentService
         }
 
         return plans;
+    }
+
+    private sealed class DeploymentSnapshot : IDisposable
+    {
+        private readonly string _gameFolderPath;
+        private readonly string _backupRoot;
+        private readonly List<InstallJournalEntry> _journalEntries;
+        private readonly List<List<FileSnapshot>> _mods;
+
+        private DeploymentSnapshot(
+            string gameFolderPath,
+            string backupRoot,
+            List<InstallJournalEntry> journalEntries,
+            List<List<FileSnapshot>> mods)
+        {
+            _gameFolderPath = Path.GetFullPath(gameFolderPath);
+            _backupRoot = backupRoot;
+            _journalEntries = journalEntries;
+            _mods = mods;
+        }
+
+        public static DeploymentSnapshot Capture(
+            string gameFolderPath,
+            IReadOnlyList<ModEntry> mods,
+            IReadOnlyList<InstallPlan> plans)
+        {
+            var backupRoot = Path.Combine(
+                Path.GetTempPath(), "cardshopmodmanager-deployment", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(backupRoot);
+
+            try
+            {
+                var journalEntries = new JournalStore(gameFolderPath).Load();
+                var snapshots = new List<List<FileSnapshot>>(mods.Count);
+                for (var i = 0; i < mods.Count; i++)
+                {
+                    var mod = mods[i];
+                    var previous = FindJournalEntry(journalEntries, mod);
+                    var paths = (previous?.Files.Select(file => Path.GetFullPath(file.Path))
+                                 ?? Enumerable.Empty<string>())
+                        .Concat(plans[i].Files.Select(file => DestinationPath(gameFolderPath, file.DestinationRelativePath)))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    var modSnapshots = new List<FileSnapshot>(paths.Count);
+                    for (var fileIndex = 0; fileIndex < paths.Count; fileIndex++)
+                    {
+                        var path = paths[fileIndex];
+                        if (!File.Exists(path))
+                        {
+                            modSnapshots.Add(new FileSnapshot(path, null));
+                            continue;
+                        }
+
+                        var backup = Path.Combine(backupRoot, $"mod-{i + 1}", (fileIndex + 1).ToString());
+                        Directory.CreateDirectory(Path.GetDirectoryName(backup)!);
+                        File.Copy(path, backup);
+                        modSnapshots.Add(new FileSnapshot(path, backup));
+                    }
+                    snapshots.Add(modSnapshots);
+                }
+
+                return new DeploymentSnapshot(gameFolderPath, backupRoot, journalEntries, snapshots);
+            }
+            catch
+            {
+                TemporaryDirectory.DeleteBestEffort(backupRoot);
+                throw;
+            }
+        }
+
+        public List<string> Rollback()
+        {
+            var errors = new List<string>();
+            foreach (var mod in _mods.AsEnumerable().Reverse())
+            {
+                foreach (var file in mod.AsEnumerable().Reverse())
+                {
+                    try
+                    {
+                        if (file.BackupPath is not null)
+                        {
+                            Directory.CreateDirectory(Path.GetDirectoryName(file.Path)!);
+                            File.Copy(file.BackupPath, file.Path, overwrite: true);
+                        }
+                        else if (File.Exists(file.Path))
+                        {
+                            File.Delete(file.Path);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        errors.Add($"Could not restore {file.Path}: {ex.Message}");
+                    }
+                }
+            }
+
+            try
+            {
+                new JournalStore(_gameFolderPath).Save(_journalEntries);
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"Could not restore the install journal: {ex.Message}");
+            }
+
+            return errors;
+        }
+
+        public void Dispose() => TemporaryDirectory.DeleteBestEffort(_backupRoot);
+
+        private static InstallJournalEntry? FindJournalEntry(
+            IEnumerable<InstallJournalEntry> entries,
+            ModEntry mod) =>
+            entries.FirstOrDefault(entry =>
+                !string.IsNullOrWhiteSpace(entry.ModId) &&
+                entry.ModId.Equals(mod.Id, StringComparison.OrdinalIgnoreCase))
+            ?? entries.FirstOrDefault(entry =>
+                string.IsNullOrWhiteSpace(entry.ModId) &&
+                entry.ModName.Equals(mod.Name, StringComparison.OrdinalIgnoreCase));
+
+        private static string DestinationPath(string gameFolderPath, string relativePath) =>
+            Path.GetFullPath(Path.Combine(
+                gameFolderPath,
+                relativePath.Replace('/', Path.DirectorySeparatorChar)));
+
+        private sealed record FileSnapshot(string Path, string? BackupPath);
     }
 }

@@ -245,8 +245,8 @@ Settings page exposes the same sign-in, status and sign-out flow.
   (`.exe`, `.bat`, `.cmd`, ...) are rejected. Nothing is extracted into the game
   directly.
 - Install refuses to overwrite existing files and rejects two sources mapping
-  to one destination. If a copy fails partway, everything this install created
-  is rolled back.
+  to one destination. If any mod in a deployment fails, earlier mods from that
+  deployment are rolled back and previous versions are restored.
 - Every installed file is hashed in `cardshopmodmanager.journal.json` in the
   game folder, so uninstall can prove a file is still what we installed before
   deleting it.

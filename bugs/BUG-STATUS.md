@@ -93,15 +93,21 @@ and testing found the following additional issues, now fixed:
   bounded backoff, honoring `Retry-After`. A successfully parsed index is saved
   atomically and used as a clearly labelled fallback when a later refresh fails.
   Covered by rate-limit recovery and last-good-cache tests.
+- **BUG-057 — a later mod failure leaves earlier pack changes installed (High):**
+  deployment now snapshots every destination and the complete install journal
+  after preflight but before copying. If any mod fails, affected paths are
+  restored in reverse mod order and the original journal is written back. This
+  preserves both newly installed and previously updated mods as one transaction.
+  Covered by new-install and update rollback tests.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 2 |
-| High     | 0 | 17 |
+| High     | 0 | 18 |
 | Medium   | 0 | 28 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **56** |
+| **Total**| **0** | **57** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

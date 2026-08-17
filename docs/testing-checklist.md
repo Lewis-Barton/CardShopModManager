@@ -55,6 +55,10 @@ unit test already covers it, **[manual]** where it needs a real environment.
       (`DetectsCircularDependencies`).
 - [ ] **[auto]** Two mods claiming the same file are refused at pre-flight
       (`SameDestinationAcrossMods_IsReportedOnce`).
+- [ ] **[auto]** If a later mod fails, earlier installs and updates are rolled
+      back with their previous files and journal entries intact
+      (`Install_ReportsFailureWhenAModInstallsNothing_Bug017`,
+      `Install_LaterFailureRestoresEarlierUpdatedModAndJournal`).
 
 ## Mod inventory and enable/disable
 

@@ -88,8 +88,8 @@ public sealed class DeploymentServiceTests : IDisposable
     {
         // A mod whose only content is a refused DLL yields zero installable files:
         // it passes validation and pre-flight planning, then fails inside the
-        // install loop. The whole command must still fail (BUG-017) rather than
-        // report success because the other mod installed.
+        // install loop. The whole command must fail and undo the earlier mod
+        // rather than leave a partial deployment behind.
         WriteZip(Path.Combine(_sourceDir, "good.zip"), ("BepInEx/plugins/Good.dll", "g"));
         WriteZip(Path.Combine(_sourceDir, "empty.zip"), ("winhttp.dll", "x"));
         var manifestPath = WriteManifest(new[]
@@ -104,7 +104,9 @@ public sealed class DeploymentServiceTests : IDisposable
 
         Assert.False(report.Success);
         Assert.Contains(report.Lines, l => l.Contains("Failed to install empty-mod"));
-        Assert.True(File.Exists(Path.Combine(gameFolder, "BepInEx", "plugins", "Good.dll")));
+        Assert.False(File.Exists(Path.Combine(gameFolder, "BepInEx", "plugins", "Good.dll")));
+        Assert.Empty(new JournalStore(gameFolder).Load());
+        Assert.Contains(report.Lines, line => line.Contains("rollback completed", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -241,6 +243,44 @@ public sealed class DeploymentServiceTests : IDisposable
         Assert.False(report.Success);
         Assert.Equal("first-v1", File.ReadAllText(firstInstalled));
         Assert.Equal("user-change", File.ReadAllText(secondInstalled));
+    }
+
+    [Fact]
+    public void Install_LaterFailureRestoresEarlierUpdatedModAndJournal()
+    {
+        var firstArchive = Path.Combine(_sourceDir, "first.zip");
+        var secondArchive = Path.Combine(_sourceDir, "second.zip");
+        WriteZip(firstArchive, ("First.dll", "first-v1"));
+        WriteZip(secondArchive, ("Second.dll", "second-v1"));
+        var initialManifest = WriteManifest(new[]
+        {
+            MakeModJson("first", archive: "first.zip", sha: ShaOf(firstArchive)),
+            MakeModJson("second", archive: "second.zip", sha: ShaOf(secondArchive))
+        });
+        var gameFolder = Path.Combine(_root, "game");
+        Directory.CreateDirectory(gameFolder);
+        var service = new DeploymentService();
+        Assert.True(service.Install(initialManifest, _sourceDir, gameFolder).Success);
+        var originalJournal = new JournalStore(gameFolder).Load();
+
+        WriteZip(firstArchive, ("First.dll", "first-v2"));
+        WriteZip(secondArchive, ("winhttp.dll", "rejected"));
+        var updateManifest = WriteManifest(new[]
+        {
+            MakeModJson("first", archive: "first.zip", sha: ShaOf(firstArchive)),
+            MakeModJson("second", archive: "second.zip", sha: ShaOf(secondArchive))
+        });
+
+        var report = service.Install(updateManifest, _sourceDir, gameFolder);
+
+        Assert.False(report.Success);
+        var firstInstalled = Path.Combine(gameFolder, "BepInEx", "plugins", "first", "First.dll");
+        var secondInstalled = Path.Combine(gameFolder, "BepInEx", "plugins", "second", "Second.dll");
+        Assert.Equal("first-v1", File.ReadAllText(firstInstalled));
+        Assert.Equal("second-v1", File.ReadAllText(secondInstalled));
+        Assert.Equal(
+            JsonSerializer.Serialize(originalJournal.OrderBy(entry => entry.ModName)),
+            JsonSerializer.Serialize(new JournalStore(gameFolder).Load().OrderBy(entry => entry.ModName)));
     }
 
     // --- helpers -----------------------------------------------------------
