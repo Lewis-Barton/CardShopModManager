@@ -2,18 +2,43 @@
   "version": 1,
   "packs": [
     {
-      "id": "essential-qol",
-      "name": "Essential QoL",
-      "shortDescription": "A starter pack: the Example Mod, shown here to demonstrate the installer end to end.",
-      "logo": "essential-qol/logo.png",
-      "manifest": "essential-qol/manifest.json",
+      "id": "real-tcg-overhaul",
+      "name": "Real TCG Overhaul",
+      "shortDescription": "A complete Pokémon-themed overhaul with expanded cards, displays, grading, shop visuals and supporting tools.",
+      "logo": "Real-TCG-Overhaul/logo.png",
+      "manifest": "Real-TCG-Overhaul/manifest.json",
       "version": "1.0.0",
-      "updated": "2026-08-12",
+      "updated": "2026-08-17",
       "featured": true,
       "nsfw": false,
-      "downloadSize": 400,
-      "tags": ["essential", "quality-of-life", "starter"],
-      "modIds": ["bepinex", "example-mod"]
+      "downloadSize": 5494988226,
+      "tags": ["pokemon", "overhaul", "cards", "visuals"],
+      "modIds": [
+        "bepinex",
+        "pokemon-tcg-card-shop-simulator-v3-4-577-6028",
+        "pokemon-tcg-card-shop-simulator-v3-4-6029-577-6029",
+        "pokemon-tcg-card-shop-simulator-v3-4-6030-577-6030",
+        "pokemon-tcg-card-shop-simulator-v3-4-6026-577-6026",
+        "pokemon-tcg-card-shop-simulator-v3-4-6024-577-6024",
+        "pokemon-tcg-card-shop-simulator-v3-4-6031-577-6031",
+        "pokemon-tcg-card-shop-simulator-v3-4-6025-577-6025",
+        "collection-tracker-867-3966",
+        "enhanced-binder-1116-6054",
+        "pokemon-pocket-expansions-1175-6033",
+        "pokemon-pocket-expansions-6034-1175-6034",
+        "pokemon-pocket-expansions-6032-1175-6032",
+        "epl-card-animator-1100-6050",
+        "enhanced-prefab-loader-496-5885",
+        "epl-api-1144-5886",
+        "epl-demand-1084-5575",
+        "grading-overhaul-612-5131",
+        "holographic-overhaul-617-5256",
+        "phone-overhaul-685-5260",
+        "bepinex-mod-manager-698-4002",
+        "texturereplacer-69-5519",
+        "pokemon-tcg-card-shop-simulator-v3-4-6027-577-6027",
+        "rtcgo-custom-tv-895-5777"
+      ]
     }
   ]
 }
