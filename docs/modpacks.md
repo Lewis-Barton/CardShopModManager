@@ -264,6 +264,7 @@ which does not carry the mod id and is not stored in a published manifest.
 Put one link on each line. Bare links and `required` links become required mods;
 use `optional` for entries users may select, and mark exactly one framework
 archive as `bepinex`. Blank lines and lines beginning with `#` are ignored.
+Comments may also follow a selector when separated from it by whitespace.
 
 ```text
 bepinex nexus:10:100

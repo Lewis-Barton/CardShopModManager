@@ -188,7 +188,7 @@ public static class NexusModpackImportCommand
         foreach (var original in lines)
         {
             lineNumber++;
-            var value = original.Trim();
+            var value = StripInlineComment(original).Trim();
             if (value.Length == 0 || value.StartsWith('#'))
                 continue;
 
@@ -219,6 +219,17 @@ public static class NexusModpackImportCommand
         }
 
         return requests;
+    }
+
+    private static string StripInlineComment(string value)
+    {
+        for (var index = 1; index < value.Length; index++)
+        {
+            if (value[index] == '#' && char.IsWhiteSpace(value[index - 1]))
+                return value[..index];
+        }
+
+        return value;
     }
 
     private static async Task<(string Sha256, long Size, bool FromCache)> DownloadAndHashAsync(

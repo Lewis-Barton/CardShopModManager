@@ -215,6 +215,11 @@ boundaries were fixed before work continued on application-state defects.
   numeric strings, treats null or malformed optional values as absent, and
   skips records without a usable file id. Covered by null/string metadata tests
   and a successful live lookup of mod 577.
+- **BUG-076 — import selectors reject trailing descriptions (Low, fixed):**
+  modpack import lines now allow a trailing comment introduced by whitespace
+  and `#`, so authors can label large lists without making a valid
+  `nexus:<modId>:<fileId>` selector fail parsing. URL fragments without a
+  preceding space remain intact. Covered by a CLI parser smoke test.
 
 ## Summary
 | Severity | Open | Fixed |
@@ -222,8 +227,8 @@ boundaries were fixed before work continued on application-state defects.
 | Critical | 0 | 3 |
 | High     | 0 | 27 |
 | Medium   | 0 | 36 |
-| Low      | 0 | 9 |
-| **Total**| **0** | **75** |
+| Low      | 0 | 10 |
+| **Total**| **0** | **76** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |
