@@ -162,6 +162,16 @@ unit test already covers it, **[manual]** where it needs a real environment.
 - [x] **[auto]** Hosted installs report the current mod and byte counts while
       downloading, followed by the install phase
       (`ModpackInstaller_ReportsDownloadAndInstallProgress`).
+- [x] **[auto]** Production archive limits accept large game-mod payloads while
+      custom low limits still reject truncated extraction
+      (`DefaultProtection_AllowsLargeGameModArchives`,
+      `CreatePlan_ThrowsOnTruncatedArchive`).
+- [x] **[auto]** If planning fails after a verified hosted download, retrying
+      uses the persistent content cache without requesting the archive again
+      (`ModpackInstaller_RetryUsesVerifiedCacheAfterPlanningFailure`).
+- [ ] **[manual]** Interrupt or fail a multi-gigabyte hosted install after its
+      downloads complete, retry it, and confirm each verified archive reports
+      that it is ready from cache rather than downloading again.
 - [ ] **[manual]** Force a hosted download failure and confirm pack details show
       the returned reason instead of only directing the user to logs.
 - [x] **[auto]** `modpack validate` passes a well-formed pack and fails one

@@ -15,6 +15,11 @@ public sealed class ModpackInstaller
     private readonly string _gameFolderPath;
     private readonly HttpClient? _http;
 
+    public static string DefaultDownloadCacheDirectory => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "TCGCardShopSimModManager",
+        "download-cache");
+
     public ModpackInstaller(string gameFolderPath, HttpClient? http = null)
     {
         _gameFolderPath = gameFolderPath;
@@ -28,7 +33,8 @@ public sealed class ModpackInstaller
         ModpackSummary? pack = null,
         CancellationToken cancellationToken = default,
         IEnumerable<string>? selectedOptionalIds = null,
-        IProgress<ModpackInstallProgress>? progress = null)
+        IProgress<ModpackInstallProgress>? progress = null,
+        string? verifiedCacheDirectory = null)
     {
         manifest = EnforceBepInExFirst(manifest);
         var validation = new ManifestValidator().Validate(manifest);
@@ -72,6 +78,9 @@ public sealed class ModpackInstaller
             Path.GetTempPath(),
             "cardshopmodmanager-modpack",
             Guid.NewGuid().ToString("N"));
+        verifiedCacheDirectory ??= ownsCacheDirectory
+            ? DefaultDownloadCacheDirectory
+            : cacheDirectory;
 
         try
         {
@@ -93,7 +102,8 @@ public sealed class ModpackInstaller
             var fallback = fallbackSource ?? new LocalFileSource(cacheDirectory);
 
             using var source = new ModpackModSource(manifest.Game, fallback, http: _http);
-            var downloader = new ModDownloader(source, new DownloadOptions { CacheDirectory = cacheDirectory });
+            var downloader = new ModDownloader(
+                source, new DownloadOptions { CacheDirectory = verifiedCacheDirectory });
 
             for (var index = 0; index < manifest.Mods.Count; index++)
             {

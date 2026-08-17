@@ -239,15 +239,22 @@ boundaries were fixed before work continued on application-state defects.
   install button stays disabled and the dialog offers both setup routes. Other
   install failures now display the report returned by Core instead of only
   directing the user to logs.
+- **BUG-080 — large archives are rejected and failed retries redownload the pack
+  (High, fixed):** production extraction limits now accommodate large game-mod
+  assets while retaining path, type, entry-count, per-file and total-size
+  protection. Hosted installs keep hash-verified archives in a persistent local
+  cache separate from their disposable workspace, so a planning or installation
+  failure can be retried without contacting the source again. Covered by the
+  large-archive policy and failed-planning cache-reuse regressions.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 3 |
-| High     | 0 | 27 |
+| High     | 0 | 28 |
 | Medium   | 0 | 38 |
 | Low      | 0 | 11 |
-| **Total**| **0** | **79** |
+| **Total**| **0** | **80** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

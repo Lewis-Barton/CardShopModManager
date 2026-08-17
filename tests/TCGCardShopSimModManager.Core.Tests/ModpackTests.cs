@@ -408,6 +408,38 @@ public sealed class ModpackTests : IDisposable
     }
 
     [Fact]
+    public async Task ModpackInstaller_RetryUsesVerifiedCacheAfterPlanningFailure()
+    {
+        var archiveBytes = MakeZip(("readme.txt", "documentation only"));
+        var requests = 0;
+        _server.Provider = _ =>
+        {
+            requests++;
+            return new HttpResponse(200, archiveBytes, null);
+        };
+        var mod = new ModEntry(
+            "docs-only", "Docs Only", null, "docs.zip", Sha(archiveBytes),
+            "BepInExPlugin", new List<string>(), new List<string>(),
+            DownloadUrl: _server.Url("docs.zip"));
+        var manifest = new ModListManifest(
+            1, "Retry Pack", "tcgcardshopsimulator", new List<ModEntry> { mod });
+        var gameFolder = Path.Combine(_root, "retry-game");
+        var verifiedCache = Path.Combine(_root, "verified-cache");
+        Directory.CreateDirectory(gameFolder);
+        var installer = new ModpackInstaller(gameFolder);
+
+        var first = await installer.InstallAsync(
+            manifest, verifiedCacheDirectory: verifiedCache);
+        var second = await installer.InstallAsync(
+            manifest, verifiedCacheDirectory: verifiedCache);
+
+        Assert.False(first.Success);
+        Assert.False(second.Success);
+        Assert.Equal(1, requests);
+        Assert.Single(Directory.GetFiles(verifiedCache));
+    }
+
+    [Fact]
     public async Task ModpackInstaller_ManifestNameCannotChooseCleanupDirectory()
     {
         var archiveBytes = MakeZip(("ExampleMod.dll", "dll-bytes"));

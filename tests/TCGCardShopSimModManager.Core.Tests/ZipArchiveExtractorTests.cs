@@ -31,6 +31,14 @@ public sealed class ZipArchiveExtractorTests : IDisposable
     }
 
     [Fact]
+    public void DefaultProtection_AllowsLargeGameModArchives()
+    {
+        Assert.True(ArchiveProtectionSettings.Default.MaxSingleFileBytes >= 16L * 1024 * 1024 * 1024);
+        Assert.True(ArchiveProtectionSettings.Default.MaxTotalBytes >= 32L * 1024 * 1024 * 1024);
+        Assert.True(ArchiveProtectionSettings.Default.MaxEntries >= 100000);
+    }
+
+    [Fact]
     public void Extract_ReturnsFilesWithRelativePaths()
     {
         var zip = CreateZip(entries: ("BepInEx/plugins/Mod.dll", "dll-bytes"));

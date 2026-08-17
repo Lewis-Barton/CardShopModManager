@@ -193,6 +193,13 @@ bytes from a given offset (`HttpModSource`, `LocalFileSource`,
 - verified downloads are cached, so a repeat never touches the source again;
 - free disk space is checked against the announced size before writing starts.
 
+Hosted-pack downloads use a persistent, SHA-256-keyed cache under
+`%LOCALAPPDATA%\TCGCardShopSimModManager\download-cache`. A failed planning or
+installation attempt keeps verified archives there, so retrying does not
+download them again. Archive extraction remains bounded, but its production
+limits allow large game assets: up to 16 GiB for one file, 32 GiB extracted per
+archive and 100,000 entries.
+
 Try it in one terminal:
 
 ```

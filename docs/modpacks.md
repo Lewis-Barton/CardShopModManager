@@ -189,8 +189,12 @@ comes from. So the app's job is:
 
 1. Fetch `index.json` (on open, and on a Refresh button).
 2. For each mod in the chosen pack's manifest, resolve its source and download
-   the archive into a cache folder, saved under the mod's `Archive` name.
-3. Call the existing `Install(manifest, cacheFolder, gameFolder)`.
+   the archive into a temporary install workspace. Every verified archive is
+   also retained in a content-addressed cache under
+   `%LOCALAPPDATA%\TCGCardShopSimModManager\download-cache`.
+3. Call the existing `Install(manifest, workspace, gameFolder)`. The workspace
+   is removed afterwards, while the verified cache survives failed and
+   successful attempts for later retries.
 
 Step 2 is the only non-trivial new engine piece: a **per-mod source
 dispatcher** — a composite `IModSource` that, for each mod, picks `DownloadUrl`
