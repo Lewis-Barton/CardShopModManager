@@ -22,6 +22,7 @@
       "archive": "loose-plugin.zip",
       "sha256": "b8f2ab348a08112212408c88006eeb2455131907c55c661d7fc9ec35a822c10b",
       "installType": "BepInExPlugin",
+      "required": false,
       "dependencies": ["bepinex"],
       "conflicts": [],
       "downloadUrl": "https://raw.githubusercontent.com/Lewis-Barton/TCGCardShopSimModManager/main/samples/mod-archives/loose-plugin.zip"

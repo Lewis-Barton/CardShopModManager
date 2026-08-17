@@ -76,6 +76,32 @@ public sealed class ManifestValidatorTests
     }
 
     [Fact]
+    public void Validate_RejectsOptionalFramework()
+    {
+        var framework = Mod("bepinex", "BepInEx", "bepinex.zip") with { Required = false };
+
+        var result = new ManifestValidator().Validate(Manifest(framework));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Contains("framework entry must be required"));
+    }
+
+    [Fact]
+    public void Validate_RejectsRequiredModDependingOnOptionalMod()
+    {
+        var optional = Mod("library", "BepInExPlugin", "library.zip") with { Required = false };
+        var required = Mod("required", "BepInExPlugin", "required.zip") with
+        {
+            Dependencies = new List<string> { optional.Id }
+        };
+
+        var result = new ManifestValidator().Validate(Manifest(required, optional));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Contains("Mark the dependency as required"));
+    }
+
+    [Fact]
     public void Validate_RejectsEmptyModsList() // BUG-028
     {
         var manifest = Manifest();

@@ -8,11 +8,11 @@ namespace TCGCardShopSimModManager.Cli;
 /// archives, then run the standard install pipeline.
 ///
 ///   modpack list                       show the available packs
-///   modpack install &lt;packId&gt; [game]    download + install the pack
+///   modpack install &lt;packId&gt; [game] [optionalIds|all]
 /// </summary>
 public static class ModpackCommand
 {
-    public static async Task Run(string? sub, string? arg1, string? arg2)
+    public static async Task Run(string? sub, string? arg1, string? arg2, string? arg3 = null)
     {
         // `validate` is a local authoring check against modpacks/ on disk — it
         // never touches GitHub, so handle it before the live-index path.
@@ -47,14 +47,14 @@ public static class ModpackCommand
         // wasted round-trip to GitHub.
         if (sub is "install" && arg1 is null)
         {
-            Console.WriteLine("Usage: modpack install <id> [game]");
+            Console.WriteLine("Usage: modpack install <id> [game] [optionalIds|all]");
             Environment.ExitCode = 2;
             return;
         }
 
         if (sub is not (null or "list" or "install"))
         {
-            Console.WriteLine("Usage: modpack <list | install <id> [game] | validate [id] [root]>");
+            Console.WriteLine("Usage: modpack <list | install <id> [game] [optionalIds|all] | validate [id] [root]>");
             Environment.ExitCode = 2;
             return;
         }
@@ -96,6 +96,20 @@ public static class ModpackCommand
         }
 
         var manifest = await reader.FetchManifestAsync(summary);
+        var allOptionalIds = manifest.Mods.Where(mod => !mod.Required).Select(mod => mod.Id).ToArray();
+        var installedPack = new ModpackJournalStore(gameFolder).Load()
+            .FirstOrDefault(entry => summary.IsId(entry.PackId));
+        string[] selectedOptionalIds;
+        if (arg3?.Equals("all", StringComparison.OrdinalIgnoreCase) == true)
+            selectedOptionalIds = allOptionalIds;
+        else if (arg3 is not null)
+            selectedOptionalIds = arg3.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        else if (installedPack?.SelectedOptionalModIds is { } previousSelection)
+            selectedOptionalIds = previousSelection.ToArray();
+        else if (installedPack is not null)
+            selectedOptionalIds = allOptionalIds; // legacy installs contained every entry
+        else
+            selectedOptionalIds = Array.Empty<string>();
 
         IModSource? fallback = summary.Source is null
             ? null
@@ -104,7 +118,8 @@ public static class ModpackCommand
                 : new LocalFileSource(summary.Source);
 
         Console.WriteLine($"Installing {summary.Name} into {gameFolder}...");
-        var report = await new ModpackInstaller(gameFolder).InstallAsync(manifest, fallback, pack: summary);
+        var report = await new ModpackInstaller(gameFolder).InstallAsync(
+            manifest, fallback, pack: summary, selectedOptionalIds: selectedOptionalIds);
 
         foreach (var line in report.Lines)
             Console.WriteLine(line);

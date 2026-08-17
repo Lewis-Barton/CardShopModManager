@@ -127,6 +127,12 @@ and testing found the following additional issues, now fixed:
   single-file executables, matching the two executable assets uploaded by the
   release workflow. Local and GitHub packages also include the license, privacy
   policy and third-party notices.
+- **FEATURE-001 — hosted packs support required and optional mods:** manifest
+  entries now default to required for backward compatibility and may opt into
+  user selection with `"required": false`. The desktop locks required choices,
+  starts optional choices clear, and keeps dependency selections consistent.
+  Core resolves and validates the final subset before downloading anything,
+  and the pack journal preserves the selection for later updates.
 
 ## Summary
 | Severity | Open | Fixed |

@@ -61,10 +61,26 @@ public sealed class ManifestValidator
                      mod.InstallType != ModListConventions.BepInExInstallType)
                 errors.Add($"{mod.Name}: the framework entry (id '{ModListConventions.BepInExModId}') must use install type '{ModListConventions.BepInExInstallType}'.");
 
+            if (mod.Id.Equals(ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase) &&
+                !mod.Required)
+                errors.Add($"{mod.Name}: the framework entry must be required.");
+
             // BUG-024: reject real traversal (a ".." path segment or a rooted
             // path), but allow ".." to appear inside a filename (e.g. MyMod..v1.zip).
             if (IsUnsafeRelativePath(mod.Archive))
                 errors.Add($"{mod.Name}: archive path is unsafe ('{mod.Archive}')");
+        }
+
+        var modsById = (mods ?? new List<ModEntry>())
+            .GroupBy(mod => mod.Id, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        foreach (var mod in mods?.Where(mod => mod.Required) ?? Enumerable.Empty<ModEntry>())
+        {
+            foreach (var dependencyId in mod.Dependencies)
+            {
+                if (modsById.TryGetValue(dependencyId, out var dependency) && !dependency.Required)
+                    errors.Add($"{mod.Name}: required mod depends on optional mod '{dependency.Name}'. Mark the dependency as required.");
+            }
         }
 
         return errors.Count == 0 ? ValidationResult.Success() : ValidationResult.Failure(errors);

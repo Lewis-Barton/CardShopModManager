@@ -175,6 +175,50 @@ public sealed class ModpackTests : IDisposable
     }
 
     [Fact]
+    public async Task ModpackInstaller_InstallsRequiredButSkipsUnselectedOptionalMod()
+    {
+        var requiredBytes = MakeZip(("Required.dll", "required"));
+        var optionalBytes = MakeZip(("Optional.dll", "optional"));
+        var optionalRequests = 0;
+        _server.Provider = request =>
+        {
+            if (request.Path.EndsWith("optional.zip", StringComparison.OrdinalIgnoreCase))
+            {
+                optionalRequests++;
+                return new HttpResponse(200, optionalBytes, null);
+            }
+            return new HttpResponse(200, requiredBytes, null);
+        };
+
+        var required = new ModEntry(
+            "required", "Required Mod", "1.0.0", "required.zip", Sha(requiredBytes),
+            "BepInExPlugin", new List<string>(), new List<string>(),
+            DownloadUrl: _server.Url("required.zip"));
+        var optional = new ModEntry(
+            "optional", "Optional Mod", "1.0.0", "optional.zip", Sha(optionalBytes),
+            "BepInExPlugin", new List<string>(), new List<string>(),
+            DownloadUrl: _server.Url("optional.zip"), Required: false);
+        var manifest = new ModListManifest(
+            1, "Selectable Pack", "tcgcardshopsimulator", [required, optional]);
+        var gameFolder = Path.Combine(_root, "selected-game");
+        Directory.CreateDirectory(gameFolder);
+        var pack = new ModpackSummary(
+            "selectable", "Selectable Pack", "Test", "logo.png", "manifest.json", "1.0.0");
+
+        var report = await new ModpackInstaller(gameFolder).InstallAsync(
+            manifest, pack: pack, selectedOptionalIds: Array.Empty<string>());
+
+        Assert.True(report.Success, string.Join("\n", report.Lines));
+        Assert.True(File.Exists(Path.Combine(
+            gameFolder, "BepInEx", "plugins", "Required Mod", "Required.dll")));
+        Assert.False(File.Exists(Path.Combine(
+            gameFolder, "BepInEx", "plugins", "Optional Mod", "Optional.dll")));
+        Assert.Equal(0, optionalRequests);
+        Assert.Empty(Assert.Single(
+            new ModpackJournalStore(gameFolder).Load()).SelectedOptionalModIds!);
+    }
+
+    [Fact]
     public async Task ModpackInstaller_PreflightPasses_WhenTotalSizeDeclared()
     {
         var archiveBytes = MakeZip(("ExampleMod.dll", "dll-bytes"));
@@ -404,6 +448,10 @@ public sealed class ModpackTests : IDisposable
         loaded = store.Load();
         Assert.Equal(2, loaded.Count);
         Assert.Contains(loaded, e => e.PackId == "p1" && e.PackVersion == "1.1.0");
+
+        store.Record("p1", "1.2.0", "Pack One", ["optional-a", "optional-b"]);
+        var updated = store.Load().Single(entry => entry.PackId == "p1");
+        Assert.Equal(["optional-a", "optional-b"], updated.SelectedOptionalModIds);
     }
 
     [Fact]

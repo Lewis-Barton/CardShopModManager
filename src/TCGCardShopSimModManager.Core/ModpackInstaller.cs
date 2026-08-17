@@ -26,8 +26,28 @@ public sealed class ModpackInstaller
         IModSource? fallbackSource = null,
         string? cacheDirectory = null,
         ModpackSummary? pack = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IEnumerable<string>? selectedOptionalIds = null)
     {
+        manifest = EnforceBepInExFirst(manifest);
+        List<string> installedOptionalIds;
+        if (selectedOptionalIds is not null)
+        {
+            var selection = ModpackSelection.Resolve(manifest, selectedOptionalIds);
+            if (!selection.IsValid)
+                return DeploymentReport.Failure(new List<string>(), string.Join(Environment.NewLine, selection.Errors));
+            manifest = selection.Manifest!;
+            installedOptionalIds = manifest.Mods
+                .Where(mod => !mod.Required)
+                .Select(mod => mod.Id)
+                .ToList();
+        }
+        else
+            installedOptionalIds = manifest.Mods
+                .Where(mod => !mod.Required)
+                .Select(mod => mod.Id)
+                .ToList();
+
         if (pack is not null)
         {
             manifest = manifest with
@@ -75,8 +95,7 @@ public sealed class ModpackInstaller
                     new List<string>(), $"Failed to download {entry.Name}: {result.Error}");
         }
 
-        var report = new DeploymentService().Install(
-            EnforceBepInExFirst(manifest), cacheDirectory, _gameFolderPath);
+        var report = new DeploymentService().Install(manifest, cacheDirectory, _gameFolderPath);
 
         // Only remove a workspace created by this installer. A supplied cache
         // belongs to the caller and may contain archives used by other packs.
@@ -91,7 +110,8 @@ public sealed class ModpackInstaller
             {
                 try
                 {
-                    new ModpackJournalStore(_gameFolderPath).Record(pack.Id, pack.Version, pack.Name);
+                    new ModpackJournalStore(_gameFolderPath).Record(
+                        pack.Id, pack.Version, pack.Name, installedOptionalIds);
                 }
                 catch (Exception ex)
                 {

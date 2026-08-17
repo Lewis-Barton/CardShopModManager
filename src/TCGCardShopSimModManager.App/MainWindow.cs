@@ -328,7 +328,8 @@ public sealed partial class MainWindow : Window
 
     private async Task OpenPack(ModpackSummary pack)
     {
-        var detail = new PackDetailWindow(pack, _gameBox.Text, _http, _packReader);
+        var installed = _installedPacks.FirstOrDefault(entry => pack.IsId(entry.PackId));
+        var detail = new PackDetailWindow(pack, _gameBox.Text, _http, _packReader, installed);
         await detail.ShowDialog(this);
         await LoadPacksAsync();
     }

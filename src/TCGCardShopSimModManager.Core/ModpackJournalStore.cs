@@ -7,7 +7,11 @@ public sealed record InstalledModpack(
     string PackId,
     string PackVersion,
     string Name,
-    DateTimeOffset InstalledAt);
+    DateTimeOffset InstalledAt,
+    /// <summary>Optional entries selected for this installation. Null means a
+    /// legacy journal written before selection existed, when every mod was
+    /// installed.</summary>
+    List<string>? SelectedOptionalModIds = null);
 
 /// <summary>
 /// Tracks which modpacks (and which versions) are installed in a game folder,
@@ -38,12 +42,21 @@ public sealed class ModpackJournalStore
     }
 
     /// <summary>Record (or replace) the installed pack version.</summary>
-    public void Record(string packId, string packVersion, string name)
+    public void Record(
+        string packId,
+        string packVersion,
+        string name,
+        IEnumerable<string>? selectedOptionalModIds = null)
     {
         _file.Update(entries =>
         {
             entries.RemoveAll(e => e.PackId.Equals(packId, StringComparison.OrdinalIgnoreCase));
-            entries.Add(new InstalledModpack(packId, packVersion, name, DateTimeOffset.UtcNow));
+            entries.Add(new InstalledModpack(
+                packId,
+                packVersion,
+                name,
+                DateTimeOffset.UtcNow,
+                selectedOptionalModIds?.Distinct(StringComparer.OrdinalIgnoreCase).ToList()));
             return (entries, true);
         });
     }

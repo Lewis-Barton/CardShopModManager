@@ -101,6 +101,13 @@ unit test already covers it, **[manual]** where it needs a real environment.
       restrictions when their files are requested.
 - [ ] **[manual]** With a registered Nexus client ID, Settings can sign in,
       display the account name, survive a restart, and sign out cleanly.
+- [ ] **[manual]** Required mods are checked and locked in pack details;
+      optional mods start unchecked, selecting one selects its dependencies,
+      and clearing a dependency clears optional dependants.
+- [x] **[auto]** A hosted install downloads and installs required mods plus only
+      the optional selection, while legacy manifests still default every entry
+      to required (`ModpackSelectionTests`,
+      `ModpackInstaller_InstallsRequiredButSkipsUnselectedOptionalMod`).
 - [x] **[auto]** An expired Nexus session without a refresh token asks the user
       to sign in again without making a token request
       (`RefreshAsync_MissingRefreshToken_AsksForSignInWithoutCallingNexus`).

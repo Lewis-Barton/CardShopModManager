@@ -87,7 +87,8 @@ try
             await ModpackCommand.Run(
                 args.ElementAtOrDefault(1),
                 args.ElementAtOrDefault(2),
-                args.ElementAtOrDefault(3));
+                args.ElementAtOrDefault(3),
+                args.ElementAtOrDefault(4));
             break;
         case "help" when args.Length == 1:
             PrintUsage();
@@ -126,7 +127,7 @@ static void PrintUsage()
         "  uninstall <modName> <game>    remove a mod's files if they still match the journal\n" +
         "  profile list|use|enable|disable ...\n" +
         "  modpack list                  show modpacks hosted on GitHub\n" +
-        "  modpack install <id> [game]   download + install a hosted modpack\n" +
+        "  modpack install <id> [game] [optionalIds|all]   install a hosted modpack\n" +
         "  --version                     print the version");
 }
 

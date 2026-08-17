@@ -45,4 +45,8 @@ public sealed record ModEntry(
     long? NexusModId = null,
     long? NexusFileId = null,
     string? DownloadUrl = null,
-    string? PackId = null);
+    string? PackId = null,
+    /// <summary>Required entries are always installed. Optional entries are
+    /// installed only when selected by the user. Defaults to true so existing
+    /// manifests retain their current install-all behaviour.</summary>
+    bool Required = true);

@@ -102,8 +102,26 @@ partially download and then stall on a full disk. The per-file gate in
 `ModDownloader` remains as a backstop for any mod whose real size exceeds the
 declared total.
 
-The new `DownloadUrl` field and the optional top-level `totalSize` are the schema
-additions; `NexusModId`/`NexusFileId` already exist on `ModEntry`.
+`DownloadUrl`, `required`, and the optional top-level `totalSize` are the hosted
+pack schema additions; `NexusModId`/`NexusFileId` already exist on `ModEntry`.
+
+### Required and optional mods
+
+Each mod may declare `required`. It defaults to `true`, so older manifests keep
+their install-all behaviour. Required entries are always selected and cannot be
+cleared in the desktop app. An entry with `"required": false` starts unchecked
+and is installed only when the user selects it.
+
+Selecting an optional mod also selects its dependency chain. Clearing an
+optional dependency clears optional mods that depend on it. A required mod may
+not depend on an optional one: pack validation asks the author to mark that
+dependency as required instead. The BepInEx framework is always required.
+
+The CLI follows the same default with
+`modpack install <id> [gameFolder] [optionalId1,optionalId2|all]`.
+The selected optional ids are stored with the installed pack version, so the
+desktop and CLI preserve that selection on later updates. Legacy pack journals
+are treated as having selected every entry, matching their original behaviour.
 
 Valid `installType` values are `BepInExPlugin` (a plugin that loads inside
 BepInEx) and `BepInEx` (the BepInEx framework itself — see below). The

@@ -58,6 +58,7 @@ dotnet run --project src/TCGCardShopSimModManager.Cli -- install  <manifest.json
 dotnet run --project src/TCGCardShopSimModManager.Cli -- uninstall <modName> <gameFolder>
 dotnet run --project src/TCGCardShopSimModManager.Cli -- profile  <list|use|enable|disable> ...
 dotnet run --project src/TCGCardShopSimModManager.Cli -- mods     <list <gameFolder> | disable <name> <gameFolder> | enable <name> <gameFolder>>
+dotnet run --project src/TCGCardShopSimModManager.Cli -- modpack install <id> [gameFolder] [optionalId1,optionalId2|all]
 ```
 
 - `detect`    — with a path, check it's a game install. With no path, auto-detect the game through Steam (reads the Steam library folders — no API key needed).
@@ -99,6 +100,7 @@ once the new state is proven valid.
       "archive": "ExampleMod.zip",
       "sha256": "expected-hash-here",
       "installType": "BepInExPlugin",
+      "required": false,
       "dependencies": ["shared-library"],
       "conflicts": ["old-mod"]
     }
@@ -108,6 +110,9 @@ once the new state is proven valid.
 
 - `id` is the key that `dependencies`, `conflicts` and profiles reference.
 - `version` is optional. `dependencies`/`conflicts` are optional (empty when absent).
+- `required` defaults to `true`. Hosted packs show required mods as locked
+  selections and let the user opt into entries marked `false`. Selecting an
+  optional mod also selects its optional dependencies.
 - For the Nexus backend add `nexusModId` (and optionally `nexusFileId`; with only
   the mod id the file is found by `archive` name via the files API).
 
@@ -135,6 +140,10 @@ disabled mod.
 Profile changes are committed only after their file operations succeed. If an
 enable or disable cannot be completed, the manager rolls back its work and
 leaves the saved profile unchanged.
+
+Hosted `modpack install` installs required entries by default. Pass a
+comma-separated list of optional ids, or `all`, after the game folder to add
+optional entries from the CLI.
 
 Before copying anything, `install` builds the plan for every archive and refuses
 to proceed if two mods claim the same destination file.
