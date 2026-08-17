@@ -246,8 +246,8 @@ boundaries were fixed before work continued on application-state defects.
   not to the combined pack. Hosted installs keep hash-verified archives in a
   persistent local cache separate from their disposable workspace, so a
   planning or installation failure can be retried without contacting the source
-  again. Covered by the
-  large-archive policy and failed-planning cache-reuse regressions.
+  again. Covered by the large-archive policy and failed-planning cache-reuse
+  regressions.
 
 ## Summary
 | Severity | Open | Fixed |
