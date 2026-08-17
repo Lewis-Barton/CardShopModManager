@@ -22,6 +22,8 @@ namespace TCGCardShopSimModManager.App;
 /// </summary>
 public sealed partial class MainWindow : Window
 {
+    private const int MaxVisibleLogLines = 500;
+    private readonly Queue<string> _visibleLogLines = new();
     private List<DiscoveredMod> _discovered = new();
 
     private List<ModpackSummary> _packs = new();
@@ -557,7 +559,11 @@ public sealed partial class MainWindow : Window
 
     private void Log(string line)
     {
-        _log.Text += line + "\n";
+        if (_visibleLogLines.Count == MaxVisibleLogLines)
+            _visibleLogLines.Dequeue();
+        _visibleLogLines.Enqueue(line);
+
+        _log.Text = string.Join('\n', _visibleLogLines) + "\n";
         _log.CaretIndex = _log.Text.Length;
     }
 }

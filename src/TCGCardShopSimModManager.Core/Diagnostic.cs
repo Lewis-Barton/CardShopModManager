@@ -9,6 +9,7 @@ namespace TCGCardShopSimModManager.Core;
 /// </summary>
 public static class Diagnostic
 {
+    private const int MaxTailBytes = 1024 * 1024;
     private static readonly object Gate = new();
     private static string? _filePath;
 
@@ -35,8 +36,35 @@ public static class Diagnostic
         {
             if (!File.Exists(LogFilePath))
                 return Array.Empty<string>();
-            return File.ReadAllLines(LogFilePath).TakeLast(max).ToArray();
+            return ReadRecentLines(LogFilePath, max);
         }
+    }
+
+    internal static string[] ReadRecentLines(string path, int max)
+    {
+        if (max <= 0)
+            return Array.Empty<string>();
+
+        using var stream = new FileStream(
+            path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite,
+            bufferSize: 4096, FileOptions.SequentialScan);
+
+        var start = Math.Max(0, stream.Length - MaxTailBytes);
+        stream.Seek(start, SeekOrigin.Begin);
+
+        using var reader = new StreamReader(stream);
+        if (start > 0)
+            reader.ReadLine(); // discard the partial line at the start of the bounded window
+
+        var lines = new Queue<string>(Math.Min(max, 500));
+        while (reader.ReadLine() is { } line)
+        {
+            if (lines.Count == max)
+                lines.Dequeue();
+            lines.Enqueue(line);
+        }
+
+        return lines.ToArray();
     }
 
     private static string ResolvePath()

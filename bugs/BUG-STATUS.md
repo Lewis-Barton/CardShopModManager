@@ -110,15 +110,21 @@ and testing found the following additional issues, now fixed:
   Nexus source for the complete operation; the desktop and CLI inject or dispose
   clients at their natural lifetime boundaries. Covered by an ownership test
   that ensures disposing a service never closes a caller-supplied client.
+- **BUG-060 — diagnostic and desktop logs grow without a memory bound (Medium):**
+  support-bundle diagnostics now read only the final 1 MiB of the session log
+  and retain the requested number of complete lines. The desktop log keeps its
+  latest 500 lines and rebuilds the text box from that bounded queue instead of
+  repeatedly appending to an ever-growing string. Covered by large-file tail,
+  empty-file and zero-line tests.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 2 |
 | High     | 0 | 18 |
-| Medium   | 0 | 30 |
+| Medium   | 0 | 31 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **59** |
+| **Total**| **0** | **60** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |
