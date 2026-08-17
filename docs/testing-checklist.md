@@ -89,8 +89,9 @@ unit test already covers it, **[manual]** where it needs a real environment.
       without overlapping or clipping.
 - [ ] **[manual]** Search and each Browse filter update the card grid, Reset
       restores the full catalog, and clicking a card opens its details.
-- [ ] **[manual]** The NSFW filter remains disabled unless Nexus adds an
-      authoritative age-verification field to its OAuth or user response.
+- [ ] **[manual]** NSFW packs are hidden on startup and after Reset, appear only
+      after the user selects the NSFW filter, and remain subject to Nexus account
+      restrictions when their files are requested.
 - [ ] **[manual]** With a registered Nexus client ID, Settings can sign in,
       display the account name, survive a restart, and sign out cleanly.
 - [ ] **[auto]** An expired Nexus session without a refresh token asks the user

@@ -66,13 +66,14 @@ and testing found the following additional issues, now fixed:
   now uses a persistent navigation rail with separate Browse, Manage and Settings
   pages. Browse has a fixed filter column, responsive large-card gallery and a
   focused pack-details window. Optional catalog metadata drives search, content,
-  size, mod, tag and installed-pack filters without breaking older indexes. The
-  NSFW filter remains fail-closed because Nexus does not expose age-verification
-  status through its documented OAuth or user response.
+  size, mod, tag and installed-pack filters without breaking older indexes.
+  NSFW packs remain hidden by default and require an explicit filter selection;
+  Nexus still enforces account restrictions when files are requested.
 - **BUG-052 — gallery controls lose contrast and waste space (Medium):** the
   redundant game selector and local age-confirmation flow were removed, cards
   were reduced to a 3-by-3 default viewport, and checkboxes now use an explicit
-  theme whose checked, unchecked, disabled and hover states stay visible.
+  theme whose checked, unchecked and hover states stay visible. The NSFW filter
+  is an unchecked opt-in rather than a disabled control.
 - **BUG-053 — desktop account setup is CLI-only (Medium):** Settings now shows
   Nexus sign-in status and exposes OAuth sign-in and sign-out using the existing
   PKCE/token store. Branding now uses the full product name and the Refresh

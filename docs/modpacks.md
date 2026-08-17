@@ -72,9 +72,10 @@ Fields:
   metadata used by the desktop filters. `downloadSize` is the total compressed
   download size in bytes. Older index entries can omit these fields.
 
-NSFW packs stay hidden. Nexus requires age verification for restricted content,
-but its documented OAuth token and user-validation response do not expose that
-result to third-party clients. Do not enable the filter based on login alone.
+NSFW packs are hidden by default. A user must explicitly select the NSFW filter
+to include them in the gallery. Nexus account restrictions still determine
+whether restricted files can be viewed or downloaded; selecting the filter does
+not bypass those controls.
 
 ## manifest.json
 

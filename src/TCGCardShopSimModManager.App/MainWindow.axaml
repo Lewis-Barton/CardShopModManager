@@ -50,8 +50,9 @@
                   <TextBlock FontWeight="SemiBold" Text="Include" />
                   <CheckBox x:Name="_includeNonFeatured" Content="Non-featured"
                             IsChecked="True" IsCheckedChanged="OnPackCheckFilterChanged" />
-                  <CheckBox x:Name="_includeAdult" Content="NSFW" IsEnabled="False"
-                            ToolTip.Tip="Nexus does not expose age-verification status to this app." />
+                  <CheckBox x:Name="_includeAdult" Content="NSFW" IsChecked="False"
+                            IsCheckedChanged="OnPackCheckFilterChanged"
+                            ToolTip.Tip="Show NSFW modpacks. Nexus account restrictions still apply to downloads." />
                 </StackPanel>
 
                 <StackPanel Spacing="6">
