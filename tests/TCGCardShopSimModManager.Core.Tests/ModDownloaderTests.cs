@@ -212,6 +212,44 @@ public sealed class ModDownloaderTests : IDisposable
         Assert.False(File.Exists(Path.Combine(_root, "mod.bytes")));
     }
 
+    [Theory]
+    [InlineData("../outside.bytes")]
+    [InlineData("sub/../../outside.bytes")]
+    public async Task DownloadFilename_CannotEscapeDestination(string fileName)
+    {
+        var requests = 0;
+        _server.Provider = _ =>
+        {
+            requests++;
+            return Http200(MakePayload(32));
+        };
+
+        var result = await Run(_server, Ref(fileName, MakePayload(32)), _root);
+
+        Assert.False(result.Success);
+        Assert.Contains("escapes", result.Error);
+        Assert.Equal(0, requests);
+        Assert.False(File.Exists(Path.Combine(_root, "..", "outside.bytes")));
+    }
+
+    [Fact]
+    public async Task InvalidExpectedHash_CannotChooseCachePath()
+    {
+        var requests = 0;
+        _server.Provider = _ =>
+        {
+            requests++;
+            return Http200(MakePayload(32));
+        };
+        var mod = new ModReference("test-mod", "mod.bytes", "../outside", null);
+
+        var result = await Run(_server, mod, _root);
+
+        Assert.False(result.Success);
+        Assert.Contains("64 hexadecimal", result.Error);
+        Assert.Equal(0, requests);
+    }
+
     // --- helpers -----------------------------------------------------------
 
     private static async Task<DownloadResult> Run(
@@ -223,7 +261,11 @@ public sealed class ModDownloaderTests : IDisposable
     {
         return await new ModDownloader(
             new HttpModSource(m => server.Url(m.FileName)),
-            new DownloadOptions { RetryBaseDelayMs = 10 })
+            new DownloadOptions
+            {
+                RetryBaseDelayMs = 10,
+                CacheDirectory = Path.Combine(destination, ".cache")
+            })
             .DownloadAsync(mod, destination, onProgress, ct);
     }
 

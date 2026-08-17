@@ -83,6 +83,22 @@ public sealed class ZipArchiveExtractorTests : IDisposable
         Assert.Equal(2, result.RejectedEntries.Count);
     }
 
+    [Theory]
+    [InlineData("payload.dll:stream")]
+    [InlineData("CON.dll")]
+    [InlineData("folder./payload.dll")]
+    [InlineData("folder /payload.dll")]
+    public void Extract_RejectsWindowsPathAliases(string entryName)
+    {
+        var zip = CreateZip((entryName, "oops"));
+
+        var result = new ZipArchiveExtractor().Extract(
+            zip, _destination, ArchiveProtectionSettings.Default);
+
+        Assert.Empty(result.Sources);
+        Assert.Contains(result.RejectedEntries, entry => entry.Contains("unsafe path"));
+    }
+
     [Fact]
     public void Extract_RejectsSymbolicLinkEntries()
     {

@@ -141,6 +141,9 @@ The CLI follows the same default with
 The selected optional ids are stored with the installed pack version, so the
 desktop and CLI preserve that selection on later updates. Legacy pack journals
 are treated as having selected every entry, matching their original behaviour.
+If a later update clears an optional entry, its unchanged managed files are
+removed. A modified file blocks the change and restores the previous pack files,
+selection, version and journals instead of leaving a partial update.
 
 Valid `installType` values are `BepInExPlugin` (a plugin that loads inside
 BepInEx) and `BepInEx` (the BepInEx framework itself — see below). The

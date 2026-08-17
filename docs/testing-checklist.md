@@ -70,6 +70,9 @@ unit test already covers it, **[manual]** where it needs a real environment.
 - [x] **[auto]** Disabling moves files out of the game into the manager's disabled folder and enabling moves
       them back (`Disable_MovesFilesToDisabledAndReportsDisabled`,
       `Enable_MovesFilesBackAndReportsInstalled`).
+- [x] **[auto]** Default disabled storage is isolated per game installation so
+      matching mod paths cannot overwrite one another
+      (`DefaultDisabledStorage_IsolatedPerGameFolder`).
 - [x] **[auto]** A modified file is left in place, not moved, when disabling
       (`Disable_LeavesModifiedFileInPlaceWithWarning`).
 - [x] **[auto]** Uninstall removes a disabled mod from its parked location and
@@ -127,6 +130,10 @@ unit test already covers it, **[manual]** where it needs a real environment.
       `BepInEx/` folder exists and the game launches with plugins loaded.
 - [x] **[auto]** The installed pack version is recorded and re-read back
       (`ModpackJournalStore_RecordsAndReadsBack_ReplacingOnRerecord`).
+- [x] **[auto]** Clearing a previously selected optional mod removes it, while a
+      modified file blocks removal and restores the previous pack state
+      (`ModpackInstaller_DeselectingOptionalModRemovesPreviousInstall`,
+      `ModpackInstaller_UnsafeDeselectionRollsBackPackState`).
 - [x] **[auto]** A newer published version is flagged, an equal/older one is not
       (`ModpackVersion_IsNewer_Cases`, `UpdateDetection_FlagsNewerPublishedVersion`).
 - [ ] **[manual]** Install a pack, then bump `version` in `index.json`; the card
@@ -152,8 +159,10 @@ unit test already covers it, **[manual]** where it needs a real environment.
 - [x] `dotnet build` — 0 warnings.
 - [x] `dotnet test` — all tests pass.
 - [x] `modpack validate` (no args) reports every pack valid from the repo root.
-- [ ] `update-check` reports correctly with no release, with a release, and
-      offline.
+- [x] **[auto]** `update-check` compares the CI build component so consecutive
+      pushed builds of the same base version are distinguishable
+      (`UpdateCheckerTests`).
+- [ ] **[manual]** `update-check` reports correctly with no release and offline.
 - [x] `support-bundle` produces a zip that contains environment info + logs and
       **no** API key.
 - [x] Read `PRIVACY.md`, `THIRD-PARTY-NOTICES.md`; license ships with the exe.

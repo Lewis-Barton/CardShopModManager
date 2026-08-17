@@ -37,7 +37,8 @@ content found under `plugins`, `patchers`, `core` and disabled storage. It marks
 entries as installed, modified, disabled or unknown. Select a managed mod and
 use **Enable** / **Disable** to move it
 out of the game into the manager's own disabled folder (beside the executable)
-— nothing is deleted, and a modified file is left alone with a warning.
+with separate storage for each game installation — nothing is deleted, and a
+modified file is left alone with a warning.
 **Uninstall** removes only verified managed files. The title shows the version.
 
 ## Commands
@@ -255,12 +256,14 @@ Settings page exposes the same sign-in, status and sign-out flow.
 
 - Source hash must match the manifest's `sha256` before anything happens.
 - Extraction happens into a temp folder and is protected: `../` paths, rooted
-  paths, symbolic links, oversized archives and unexpected executables
+  paths, Windows path aliases, symbolic links, oversized archives and unexpected executables
   (`.exe`, `.bat`, `.cmd`, ...) are rejected. Nothing is extracted into the game
   directly.
 - Install refuses to overwrite existing files and rejects two sources mapping
-  to one destination. If any mod in a deployment fails, earlier mods from that
-  deployment are rolled back and previous versions are restored.
+  to one destination. Symbolic links and junctions below the selected game root
+  cannot redirect file operations elsewhere. If any mod in a deployment fails,
+  earlier mods from that deployment are rolled back and previous versions are
+  restored.
 - Every installed file is hashed in `cardshopmodmanager.journal.json` in the
   game folder, so uninstall can prove a file is still what we installed before
   deleting it.
@@ -278,7 +281,8 @@ unexpected error is captured there locally; nothing is uploaded. Export a
 bundle with `support-bundle` when sharing a problem. See `PRIVACY.md`, the
 `LICENSE`, and `THIRD-PARTY-NOTICES.md`. Docs for list authors and the release
 testing checklist live in `docs/`, and `publish.ps1` produces a self-contained
-win-x64 build into `dist/`.
+win-x64 build into `dist/`. GitHub release builds append the workflow run number
+to the base product version so update checks can distinguish every pushed build.
 
 ## Running the tests
 

@@ -24,6 +24,12 @@ public sealed class ManifestValidator
         if (string.IsNullOrWhiteSpace(manifest.Name))
             errors.Add("Manifest name is required.");
 
+        if (!string.Equals(manifest.Game, NexusApi.GameDomain, StringComparison.OrdinalIgnoreCase))
+            errors.Add($"Unsupported game '{manifest.Game}'; expected '{NexusApi.GameDomain}'.");
+
+        if (manifest.TotalSize < 0)
+            errors.Add("Total download size cannot be negative.");
+
         foreach (var buildId in manifest.CompatibleGameBuildIds ?? new List<string>())
         {
             if (string.IsNullOrWhiteSpace(buildId) || buildId.Any(character => !char.IsDigit(character)))
@@ -58,6 +64,8 @@ public sealed class ManifestValidator
 
             if (string.IsNullOrWhiteSpace(mod.Sha256))
                 errors.Add($"{mod.Name}: missing SHA-256 hash.");
+            else if (mod.Sha256.Length != 64 || mod.Sha256.Any(character => !Uri.IsHexDigit(character)))
+                errors.Add($"{mod.Name}: SHA-256 hash must contain exactly 64 hexadecimal characters.");
 
             // BUG-025 / BUG-032: the "BepInEx" install type is reserved for the
             // framework entry (id == bepinex). It must not be used by ordinary
@@ -65,28 +73,41 @@ public sealed class ManifestValidator
             if (!KnownInstallTypes.Contains(mod.InstallType))
                 errors.Add($"{mod.Name}: unknown install type '{mod.InstallType}'.");
             else if (mod.InstallType == ModListConventions.BepInExInstallType &&
-                     !mod.Id.Equals(ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase))
+                     !string.Equals(mod.Id, ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase))
                 errors.Add($"{mod.Name}: install type '{mod.InstallType}' is reserved for the framework entry (id '{ModListConventions.BepInExModId}').");
-            else if (mod.Id.Equals(ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase) &&
+            else if (string.Equals(mod.Id, ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase) &&
                      mod.InstallType != ModListConventions.BepInExInstallType)
                 errors.Add($"{mod.Name}: the framework entry (id '{ModListConventions.BepInExModId}') must use install type '{ModListConventions.BepInExInstallType}'.");
 
-            if (mod.Id.Equals(ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase) &&
+            if (string.Equals(mod.Id, ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase) &&
                 !mod.Required)
                 errors.Add($"{mod.Name}: the framework entry must be required.");
 
             // BUG-024: reject real traversal (a ".." path segment or a rooted
             // path), but allow ".." to appear inside a filename (e.g. MyMod..v1.zip).
-            if (IsUnsafeRelativePath(mod.Archive))
+            if (string.IsNullOrWhiteSpace(mod.Archive))
+                errors.Add($"{mod.Name}: archive path is required.");
+            else if (IsUnsafeRelativePath(mod.Archive))
                 errors.Add($"{mod.Name}: archive path is unsafe ('{mod.Archive}')");
+
+            if (mod.DownloadUrl is { Length: > 0 } downloadUrl &&
+                (!Uri.TryCreate(downloadUrl, UriKind.Absolute, out var uri) ||
+                 uri.Scheme is not ("http" or "https")))
+                errors.Add($"{mod.Name}: download URL must be an absolute HTTP or HTTPS URL.");
+
+            if (mod.NexusModId <= 0)
+                errors.Add($"{mod.Name}: Nexus mod id must be positive.");
+            if (mod.NexusFileId <= 0)
+                errors.Add($"{mod.Name}: Nexus file id must be positive.");
         }
 
         var modsById = (mods ?? new List<ModEntry>())
+            .Where(mod => !string.IsNullOrWhiteSpace(mod.Id))
             .GroupBy(mod => mod.Id, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         foreach (var mod in mods?.Where(mod => mod.Required) ?? Enumerable.Empty<ModEntry>())
         {
-            foreach (var dependencyId in mod.Dependencies)
+            foreach (var dependencyId in mod.Dependencies ?? new List<string>())
             {
                 if (modsById.TryGetValue(dependencyId, out var dependency) && !dependency.Required)
                     errors.Add($"{mod.Name}: required mod depends on optional mod '{dependency.Name}'. Mark the dependency as required.");

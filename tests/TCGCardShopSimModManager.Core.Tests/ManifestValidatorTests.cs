@@ -10,7 +10,8 @@ public sealed class ManifestValidatorTests
         new(1, "Test Pack", "tcgcardshopsimulator", new List<ModEntry>(mods));
 
     private static ModEntry Mod(string id, string installType, string archive) =>
-        new(id, id, "1.0.0", archive, "abc", installType, new List<string>(), new List<string>());
+        new(id, id, "1.0.0", archive, new string('a', 64), installType,
+            new List<string>(), new List<string>());
 
     [Fact]
     public void Validate_AcceptsDotDotInsideFilename() // BUG-024
@@ -108,6 +109,46 @@ public sealed class ManifestValidatorTests
         var result = new ManifestValidator().Validate(manifest);
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.Contains("no mods"));
+    }
+
+    [Fact]
+    public void Validate_RejectsNullModsListWithoutThrowing()
+    {
+        var manifest = new ModListManifest(
+            1, "Malformed", "tcgcardshopsimulator", null!);
+
+        var result = new ManifestValidator().Validate(manifest);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Contains("no mods"));
+    }
+
+    [Fact]
+    public void EnforceBepInExFirst_NormalizesMissingDependencyLists()
+    {
+        var mod = Mod("example", "BepInExPlugin", "example.zip") with
+        {
+            Dependencies = null!,
+            Conflicts = null!
+        };
+
+        var normalized = ModpackInstaller.EnforceBepInExFirst(Manifest(mod));
+
+        Assert.Empty(normalized.Mods[0].Dependencies);
+        Assert.Empty(normalized.Mods[0].Conflicts);
+    }
+
+    [Theory]
+    [InlineData("abc")]
+    [InlineData("gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg")]
+    public void Validate_RejectsMalformedSha256(string sha256)
+    {
+        var mod = Mod("example", "BepInExPlugin", "example.zip") with { Sha256 = sha256 };
+
+        var result = new ManifestValidator().Validate(Manifest(mod));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Contains("64 hexadecimal"));
     }
 
     [Theory]

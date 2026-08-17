@@ -210,10 +210,10 @@ public sealed class ModpackSubmissionTests : IDisposable
         "{\"manifestVersion\":1,\"name\":\"Pack One\",\"game\":\"tcgcardshopsimulator\"," +
         "\"mods\":[" +
         "{\"id\":\"bepinex\",\"name\":\"BepInEx\",\"version\":\"5.4.23\",\"archive\":\"bepinex.zip\"," +
-        "\"sha256\":\"abc\",\"installType\":\"BepInEx\",\"dependencies\":[],\"conflicts\":[]," +
+        "\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"installType\":\"BepInEx\",\"dependencies\":[],\"conflicts\":[]," +
         "\"downloadUrl\":\"https://example.com/bepinex.zip\"}," +
         "{\"id\":\"example-mod\",\"name\":\"Example Mod\",\"version\":\"1.0.0\",\"archive\":\"mod.zip\"," +
-        "\"sha256\":\"abc\",\"installType\":\"BepInExPlugin\",\"dependencies\":[\"bepinex\"],\"conflicts\":[]," +
+        "\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"installType\":\"BepInExPlugin\",\"dependencies\":[\"bepinex\"],\"conflicts\":[]," +
         "\"downloadUrl\":\"https://example.com/mod.zip\"}]}";
 
     private static string ManifestJsonNoBepInEx() =>

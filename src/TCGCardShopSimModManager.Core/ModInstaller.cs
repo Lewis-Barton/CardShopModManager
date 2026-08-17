@@ -1,5 +1,6 @@
 using System;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace TCGCardShopSimModManager.Core;
 
@@ -9,6 +10,7 @@ public sealed class ModInstaller
     private readonly ModpackJournalStore _modpackJournal;
     private readonly string _gameFolderPath;
     private readonly string _disabledRoot;
+    private readonly string? _legacyDisabledRoot;
     private readonly bool _operationLockHeld;
 
     /// <summary>
@@ -29,7 +31,8 @@ public sealed class ModInstaller
         _gameFolderPath = gameFolderPath;
         _journal = new JournalStore(gameFolderPath);
         _modpackJournal = new ModpackJournalStore(gameFolderPath);
-        _disabledRoot = disabledRoot ?? DisabledRoot;
+        _disabledRoot = disabledRoot ?? DisabledRootFor(gameFolderPath);
+        _legacyDisabledRoot = disabledRoot is null ? DisabledRoot : null;
         _operationLockHeld = operationLockHeld;
     }
 
@@ -40,6 +43,16 @@ public sealed class ModInstaller
     /// </summary>
     public static string DisabledRoot =>
         Path.Combine(AppContext.BaseDirectory, "cardshopmodmanager-disabled");
+
+    public static string DisabledRootFor(string gameFolderPath)
+    {
+        var normalized = Path.GetFullPath(gameFolderPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .ToUpperInvariant();
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)))
+            .ToLowerInvariant()[..16];
+        return Path.Combine(DisabledRoot, hash);
+    }
 
     /// <summary>
     /// Build the file-by-file plan for a mod: verify the source hash, extract it
@@ -93,7 +106,7 @@ public sealed class ModInstaller
             using var operation = EnterOperation();
             return InstallCore(mod, sourceDirectory);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or InvalidDataException)
         {
             return new InstallResult(false, ex.Message, null);
         }
@@ -301,7 +314,7 @@ public DisableResult Disable(string modName)
         using var operation = EnterOperation();
         return DisableCore(modName);
     }
-    catch (IOException ex)
+catch (Exception ex) when (ex is IOException or InvalidDataException)
     {
         return new DisableResult(false, ex.Message, new List<string>());
     }
@@ -345,9 +358,7 @@ private DisableResult DisableCore(string modName)
             continue;
         }
 
-        var disabledPath = _disabledRoot;
-        foreach (var segment in sections)
-            disabledPath = Path.Combine(disabledPath, segment);
+        var disabledPath = DisabledPath(_disabledRoot, sections);
 
         Directory.CreateDirectory(Path.GetDirectoryName(disabledPath)!);
 
@@ -415,7 +426,7 @@ public EnableResult Enable(string modName)
         using var operation = EnterOperation();
         return EnableCore(modName);
     }
-    catch (IOException ex)
+catch (Exception ex) when (ex is IOException or InvalidDataException)
     {
         return new EnableResult(false, ex.Message, new List<string>());
     }
@@ -443,9 +454,7 @@ private EnableResult EnableCore(string modName)
             continue;
         }
 
-        var disabledPath = _disabledRoot;
-        foreach (var segment in sections)
-            disabledPath = Path.Combine(disabledPath, segment);
+        var disabledPath = ExistingDisabledPath(sections) ?? DisabledPath(_disabledRoot, sections);
 
         if (!File.Exists(disabledPath))
         {
@@ -570,7 +579,7 @@ private void PruneEmptyActiveFolders()
             using var operation = EnterOperation();
             return UninstallCore(modName);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or InvalidDataException)
         {
             return new UninstallResult(false, ex.Message, new List<string>());
         }
@@ -597,7 +606,7 @@ private void PruneEmptyActiveFolders()
         if (!File.Exists(pathToDelete))
         {
             var sections = ManagedSections(file.Path);
-            var disabledPath = sections is null ? null : Path.Combine(new[] { _disabledRoot }.Concat(sections).ToArray());
+            var disabledPath = sections is null ? null : ExistingDisabledPath(sections);
             if (disabledPath is not null && File.Exists(disabledPath))
                 pathToDelete = disabledPath;
             else
@@ -659,6 +668,9 @@ private void PruneEmptyActiveFolders()
         if (!destination.StartsWith(requiredPrefix, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException($"Install destination escapes the game folder: {relativePath}");
 
+        PathSafety.EnsureContainedWithoutReparsePoints(
+            gameRoot, destination, "Install destination");
+
         return destination;
     }
 
@@ -672,6 +684,21 @@ private void PruneEmptyActiveFolders()
 
     private static bool HashesMatch(string first, string second) =>
         ComputeSha256(first).Equals(ComputeSha256(second), StringComparison.OrdinalIgnoreCase);
+
+    private string? ExistingDisabledPath(string[] sections)
+    {
+        var primary = DisabledPath(_disabledRoot, sections);
+        if (File.Exists(primary))
+            return primary;
+        if (_legacyDisabledRoot is null)
+            return null;
+
+        var legacy = DisabledPath(_legacyDisabledRoot, sections);
+        return File.Exists(legacy) ? legacy : null;
+    }
+
+    private static string DisabledPath(string root, IEnumerable<string> sections) =>
+        Path.Combine(new[] { root }.Concat(sections).ToArray());
 
     private IDisposable? EnterOperation() =>
         _operationLockHeld ? null : GameOperationLock.Acquire(_gameFolderPath);

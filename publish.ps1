@@ -1,6 +1,7 @@
 param(
     [string]$Output = "dist",
-    [bool]$SelfContained = $true
+    [bool]$SelfContained = $true,
+    [string]$VersionOverride = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,6 +10,9 @@ Set-Location $root
 
 $rid = "win-x64"
 $publishArgs = @("-c", "Release", "-r", $rid, "--self-contained", ($SelfContained.ToString().ToLowerInvariant()))
+if (-not [string]::IsNullOrWhiteSpace($VersionOverride)) {
+    $publishArgs += "-p:Version=$VersionOverride"
+}
 
 Write-Host "Publishing TCGCardShopSimModManager.Cli ..."
 dotnet publish src/TCGCardShopSimModManager.Cli/TCGCardShopSimModManager.Cli.csproj @publishArgs -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "$Output/cli"

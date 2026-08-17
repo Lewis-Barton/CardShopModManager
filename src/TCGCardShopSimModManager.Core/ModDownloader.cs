@@ -49,7 +49,20 @@ public sealed class ModDownloader
         Directory.CreateDirectory(destinationDirectory);
         Directory.CreateDirectory(_options.CacheDirectory);
 
-        var destinationPath = Path.Combine(destinationDirectory, mod.FileName);
+        if (mod.Sha256.Length != 64 || mod.Sha256.Any(character => !Uri.IsHexDigit(character)))
+            return new DownloadResult(
+                false, null, "Expected SHA-256 must contain exactly 64 hexadecimal characters.", FromCache: false);
+
+        string destinationPath;
+        try
+        {
+            destinationPath = ContainedPath(destinationDirectory, mod.FileName);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or ArgumentException or NotSupportedException)
+        {
+            return new DownloadResult(false, null, ex.Message, FromCache: false);
+        }
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
         var partialPath = destinationPath + ".partial";
         var cachePath = Path.Combine(_options.CacheDirectory, CacheKey(mod));
 
@@ -215,5 +228,21 @@ public sealed class ModDownloader
     }
 
     private static string CacheKey(ModReference mod) =>
-        $"{mod.Id.ToLowerInvariant()}{Path.GetExtension(mod.FileName).ToLowerInvariant()}";
+        $"{mod.Sha256.ToLowerInvariant()}{Path.GetExtension(mod.FileName).ToLowerInvariant()}";
+
+    private static string ContainedPath(string rootPath, string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath))
+            throw new InvalidDataException($"Download filename must be a relative path: {relativePath}");
+
+        var root = Path.GetFullPath(rootPath);
+        var destination = Path.GetFullPath(Path.Combine(root, relativePath));
+        var prefix = Path.EndsInDirectorySeparator(root)
+            ? root
+            : root + Path.DirectorySeparatorChar;
+        if (!destination.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException($"Download filename escapes the destination folder: {relativePath}");
+
+        return destination;
+    }
 }

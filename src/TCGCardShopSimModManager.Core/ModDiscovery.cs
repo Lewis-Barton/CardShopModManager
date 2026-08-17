@@ -34,7 +34,8 @@ public static class ModDiscovery
 
     public static List<DiscoveredMod> Discover(string gameFolderPath, string? disabledRoot = null)
     {
-        disabledRoot ??= ModInstaller.DisabledRoot;
+        var legacyDisabledRoot = disabledRoot is null ? ModInstaller.DisabledRoot : null;
+        disabledRoot ??= ModInstaller.DisabledRootFor(gameFolderPath);
         var journal = new JournalStore(gameFolderPath).Load();
         var claimed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var discovered = new List<DiscoveredMod>();
@@ -44,11 +45,11 @@ public static class ModDiscovery
             foreach (var file in entry.Files)
             {
                 claimed.Add(Normalize(file.Path));
-                if (DisabledPath(file.Path, gameFolderPath, disabledRoot) is { } disabledPath)
+                if (DisabledPath(file.Path, gameFolderPath, disabledRoot, legacyDisabledRoot) is { } disabledPath)
                     claimed.Add(Normalize(disabledPath));
             }
 
-            discovered.Add(FromJournal(entry, gameFolderPath, disabledRoot));
+            discovered.Add(FromJournal(entry, gameFolderPath, disabledRoot, legacyDisabledRoot));
         }
 
         foreach (var (relative, label) in FolderRoots)
@@ -66,7 +67,8 @@ public static class ModDiscovery
     private static DiscoveredMod FromJournal(
         InstallJournalEntry entry,
         string gameFolderPath,
-        string disabledRoot)
+        string disabledRoot,
+        string? legacyDisabledRoot)
     {
         var active = 0;
         var disabled = 0;
@@ -75,7 +77,8 @@ public static class ModDiscovery
         foreach (var expected in entry.Files)
         {
             var activeExists = File.Exists(expected.Path);
-            var disabledPath = DisabledPath(expected.Path, gameFolderPath, disabledRoot);
+            var disabledPath = DisabledPath(
+                expected.Path, gameFolderPath, disabledRoot, legacyDisabledRoot);
             var disabledExists = disabledPath is not null && File.Exists(disabledPath);
 
             if (activeExists && disabledExists)
@@ -193,7 +196,11 @@ public static class ModDiscovery
         };
     }
 
-    private static string? DisabledPath(string filePath, string gameFolderPath, string disabledRoot)
+    private static string? DisabledPath(
+        string filePath,
+        string gameFolderPath,
+        string disabledRoot,
+        string? legacyDisabledRoot)
     {
         var game = Normalize(gameFolderPath).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         var full = Normalize(filePath);
@@ -207,7 +214,13 @@ public static class ModDiscovery
               sections[1].Equals("patchers", StringComparison.OrdinalIgnoreCase)))
             return null;
 
-        return Path.Combine(new[] { disabledRoot }.Concat(sections.Skip(2)).ToArray());
+        var suffix = sections.Skip(2).ToArray();
+        var primary = Path.Combine(new[] { disabledRoot }.Concat(suffix).ToArray());
+        if (File.Exists(primary) || legacyDisabledRoot is null)
+            return primary;
+
+        var legacy = Path.Combine(new[] { legacyDisabledRoot }.Concat(suffix).ToArray());
+        return File.Exists(legacy) ? legacy : primary;
     }
 
     private static string ToNative(string path) => path.Replace('/', Path.DirectorySeparatorChar);

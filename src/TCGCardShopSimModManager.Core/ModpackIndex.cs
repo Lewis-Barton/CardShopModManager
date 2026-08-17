@@ -135,7 +135,7 @@ public sealed class ModpackIndexReader : IDisposable
         // deserialises those lists as null; treat "not declared" as "empty".
         return manifest with
         {
-            Mods = manifest.Mods
+            Mods = (manifest.Mods ?? new List<ModEntry>())
                 .Select(m => m with
                 {
                     Dependencies = m.Dependencies ?? new List<string>(),

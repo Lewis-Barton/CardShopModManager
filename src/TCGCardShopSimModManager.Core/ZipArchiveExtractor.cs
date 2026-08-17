@@ -117,10 +117,27 @@ public sealed class ZipArchiveExtractor : IArchiveExtractor
 
         foreach (var segment in relativePath.Split('/'))
         {
-            if (segment is ".." or "")
+            if (segment is "." or ".." or "" || !IsSafeWindowsSegment(segment))
                 return false;
         }
 
         return true;
+    }
+
+    private static bool IsSafeWindowsSegment(string segment)
+    {
+        if (segment.EndsWith(' ') || segment.EndsWith('.'))
+            return false;
+        if (segment.Any(character => character < 32 || "<>:\"|?*".Contains(character)))
+            return false;
+
+        var stem = segment.Split('.')[0];
+        return !stem.Equals("CON", StringComparison.OrdinalIgnoreCase) &&
+               !stem.Equals("PRN", StringComparison.OrdinalIgnoreCase) &&
+               !stem.Equals("AUX", StringComparison.OrdinalIgnoreCase) &&
+               !stem.Equals("NUL", StringComparison.OrdinalIgnoreCase) &&
+               !Enumerable.Range(1, 9).Any(number =>
+                   stem.Equals($"COM{number}", StringComparison.OrdinalIgnoreCase) ||
+                   stem.Equals($"LPT{number}", StringComparison.OrdinalIgnoreCase));
     }
 }

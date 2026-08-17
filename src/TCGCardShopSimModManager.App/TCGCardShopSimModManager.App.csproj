@@ -18,16 +18,8 @@
     <PackageReference Include="Avalonia" Version="11.2.3" />
     <PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
-    <!-- Avalonia's Linux DBus support brings Tmds.DBus.Protocol in transitively.
-         The latest version (0.21.0) is still flagged by advisory
-         GHSA-xrw6-gwf8-vvr9 and there is no patched release yet. It is a
-         Linux-only dependency, inert on Windows, so we suppress that one
-         advisory by URI rather than hiding all future audit warnings. -->
-    <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-xrw6-gwf8-vvr9" />
+    <!-- Override Avalonia's older Linux DBus dependency with a patched release. -->
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.2" />
   </ItemGroup>
 
   <ItemGroup>

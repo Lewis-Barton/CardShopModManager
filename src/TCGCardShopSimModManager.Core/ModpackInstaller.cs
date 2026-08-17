@@ -30,6 +30,14 @@ public sealed class ModpackInstaller
         IEnumerable<string>? selectedOptionalIds = null)
     {
         manifest = EnforceBepInExFirst(manifest);
+        var validation = new ManifestValidator().Validate(manifest);
+        if (!validation.IsValid)
+        {
+            var lines = new List<string> { "Manifest is invalid:" };
+            lines.AddRange(validation.Errors.Select(error => $"  - {error}"));
+            return DeploymentReport.Failure(lines, null);
+        }
+
         List<string> installedOptionalIds;
         if (selectedOptionalIds is not null)
         {
@@ -64,65 +72,130 @@ public sealed class ModpackInstaller
             "cardshopmodmanager-modpack",
             Guid.NewGuid().ToString("N"));
 
-        // Pre-flight: if the pack declares a total download size, refuse early
-        // (before touching the network) when the download temp location or the
-        // game folder lacks room. The per-file gate in ModDownloader is a
-        // backstop for any mod whose real size exceeds the declared total.
-        if (manifest.TotalSize is { } total && total > 0)
+        try
         {
-            var margin = 25L * 1024 * 1024; // 25 MiB headroom for extraction overhead
-            if (!HasFreeSpace(cacheDirectory, total + margin, out var downloadMsg))
-                return DeploymentReport.Failure(new List<string>(), downloadMsg);
-            if (!HasFreeSpace(_gameFolderPath, total + margin, out var installMsg))
-                return DeploymentReport.Failure(new List<string>(), installMsg);
-        }
 
-        // The fallback only matters for mods with neither a DownloadUrl nor a Nexus id; point it at the cache so an already-downloaded file is reused.
-        var fallback = fallbackSource ?? new LocalFileSource(cacheDirectory);
-
-        using var source = new ModpackModSource(manifest.Game, fallback, http: _http);
-        var downloader = new ModDownloader(source, new DownloadOptions { CacheDirectory = cacheDirectory });
-
-        foreach (var entry in manifest.Mods)
-        {
-            var mod = new ModReference(
-                entry.Id, entry.Archive, entry.Sha256, entry.Version,
-                entry.NexusModId, entry.NexusFileId, entry.DownloadUrl);
-
-            var result = await downloader.DownloadAsync(mod, cacheDirectory, cancellationToken: cancellationToken);
-            if (!result.Success)
-                return DeploymentReport.Failure(
-                    new List<string>(), $"Failed to download {entry.Name}: {result.Error}");
-        }
-
-        var report = new DeploymentService().Install(manifest, cacheDirectory, _gameFolderPath);
-
-        // Only remove a workspace created by this installer. A supplied cache
-        // belongs to the caller and may contain archives used by other packs.
-        if (report.Success)
-        {
-            if (ownsCacheDirectory)
-                TemporaryDirectory.DeleteBestEffort(cacheDirectory);
-
-            // Remember which pack version we just laid down, so the app can later
-            // tell the user a newer one is published.
-            if (pack is not null)
+            // Pre-flight: if the pack declares a total download size, refuse early
+            // (before touching the network) when the download temp location or the
+            // game folder lacks room. The per-file gate in ModDownloader is a
+            // backstop for any mod whose real size exceeds the declared total.
+            if (manifest.TotalSize is { } total && total > 0)
             {
+                var margin = 25L * 1024 * 1024; // 25 MiB headroom for extraction overhead
+                if (!HasFreeSpace(cacheDirectory, total + margin, out var downloadMsg))
+                    return DeploymentReport.Failure(new List<string>(), downloadMsg);
+                if (!HasFreeSpace(_gameFolderPath, total + margin, out var installMsg))
+                    return DeploymentReport.Failure(new List<string>(), installMsg);
+            }
+
+            // The fallback only matters for mods with neither a DownloadUrl nor a Nexus id; point it at the cache so an already-downloaded file is reused.
+            var fallback = fallbackSource ?? new LocalFileSource(cacheDirectory);
+
+            using var source = new ModpackModSource(manifest.Game, fallback, http: _http);
+            var downloader = new ModDownloader(source, new DownloadOptions { CacheDirectory = cacheDirectory });
+
+            foreach (var entry in manifest.Mods)
+            {
+                var mod = new ModReference(
+                    entry.Id, entry.Archive, entry.Sha256, entry.Version,
+                    entry.NexusModId, entry.NexusFileId, entry.DownloadUrl);
+
+                var result = await downloader.DownloadAsync(mod, cacheDirectory, cancellationToken: cancellationToken);
+                if (!result.Success)
+                    return DeploymentReport.Failure(
+                        new List<string>(), $"Failed to download {entry.Name}: {result.Error}");
+            }
+
+            GameOperationLock operation;
+            try
+            {
+                operation = GameOperationLock.Acquire(_gameFolderPath);
+            }
+            catch (IOException ex)
+            {
+                return DeploymentReport.Failure(new List<string>(), ex.Message);
+            }
+
+            using (operation)
+            {
+                PackInstallSnapshot? snapshot = null;
                 try
                 {
-                    new ModpackJournalStore(_gameFolderPath).Record(
-                        pack.Id, pack.Version, pack.Name, installedOptionalIds);
+                    if (pack is not null)
+                        snapshot = PackInstallSnapshot.Capture(_gameFolderPath, pack.Id);
+
+                var report = new DeploymentService().InstallWithLockHeld(
+                    manifest, cacheDirectory, _gameFolderPath);
+                if (!report.Success)
+                {
+                    if (snapshot is not null)
+                        AddRollbackResult(report.Lines, snapshot.Rollback());
+                    return report;
+                }
+
+                    if (pack is not null)
+                    {
+                        var selectedIds = manifest.Mods
+                            .Select(mod => mod.Id)
+                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        var selectedNames = manifest.Mods
+                            .Select(mod => mod.Name)
+                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        var removedEntries = new JournalStore(_gameFolderPath).Load()
+                            .Where(entry => entry.PackId?.Equals(
+                                pack.Id, StringComparison.OrdinalIgnoreCase) == true)
+                            .Where(entry => entry.ModId is { Length: > 0 } modId
+                                ? !selectedIds.Contains(modId)
+                                : !selectedNames.Contains(entry.ModName))
+                            .ToList();
+
+                        var installer = new ModInstaller(
+                            _gameFolderPath, disabledRoot: null, operationLockHeld: true);
+                        foreach (var entry in removedEntries)
+                        {
+                            var uninstall = installer.Uninstall(entry.ModName);
+                            if (uninstall.Success)
+                            {
+                                report.Lines.Add($"Removed deselected or retired mod {entry.ModName}.");
+                                continue;
+                            }
+
+                            var rollbackErrors = snapshot!.Rollback();
+                            report.Lines.Add($"Could not remove {entry.ModName}: {uninstall.Error}");
+                            AddRollbackResult(report.Lines, rollbackErrors);
+                            return DeploymentReport.Failure(report.Lines, null);
+                        }
+
+                        new ModpackJournalStore(_gameFolderPath).Record(
+                            pack.Id, pack.Version, pack.Name, installedOptionalIds);
+                    }
+
+                    snapshot?.Commit();
+                    return report;
                 }
                 catch (Exception ex)
                 {
-                    return DeploymentReport.Failure(
-                        report.Lines,
-                        $"The mods were installed, but the pack version could not be recorded: {ex.Message}");
+                    var lines = new List<string>();
+                    if (snapshot is not null)
+                    {
+                        lines.Add($"The pack installation could not be completed: {ex.Message}");
+                        AddRollbackResult(lines, snapshot.Rollback());
+                    }
+                    else
+                        lines.Add($"The pack installation could not be prepared: {ex.Message}");
+                    return DeploymentReport.Failure(lines, null);
+                }
+                finally
+                {
+                    snapshot?.Dispose();
                 }
             }
         }
-
-        return report;
+        finally
+        {
+            if (ownsCacheDirectory)
+                TemporaryDirectory.DeleteBestEffort(cacheDirectory);
+        }
     }
 
     /// <summary>
@@ -136,25 +209,210 @@ public sealed class ModpackInstaller
     /// </summary>
     public static ModListManifest EnforceBepInExFirst(ModListManifest manifest)
     {
+        if (manifest.Mods is null)
+            return manifest;
+
+        manifest = manifest with
+        {
+            Mods = manifest.Mods.Select(mod => mod with
+            {
+                Dependencies = mod.Dependencies ?? new List<string>(),
+                Conflicts = mod.Conflicts ?? new List<string>()
+            }).ToList()
+        };
+
         var hasBepInEx = manifest.Mods.Any(m =>
-            m.Id.Equals(ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(m.Id, ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase));
         if (!hasBepInEx)
             return manifest;
 
         var mods = manifest.Mods.Select(m =>
         {
-            if (m.Id.Equals(ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(m.Id, ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase))
                 return m;
-            if (m.Dependencies.Any(d =>
+            if ((m.Dependencies ?? new List<string>()).Any(d =>
                     d.Equals(ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase)))
                 return m;
             return m with
             {
-                Dependencies = new List<string>(m.Dependencies) { ModListConventions.BepInExModId }
+                Dependencies = new List<string>(m.Dependencies ?? new List<string>())
+                    { ModListConventions.BepInExModId }
             };
         }).ToList();
 
         return manifest with { Mods = mods };
+    }
+
+    private static void AddRollbackResult(List<string> lines, IReadOnlyCollection<string> errors)
+    {
+        if (errors.Count == 0)
+            lines.Add("Pack installation rollback completed.");
+        else
+        {
+            lines.Add("Pack installation rollback was incomplete:");
+            lines.AddRange(errors.Select(error => $"  - {error}"));
+        }
+    }
+
+    private sealed class PackInstallSnapshot : IDisposable
+    {
+        private readonly string _gameFolderPath;
+        private readonly string _packId;
+        private readonly string _backupRoot;
+        private readonly List<InstallJournalEntry> _journalEntries;
+        private readonly List<InstalledModpack> _packEntries;
+        private readonly List<FileSnapshot> _files;
+        private bool _committed;
+
+        private PackInstallSnapshot(
+            string gameFolderPath,
+            string packId,
+            string backupRoot,
+            List<InstallJournalEntry> journalEntries,
+            List<InstalledModpack> packEntries,
+            List<FileSnapshot> files)
+        {
+            _gameFolderPath = gameFolderPath;
+            _packId = packId;
+            _backupRoot = backupRoot;
+            _journalEntries = journalEntries;
+            _packEntries = packEntries;
+            _files = files;
+        }
+
+        public static PackInstallSnapshot Capture(string gameFolderPath, string packId)
+        {
+            var journalEntries = new JournalStore(gameFolderPath).Load();
+            var packEntries = new ModpackJournalStore(gameFolderPath).Load();
+            var backupRoot = Path.Combine(
+                Path.GetTempPath(), "cardshopmodmanager-pack-rollback", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(backupRoot);
+
+            try
+            {
+                var files = new List<FileSnapshot>();
+                foreach (var file in journalEntries
+                             .Where(entry => entry.PackId?.Equals(
+                                 packId, StringComparison.OrdinalIgnoreCase) == true)
+                             .SelectMany(entry => entry.Files))
+                {
+                    var physicalPath = ExistingPath(file.Path, gameFolderPath);
+                    if (physicalPath is null)
+                        continue;
+
+                    var backupPath = Path.Combine(backupRoot, (files.Count + 1).ToString());
+                    File.Copy(physicalPath, backupPath);
+                    files.Add(new FileSnapshot(physicalPath, backupPath));
+                }
+
+                return new PackInstallSnapshot(
+                    gameFolderPath, packId, backupRoot, journalEntries, packEntries, files);
+            }
+            catch
+            {
+                TemporaryDirectory.DeleteBestEffort(backupRoot);
+                throw;
+            }
+        }
+
+        public void Commit() => _committed = true;
+
+        public List<string> Rollback()
+        {
+            if (_committed)
+                return new List<string>();
+
+            var errors = new List<string>();
+            try
+            {
+                var currentEntries = new JournalStore(_gameFolderPath).Load()
+                    .Where(entry => entry.PackId?.Equals(
+                        _packId, StringComparison.OrdinalIgnoreCase) == true)
+                    .ToList();
+                foreach (var file in currentEntries.SelectMany(entry => entry.Files))
+                {
+                    TryDelete(file.Path, errors);
+                    if (DisabledPath(file.Path, _gameFolderPath) is { } disabledPath)
+                        TryDelete(disabledPath, errors);
+                }
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"Could not inspect the changed pack files: {ex.Message}");
+            }
+
+            foreach (var file in _files)
+            {
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(file.Path)!);
+                    File.Copy(file.BackupPath, file.Path, overwrite: true);
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Could not restore {file.Path}: {ex.Message}");
+                }
+            }
+
+            try { new JournalStore(_gameFolderPath).Save(_journalEntries); }
+            catch (Exception ex) { errors.Add($"Could not restore the install journal: {ex.Message}"); }
+            try { new ModpackJournalStore(_gameFolderPath).Save(_packEntries); }
+            catch (Exception ex) { errors.Add($"Could not restore the pack journal: {ex.Message}"); }
+
+            _committed = true;
+            return errors;
+        }
+
+        public void Dispose() => TemporaryDirectory.DeleteBestEffort(_backupRoot);
+
+        private static string? ExistingPath(string path, string gameFolderPath)
+        {
+            if (File.Exists(path))
+                return path;
+            var disabledPath = DisabledPath(path, gameFolderPath);
+            return disabledPath is not null && File.Exists(disabledPath) ? disabledPath : null;
+        }
+
+        private static string? DisabledPath(string path, string gameFolderPath)
+        {
+            var gameRoot = Path.GetFullPath(gameFolderPath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
+                Path.DirectorySeparatorChar;
+            var fullPath = Path.GetFullPath(path);
+            if (!fullPath.StartsWith(gameRoot, StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            var parts = fullPath[gameRoot.Length..].Replace('\\', '/').Split('/');
+            if (parts.Length < 3 ||
+                !parts[0].Equals("BepInEx", StringComparison.OrdinalIgnoreCase) ||
+                !(parts[1].Equals("plugins", StringComparison.OrdinalIgnoreCase) ||
+                  parts[1].Equals("patchers", StringComparison.OrdinalIgnoreCase)))
+                return null;
+
+            var suffix = parts.Skip(2).ToArray();
+            var primary = Path.Combine(
+                new[] { ModInstaller.DisabledRootFor(gameFolderPath) }.Concat(suffix).ToArray());
+            if (File.Exists(primary))
+                return primary;
+
+            var legacy = Path.Combine(new[] { ModInstaller.DisabledRoot }.Concat(suffix).ToArray());
+            return File.Exists(legacy) ? legacy : primary;
+        }
+
+        private static void TryDelete(string path, List<string> errors)
+        {
+            try
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"Could not remove changed file {path}: {ex.Message}");
+            }
+        }
+
+        private sealed record FileSnapshot(string Path, string BackupPath);
     }
 
     private static bool HasFreeSpace(string path, long neededBytes, out string message)

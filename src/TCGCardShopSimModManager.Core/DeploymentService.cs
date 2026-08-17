@@ -118,6 +118,10 @@ public sealed class DeploymentService
             return InstallLocked(manifest, sourceDirectory, gameFolderPath, lines);
     }
 
+    internal DeploymentReport InstallWithLockHeld(
+        ModListManifest manifest, string sourceDirectory, string gameFolderPath) =>
+        InstallLocked(manifest, sourceDirectory, gameFolderPath, new List<string>());
+
     private static DeploymentReport InstallLocked(
         ModListManifest manifest,
         string sourceDirectory,
@@ -455,10 +459,15 @@ public sealed class DeploymentService
                 string.IsNullOrWhiteSpace(entry.ModId) &&
                 entry.ModName.Equals(mod.Name, StringComparison.OrdinalIgnoreCase));
 
-        private static string DestinationPath(string gameFolderPath, string relativePath) =>
-            Path.GetFullPath(Path.Combine(
+        private static string DestinationPath(string gameFolderPath, string relativePath)
+        {
+            var destination = Path.GetFullPath(Path.Combine(
                 gameFolderPath,
                 relativePath.Replace('/', Path.DirectorySeparatorChar)));
+            PathSafety.EnsureContainedWithoutReparsePoints(
+                gameFolderPath, destination, "Deployment destination");
+            return destination;
+        }
 
         private sealed record FileSnapshot(string Path, string? BackupPath);
     }

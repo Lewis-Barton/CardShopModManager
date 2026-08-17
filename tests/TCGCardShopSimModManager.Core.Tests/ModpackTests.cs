@@ -175,6 +175,32 @@ public sealed class ModpackTests : IDisposable
     }
 
     [Fact]
+    public async Task ModpackInstaller_RejectsUnsafeManifestBeforeDownloading()
+    {
+        var requests = 0;
+        var archiveBytes = MakeZip(("ExampleMod.dll", "dll-bytes"));
+        _server.Provider = _ =>
+        {
+            requests++;
+            return new HttpResponse(200, archiveBytes, null);
+        };
+        var mod = new ModEntry(
+            "example-mod", "Example Mod", null, "../outside.zip", Sha(archiveBytes),
+            "BepInExPlugin", new List<string>(), new List<string>(),
+            DownloadUrl: _server.Url("outside.zip"));
+        var manifest = new ModListManifest(
+            1, "Unsafe Pack", "tcgcardshopsimulator", new List<ModEntry> { mod });
+        var gameFolder = Path.Combine(_root, "unsafe-game");
+        Directory.CreateDirectory(gameFolder);
+
+        var report = await new ModpackInstaller(gameFolder).InstallAsync(manifest);
+
+        Assert.False(report.Success);
+        Assert.Contains(report.Lines, line => line.Contains("archive path is unsafe"));
+        Assert.Equal(0, requests);
+    }
+
+    [Fact]
     public async Task ModpackInstaller_InstallsRequiredButSkipsUnselectedOptionalMod()
     {
         var requiredBytes = MakeZip(("Required.dll", "required"));
@@ -216,6 +242,88 @@ public sealed class ModpackTests : IDisposable
         Assert.Equal(0, optionalRequests);
         Assert.Empty(Assert.Single(
             new ModpackJournalStore(gameFolder).Load()).SelectedOptionalModIds!);
+    }
+
+    [Fact]
+    public async Task ModpackInstaller_DeselectingOptionalModRemovesPreviousInstall()
+    {
+        var requiredBytes = MakeZip(("Required.dll", "required"));
+        var optionalBytes = MakeZip(("Optional.dll", "optional"));
+        _server.Provider = request => request.Path.EndsWith("optional.zip", StringComparison.OrdinalIgnoreCase)
+            ? new HttpResponse(200, optionalBytes, null)
+            : new HttpResponse(200, requiredBytes, null);
+        var required = new ModEntry(
+            "required", "Required Mod", "1.0.0", "required.zip", Sha(requiredBytes),
+            "BepInExPlugin", new List<string>(), new List<string>(),
+            DownloadUrl: _server.Url("required.zip"));
+        var optional = new ModEntry(
+            "optional", "Optional Mod", "1.0.0", "optional.zip", Sha(optionalBytes),
+            "BepInExPlugin", new List<string>(), new List<string>(),
+            DownloadUrl: _server.Url("optional.zip"), Required: false);
+        var manifest = new ModListManifest(
+            1, "Selectable Pack", "tcgcardshopsimulator", [required, optional]);
+        var gameFolder = Path.Combine(_root, "deselection-game");
+        Directory.CreateDirectory(gameFolder);
+        var firstPack = new ModpackSummary(
+            "selectable", "Selectable Pack", "Test", "logo.png", "manifest.json", "1.0.0");
+        var installer = new ModpackInstaller(gameFolder);
+        Assert.True((await installer.InstallAsync(
+            manifest, pack: firstPack, selectedOptionalIds: ["optional"])).Success);
+
+        var report = await installer.InstallAsync(
+            manifest,
+            pack: firstPack with { Version = "1.1.0" },
+            selectedOptionalIds: Array.Empty<string>());
+
+        Assert.True(report.Success, string.Join("\n", report.Lines));
+        Assert.False(File.Exists(Path.Combine(
+            gameFolder, "BepInEx", "plugins", "Optional Mod", "Optional.dll")));
+        Assert.DoesNotContain(new JournalStore(gameFolder).Load(), entry => entry.ModId == "optional");
+        var installedPack = Assert.Single(new ModpackJournalStore(gameFolder).Load());
+        Assert.Equal("1.1.0", installedPack.PackVersion);
+        Assert.Empty(installedPack.SelectedOptionalModIds!);
+    }
+
+    [Fact]
+    public async Task ModpackInstaller_UnsafeDeselectionRollsBackPackState()
+    {
+        var requiredBytes = MakeZip(("Required.dll", "required"));
+        var optionalBytes = MakeZip(("Optional.dll", "optional"));
+        _server.Provider = request => request.Path.EndsWith("optional.zip", StringComparison.OrdinalIgnoreCase)
+            ? new HttpResponse(200, optionalBytes, null)
+            : new HttpResponse(200, requiredBytes, null);
+        var required = new ModEntry(
+            "required", "Required Mod", "1.0.0", "required.zip", Sha(requiredBytes),
+            "BepInExPlugin", new List<string>(), new List<string>(),
+            DownloadUrl: _server.Url("required.zip"));
+        var optional = new ModEntry(
+            "optional", "Optional Mod", "1.0.0", "optional.zip", Sha(optionalBytes),
+            "BepInExPlugin", new List<string>(), new List<string>(),
+            DownloadUrl: _server.Url("optional.zip"), Required: false);
+        var manifest = new ModListManifest(
+            1, "Selectable Pack", "tcgcardshopsimulator", [required, optional]);
+        var gameFolder = Path.Combine(_root, "deselection-rollback-game");
+        Directory.CreateDirectory(gameFolder);
+        var firstPack = new ModpackSummary(
+            "selectable", "Selectable Pack", "Test", "logo.png", "manifest.json", "1.0.0");
+        var installer = new ModpackInstaller(gameFolder);
+        Assert.True((await installer.InstallAsync(
+            manifest, pack: firstPack, selectedOptionalIds: ["optional"])).Success);
+        var optionalPath = Path.Combine(
+            gameFolder, "BepInEx", "plugins", "Optional Mod", "Optional.dll");
+        File.WriteAllText(optionalPath, "user change");
+
+        var report = await installer.InstallAsync(
+            manifest,
+            pack: firstPack with { Version = "1.1.0" },
+            selectedOptionalIds: Array.Empty<string>());
+
+        Assert.False(report.Success);
+        Assert.Equal("user change", File.ReadAllText(optionalPath));
+        Assert.Contains(new JournalStore(gameFolder).Load(), entry => entry.ModId == "optional");
+        var installedPack = Assert.Single(new ModpackJournalStore(gameFolder).Load());
+        Assert.Equal("1.0.0", installedPack.PackVersion);
+        Assert.Equal(["optional"], installedPack.SelectedOptionalModIds);
     }
 
     [Fact]

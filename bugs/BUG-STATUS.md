@@ -139,14 +139,83 @@ and testing found the following additional issues, now fixed:
   mismatches, unknown builds and undeclared packs are marked as potentially
   unsupported and require desktop acknowledgement before installation.
 
+## 2026-08-17 red-team review
+
+Findings are handled in severity order. Critical download and persisted-state
+boundaries were fixed before work continued on application-state defects.
+
+- **BUG-063 — hosted manifests can write outside the download workspace
+  (Critical, fixed):** hosted installs now validate the complete manifest before
+  making a request or creating a download. The downloader independently contains
+  every destination path, rejects malformed expected hashes, and keys cached
+  files by a validated content hash rather than a manifest-controlled mod id.
+  Covered by pre-network manifest rejection, traversal, invalid-hash and isolated
+  cache regression tests.
+- **BUG-064 — a tampered install journal can delete files outside the game
+  (High, fixed):** every journal read and write now verifies that tracked files
+  remain under the selected game folder. Lifecycle commands fail with a useful
+  error and leave the external file untouched. Covered by a hostile-journal
+  uninstall regression test.
+- **BUG-065 — deselecting an optional pack mod leaves it installed
+  (High, fixed):** hosted updates now remove deselected optional entries and
+  entries retired from the new manifest. The complete pack change runs under one
+  game-operation lock with a pack-level snapshot of active or disabled files and
+  both journals. A modified file blocks removal and restores the previous pack
+  version, selection, files and ownership data. Covered by successful deselection
+  and unsafe-removal rollback tests.
+- **BUG-066 — ZIP entries can use Windows path aliases (Medium, fixed):** ZIP
+  extraction now rejects alternate data-stream syntax, reserved device names,
+  dot segments, and segments ending in a dot or space before writing any entry.
+  Covered by Windows-path-alias extraction theories.
+- **BUG-067 — desktop dependency has a known High advisory (High, fixed):** the
+  application no longer suppresses GHSA-xrw6-gwf8-vvr9 for the old Linux DBus
+  library. It pins the patched `Tmds.DBus.Protocol` 0.94.2 release instead, and
+  the complete solution builds cleanly with that override.
+- **BUG-068 — malformed manifests can bypass friendly validation (Medium,
+  fixed):** local and hosted readers now normalize missing mod and relationship
+  arrays, BepInEx ordering tolerates a missing mod list, and validation rejects
+  malformed hashes, archive names, download URLs, Nexus ids, and negative sizes
+  without dereferencing null input. Covered by malformed-manifest theories.
+- **BUG-069 — a manifest can target a different game (High, fixed):** manifest
+  validation now requires the TCG Card Shop Simulator game domain before any
+  hosted request or local deployment can proceed.
+- **BUG-070 — directory links can redirect managed writes and deletes outside
+  the game (High, fixed):** install destinations and journal paths now reject
+  any existing symbolic link or junction below the selected game root in
+  addition to lexical containment. Covered by a linked-plugin-folder regression
+  where no payload reaches the external target.
+- **BUG-071 — disabled files from different game installs share one directory
+  (High, fixed):** default disabled storage is now scoped by a stable hash of the
+  normalized game path. Two installations can disable the same mod without one
+  deleting the other's parked copy. Existing unscoped files remain discoverable
+  as a legacy fallback. Covered by a two-game isolation regression test.
+- **BUG-072 — rebuilt releases are invisible to the update checker (High,
+  fixed):** release builds now append the monotonically increasing GitHub run
+  number to the checked-in base version and use that exact version for build,
+  publish, tag and release metadata. An older executable can therefore detect a
+  newer push even when the base product version remains `0.3.0`. Covered by
+  fourth-component update-check theories.
+- **BUG-073 — a newer push can cancel a half-published release (Medium, fixed):**
+  main-branch release jobs now queue instead of cancelling one another. A push
+  can no longer interrupt the workflow after tagging but before all checked and
+  hashed assets have been uploaded.
+- **BUG-074 — process termination can leave an unjournaled partial deployment
+  (High, open):** caught failures roll back in memory, but deployment snapshots
+  live in temporary storage and have no durable transaction marker. If the
+  process or machine stops after files change but before journals commit, the
+  next run cannot identify and recover that interrupted operation. This is the
+  highest-priority remaining fix and needs a durable write-ahead recovery record
+  with startup recovery tests; it should not be folded into the already large
+  path and pack-state patch without that coverage.
+
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
-| Critical | 0 | 2 |
-| High     | 0 | 19 |
-| Medium   | 0 | 32 |
+| Critical | 0 | 3 |
+| High     | 1 | 26 |
+| Medium   | 0 | 35 |
 | Low      | 0 | 9 |
-| **Total**| **0** | **62** |
+| **Total**| **1** | **73** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

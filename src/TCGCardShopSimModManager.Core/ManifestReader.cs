@@ -22,7 +22,7 @@ public sealed class ManifestReader
         // assume every mod has a real list.
         return manifest with
         {
-            Mods = manifest.Mods
+            Mods = (manifest.Mods ?? new List<ModEntry>())
                 .Select(m => m with
                 {
                     Dependencies = m.Dependencies ?? new List<string>(),

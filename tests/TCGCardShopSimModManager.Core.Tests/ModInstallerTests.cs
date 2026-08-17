@@ -457,6 +457,100 @@ public sealed class ModInstallerTests : IDisposable
     }
 
     [Fact]
+    public void Uninstall_RefusesJournalPathOutsideGameFolder()
+    {
+        var external = Path.Combine(Path.GetDirectoryName(_gameFolder)!, "outside.dll");
+        File.WriteAllText(external, "must remain");
+        var entry = new InstallJournalEntry(
+            "Hostile Mod",
+            DateTimeOffset.UtcNow,
+            [new JournalFileEntry(external, ComputeSha256(external))]);
+        File.WriteAllText(
+            Path.Combine(_gameFolder, "cardshopmodmanager.journal.json"),
+            System.Text.Json.JsonSerializer.Serialize(new[] { entry }));
+
+        var result = _installer.Uninstall("Hostile Mod");
+
+        Assert.False(result.Success);
+        Assert.Contains("escapes the game folder", result.Error);
+        Assert.Equal("must remain", File.ReadAllText(external));
+    }
+
+    [Fact]
+    public void Install_RefusesDestinationThroughDirectoryLink()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var external = Path.Combine(Path.GetDirectoryName(_gameFolder)!, "linked-destination");
+        Directory.CreateDirectory(external);
+        var pluginRoot = Path.Combine(_gameFolder, "BepInEx", "plugins");
+        Directory.CreateDirectory(pluginRoot);
+        var linkedModFolder = Path.Combine(pluginRoot, "Linked Mod");
+        try
+        {
+            Directory.CreateSymbolicLink(linkedModFolder, external);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            return; // Symbolic-link creation is unavailable without Developer Mode.
+        }
+
+        var sourcePath = Path.Combine(_sourceDir, "linked.dll");
+        File.WriteAllText(sourcePath, "payload");
+        var mod = new ModEntry(
+            "linked", "Linked Mod", "1.0.0", "linked.dll", ComputeSha256(sourcePath),
+            "BepInExPlugin", new List<string>(), new List<string>());
+
+        var result = _installer.Install(mod, _sourceDir);
+
+        Assert.False(result.Success);
+        Assert.Contains("symbolic link or junction", result.Error);
+        Assert.False(File.Exists(Path.Combine(external, "linked.dll")));
+    }
+
+    [Fact]
+    public void DefaultDisabledStorage_IsolatedPerGameFolder()
+    {
+        var gameA = Path.Combine(_testRoot, "game-a");
+        var gameB = Path.Combine(_testRoot, "game-b");
+        Directory.CreateDirectory(gameA);
+        Directory.CreateDirectory(gameB);
+        var sourcePath = Path.Combine(_sourceDir, "shared.dll");
+        File.WriteAllText(sourcePath, "shared payload");
+        var mod = new ModEntry(
+            "shared", "Shared Mod", "1.0.0", "shared.dll", ComputeSha256(sourcePath),
+            "BepInExPlugin", new List<string>(), new List<string>());
+        var installerA = new ModInstaller(gameA);
+        var installerB = new ModInstaller(gameB);
+
+        try
+        {
+            Assert.True(installerA.Install(mod, _sourceDir).Success);
+            Assert.True(installerB.Install(mod, _sourceDir).Success);
+            Assert.True(installerA.Disable(mod.Name).Success);
+            Assert.True(installerB.Disable(mod.Name).Success);
+
+            var relative = Path.Combine("Shared Mod", "shared.dll");
+            Assert.True(File.Exists(Path.Combine(ModInstaller.DisabledRootFor(gameA), relative)));
+            Assert.True(File.Exists(Path.Combine(ModInstaller.DisabledRootFor(gameB), relative)));
+            Assert.NotEqual(
+                ModInstaller.DisabledRootFor(gameA),
+                ModInstaller.DisabledRootFor(gameB));
+        }
+        finally
+        {
+            foreach (var root in new[]
+                     {
+                         ModInstaller.DisabledRootFor(gameA),
+                         ModInstaller.DisabledRootFor(gameB)
+                     })
+                if (Directory.Exists(root))
+                    Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void JournalStore_LoadsLegacyEntryWithoutIdentityFields()
     {
         var journalPath = Path.Combine(_gameFolder, "cardshopmodmanager.journal.json");
