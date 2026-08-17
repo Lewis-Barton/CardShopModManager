@@ -72,6 +72,7 @@ public sealed partial class MainWindow : Window
         RefreshNexusStatus();
     }
     private async void OnNexusLoginClick(object? sender, RoutedEventArgs e) => await OnNexusLoginAsync();
+    private async void OnNexusApiKeyClick(object? sender, RoutedEventArgs e) => await OnNexusApiKeyAsync();
     private void OnNexusLogoutClick(object? sender, RoutedEventArgs e)
     {
         NexusTokenStore.Delete();
@@ -378,17 +379,38 @@ public sealed partial class MainWindow : Window
         var user = token is null ? null : NexusJwt.DecodeAccessToken(token.AccessToken);
         if (user is null)
         {
-            _nexusStatus.Text = NexusOAuth.ClientId == "public_test"
-                ? "Not signed in. A production Nexus OAuth client ID has not been configured."
-                : "Not signed in to Nexus Mods.";
+            _nexusStatus.Text = ApiKeyStore.Exists
+                ? "A personal Nexus API key is saved for downloads."
+                : NexusOAuth.ClientId == "public_test"
+                    ? "Not connected. A production Nexus OAuth client ID has not been configured."
+                    : "Not connected to Nexus Mods.";
             _nexusLogin.IsEnabled = true;
             _nexusLogout.IsEnabled = false;
+            _nexusApiKey.Content = ApiKeyStore.Exists ? "Change API key" : "Enter API key";
             return;
         }
 
-        _nexusStatus.Text = $"Signed in as {user.Name}.";
+        _nexusStatus.Text = ApiKeyStore.Exists
+            ? $"Signed in as {user.Name}. A personal API key is also saved as a fallback."
+            : $"Signed in as {user.Name}.";
         _nexusLogin.IsEnabled = false;
         _nexusLogout.IsEnabled = true;
+        _nexusApiKey.Content = ApiKeyStore.Exists ? "Change API key" : "Enter API key";
+    }
+
+    private async Task OnNexusApiKeyAsync()
+    {
+        _nexusApiKey.IsEnabled = false;
+        try
+        {
+            var dialog = new NexusCredentialWindow(_http, ApiKeyStore.Exists);
+            await dialog.ShowDialog(this);
+            RefreshNexusStatus();
+        }
+        finally
+        {
+            _nexusApiKey.IsEnabled = true;
+        }
     }
 
     private async Task OnNexusLoginAsync()

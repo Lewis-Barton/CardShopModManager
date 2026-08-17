@@ -243,6 +243,10 @@ dotnet run --project src/TCGCardShopSimModManager.Cli -- nexus set-client <clien
 local loopback listener, and the token is stored per user (DPAPI on Windows).
 Tokens refresh automatically and are cleared with `nexus logout`. The desktop
 Settings page exposes the same sign-in, status and sign-out flow.
+Until the OAuth client is approved, **Enter API key** opens the Nexus API Access
+page and accepts a personal key. The app validates it before storing it with
+the same per-user encryption used by the CLI, and Nexus downloads use it
+automatically when no OAuth session is active.
 
 - `nexus set-key <apikey>` stores the key encrypted with DPAPI (current user
   only) in `%LOCALAPPDATA%\TCGCardShopSimModManager\nexus-key.bin`.

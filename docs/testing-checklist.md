@@ -109,6 +109,9 @@ unit test already covers it, **[manual]** where it needs a real environment.
       restrictions when their files are requested.
 - [ ] **[manual]** With a registered Nexus client ID, Settings can sign in,
       display the account name, survive a restart, and sign out cleanly.
+- [ ] **[manual]** Settings opens Nexus API Access, validates and saves a
+      personal API key, uses it for Nexus downloads after restart, and removes
+      it without exposing the key in logs or support bundles.
 - [ ] **[manual]** Required mods are checked and locked in pack details;
       optional mods start unchecked, selecting one selects its dependencies,
       and clearing a dependency clears optional dependants.
