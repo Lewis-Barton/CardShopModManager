@@ -77,6 +77,17 @@ public sealed class LocalHttpServerTests
         server.Dispose();
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        Assert.Equal(0, await stream.ReadAsync(new byte[1], timeout.Token));
+        try
+        {
+            Assert.Equal(0, await stream.ReadAsync(new byte[1], timeout.Token));
+        }
+        catch (IOException ex) when (ex.InnerException is SocketException socket &&
+                                    socket.SocketErrorCode is SocketError.ConnectionReset
+                                        or SocketError.ConnectionAborted
+                                        or SocketError.OperationAborted)
+        {
+            // TCP shutdown may be reported as an orderly EOF or a reset,
+            // depending on whether Windows accepted the pending client first.
+        }
     }
 }

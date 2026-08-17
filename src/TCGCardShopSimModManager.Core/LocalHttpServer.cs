@@ -251,6 +251,7 @@ public sealed class LocalHttpServer : IDisposable
         _disposed = true;
 
         _cts.Cancel();
+        ClosePendingClients();
         try
         {
             _listener?.Stop();
@@ -271,5 +272,18 @@ public sealed class LocalHttpServer : IDisposable
         }
 
         _cts.Dispose();
+    }
+
+    private void ClosePendingClients()
+    {
+        try
+        {
+            while (_listener?.Pending() == true)
+                _listener.AcceptTcpClient().Dispose();
+        }
+        catch
+        {
+            // The accept loop or listener shutdown won the race.
+        }
     }
 }

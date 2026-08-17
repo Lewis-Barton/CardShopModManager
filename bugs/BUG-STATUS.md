@@ -220,6 +220,12 @@ boundaries were fixed before work continued on application-state defects.
   and `#`, so authors can label large lists without making a valid
   `nexus:<modId>:<fileId>` selector fail parsing. URL fragments without a
   preceding space remain intact. Covered by a CLI parser smoke test.
+- **BUG-077 — HTTP shutdown test rejects a valid connection reset (Low,
+  fixed):** server disposal now closes clients that connected but were still
+  queued for acceptance, and the incomplete-client shutdown test accepts either
+  orderly EOF or the Windows reset/abort socket results that mean the server
+  closed the connection. A connection that remains open until the timeout still
+  fails.
 
 ## Summary
 | Severity | Open | Fixed |
@@ -227,8 +233,8 @@ boundaries were fixed before work continued on application-state defects.
 | Critical | 0 | 3 |
 | High     | 0 | 27 |
 | Medium   | 0 | 36 |
-| Low      | 0 | 10 |
-| **Total**| **0** | **76** |
+| Low      | 0 | 11 |
+| **Total**| **0** | **77** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |
