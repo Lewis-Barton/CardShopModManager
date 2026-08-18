@@ -83,6 +83,25 @@ public sealed class ArchiveClassifierTests
     }
 
     [Fact]
+    public void SingleFolderContainingPluginDll_IsPreservedUnderBepInExPlugins()
+    {
+        var plan = new ArchiveClassifier().BuildPlan(Mod, new[]
+        {
+            Source("TextureReplacer/TextureReplacer.dll"),
+            Source("TextureReplacer/objects_data/cards/example.txt"),
+            Source("TextureReplacer/objects_textures/example.png")
+        });
+
+        Assert.Equal("wrapped plugin folder (goes under BepInEx/plugins)", plan.LayoutName);
+        Assert.Contains(plan.Files, file => file.DestinationRelativePath ==
+            "BepInEx/plugins/TextureReplacer/TextureReplacer.dll");
+        Assert.Contains(plan.Files, file => file.DestinationRelativePath ==
+            "BepInEx/plugins/TextureReplacer/objects_data/cards/example.txt");
+        Assert.Contains(plan.Files, file => file.DestinationRelativePath ==
+            "BepInEx/plugins/TextureReplacer/objects_textures/example.png");
+    }
+
+    [Fact]
     public void RootFilesWithoutStructure_MirrorIntoGameRoot()
     {
         var plan = new ArchiveClassifier().BuildPlan(Mod, new[]

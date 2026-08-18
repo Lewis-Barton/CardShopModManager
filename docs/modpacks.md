@@ -137,6 +137,11 @@ are mirrored under `BepInEx/`. This is distinct from game-root content: a
 dependency such as `plugins/Example.API/Example.API.dll` must be available to
 BepInEx rather than copied beside the game files.
 
+A ZIP may instead wrap a plugin DLL and its supporting files in one named
+directory, such as `TextureReplacer/TextureReplacer.dll`. When that DLL is
+directly inside the archive's only top-level directory, the manager preserves
+the complete directory under `BepInEx/plugins/`.
+
 ### Game build compatibility
 
 Pack authors list tested Steam builds in `compatibleGameBuildIds` at the top of

@@ -282,15 +282,21 @@ boundaries were fixed before work continued on application-state defects.
   BepInEx could not load Enhanced Prefab Loader. The classifier now mirrors this
   common archive layout into `BepInEx/plugins/`. Covered by a classifier
   regression and confirmed against the cached API archive from the real install.
+- **BUG-085 — wrapped plugin folders install at the game root (High, fixed):**
+  Texture Replacer's archive contains one `TextureReplacer/` folder with its DLL
+  and supporting data inside it. The classifier treated that as game-root data,
+  so BepInEx never discovered the installed DLL. A single archive folder with a
+  plugin DLL directly inside it is now preserved under `BepInEx/plugins/`.
+  Covered by a wrapped-plugin regression and confirmed against the real archive.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 3 |
-| High     | 0 | 31 |
+| High     | 0 | 32 |
 | Medium   | 0 | 39 |
 | Low      | 0 | 11 |
-| **Total**| **0** | **84** |
+| **Total**| **0** | **85** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

@@ -14,8 +14,10 @@ namespace TCGCardShopSimModManager.Core;
 ///   2. Loose .dll at the archive root -> whole mod goes to BepInEx/plugins/{Name}/.
 ///   3. Contains a plugins/ folder -> treat plugins/, patchers/, and config/ as
 ///      the contents of a BepInEx folder and mirror them there.
-///   4. Contains a patchers/ folder -> files go to BepInEx/patchers/.
-///   5. Anything else -> mirror the archive root straight into the game root, except
+///   4. Contains one top-level folder with a plugin DLL directly inside it ->
+///      preserve that folder under BepInEx/plugins/.
+///   5. Contains a patchers/ folder -> files go to BepInEx/patchers/.
+///   6. Anything else -> mirror the archive root straight into the game root, except
 ///      hijack-target DLLs at the game root which are refused.
 /// Documentation and OS-junk files are skipped, not installed.
 /// </summary>
@@ -26,6 +28,7 @@ public sealed class ArchiveClassifier
         BepInExLayout,
         PluginFolder,
         PluginTree,
+        WrappedPluginFolder,
         Patcher,
         GameRoot,
         Empty
@@ -134,6 +137,11 @@ public sealed class ArchiveClassifier
         if (topLevelNames.Contains("patchers"))
             return LayoutKind.Patcher;
 
+        if (topLevelNames.Count == 1 && sources.Any(source =>
+                source.RelativePath.Count(character => character == '/') == 1 &&
+                Path.GetExtension(source.RelativePath).Equals(".dll", StringComparison.OrdinalIgnoreCase)))
+            return LayoutKind.WrappedPluginFolder;
+
         return LayoutKind.GameRoot;
     }
 
@@ -186,6 +194,11 @@ public sealed class ArchiveClassifier
                     return null;
                 return $"BepInEx/plugins/{mod.Name}/{relativePath}";
 
+            case LayoutKind.WrappedPluginFolder:
+                if (IsHijackTarget(segments[^1]))
+                    return null;
+                return $"BepInEx/plugins/{relativePath}";
+
             case LayoutKind.Patcher when segments[0].Equals("patchers", StringComparison.OrdinalIgnoreCase):
                 if (segments.Length == 2 && IsHijackTarget(segments[1]))
                     return null;
@@ -224,6 +237,7 @@ public sealed class ArchiveClassifier
         LayoutKind.BepInExLayout => "BepInEx layout (mirrors the game's BepInEx folder)",
         LayoutKind.PluginFolder => "loose plugin folder (goes to BepInEx/plugins/<mod name>)",
         LayoutKind.PluginTree => "BepInEx content tree (mirrors plugins, patchers, and config)",
+        LayoutKind.WrappedPluginFolder => "wrapped plugin folder (goes under BepInEx/plugins)",
         LayoutKind.Patcher => "patcher layout (goes to BepInEx/patchers)",
         LayoutKind.GameRoot => "game root files (mirrors into the game folder root)",
         _ => "empty archive"
