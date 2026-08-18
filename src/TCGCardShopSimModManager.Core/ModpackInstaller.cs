@@ -236,6 +236,68 @@ public sealed class ModpackInstaller
         }
     }
 
+    public DeploymentReport Uninstall(string packId)
+    {
+        if (string.IsNullOrWhiteSpace(packId))
+            return DeploymentReport.Failure(new List<string>(), "Modpack id is required.");
+        if (!Directory.Exists(_gameFolderPath))
+            return DeploymentReport.Failure(
+                new List<string>(), $"Game folder not found: {_gameFolderPath}");
+
+        GameOperationLock operation;
+        try
+        {
+            operation = GameOperationLock.Acquire(_gameFolderPath);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException)
+        {
+            return DeploymentReport.Failure(new List<string>(), ex.Message);
+        }
+
+        using (operation)
+        {
+            var entries = new JournalStore(_gameFolderPath).Load()
+                .Where(entry => entry.PackId?.Equals(
+                    packId, StringComparison.OrdinalIgnoreCase) == true)
+                .Reverse()
+                .ToList();
+            if (entries.Count == 0)
+                return DeploymentReport.Failure(
+                    new List<string>(), $"No installed mods were found for modpack '{packId}'.");
+
+            using var snapshot = PackInstallSnapshot.Capture(_gameFolderPath, packId);
+            var lines = new List<string>();
+            try
+            {
+                var installer = new ModInstaller(
+                    _gameFolderPath, disabledRoot: null, operationLockHeld: true);
+                foreach (var entry in entries)
+                {
+                    var result = installer.Uninstall(entry.ModName);
+                    if (!result.Success)
+                    {
+                        lines.Add($"Could not uninstall {entry.ModName}: {result.Error}");
+                        AddRollbackResult(lines, snapshot.Rollback());
+                        return DeploymentReport.Failure(lines, null);
+                    }
+
+                    lines.Add($"Uninstalled {entry.ModName}.");
+                    lines.AddRange(result.Warnings.Select(warning => $"  warning: {warning}"));
+                }
+
+                new ModpackJournalStore(_gameFolderPath).Remove(packId);
+                snapshot.Commit();
+                return DeploymentReport.Ok(lines);
+            }
+            catch (Exception ex)
+            {
+                lines.Add($"Modpack uninstall failed: {ex.Message}");
+                AddRollbackResult(lines, snapshot.Rollback());
+                return DeploymentReport.Failure(lines, null);
+            }
+        }
+    }
+
     /// <summary>
     /// Guarantees the BepInEx framework is installed before any other mod, so
     /// plugins always have a loader to drop into. When a BepInEx entry is present

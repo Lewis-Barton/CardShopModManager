@@ -246,7 +246,9 @@ folder the user picked.
   featured and NSFW filters. Each card shows the logo, name, short description,
   tags and compressed download size when available.
 - Clicking a card opens a modal with the logo, description and full mod list.
-  The modal owns the **Install modpack** or **Update** action.
+  The modal owns the **Install modpack**, **Update** and **Uninstall modpack**
+  actions. Pack uninstall is transactional: a modified managed file stops the
+  operation and restores pack files already removed.
 - A newer published version adds an **Update available** badge to its card.
 - **Manage mods** contains game-folder selection and installed-mod lifecycle
   controls. Local manifest workflows remain available through the CLI.

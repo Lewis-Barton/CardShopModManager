@@ -42,6 +42,12 @@ public sealed class PackDetailWindow : Window
         IsVisible = false
     };
     private readonly Button _install = new() { Content = "Install modpack", IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly Button _uninstall = new()
+    {
+        Content = "Uninstall modpack",
+        Classes = { "secondary" },
+        HorizontalAlignment = HorizontalAlignment.Stretch
+    };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _compatibility = new() { TextWrapping = TextWrapping.Wrap };
     private readonly CheckBox _acknowledgeCompatibility = new()
@@ -88,6 +94,8 @@ public sealed class PackDetailWindow : Window
         var requiredMods = new StackPanel { Spacing = 4 };
         var optionalMods = new StackPanel { Spacing = 4 };
         _install.Click += async (_, _) => await InstallAsync();
+        _uninstall.Click += async (_, _) => await UninstallAsync();
+        _uninstall.IsVisible = installedPack is not null;
         _acknowledgeCompatibility.IsCheckedChanged += (_, _) => RefreshInstallAvailability();
         _nexusLogin.Click += async (_, _) => await SignInToNexusAsync();
         _nexusApiKey.Click += async (_, _) => await EnterNexusApiKeyAsync();
@@ -130,6 +138,7 @@ public sealed class PackDetailWindow : Window
                     _progressStatus,
                     _downloadStats,
                     _install,
+                    _uninstall,
                     _status
                 }
             }
@@ -332,6 +341,59 @@ public sealed class PackDetailWindow : Window
                 _progress.IsIndeterminate = false;
                 _progressStatus.Text = "Installation stopped.";
             }
+            RefreshInstallAvailability();
+        }
+    }
+
+    private async Task UninstallAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_gameFolder))
+        {
+            _status.Text = "Set the game folder on the Manage tab first.";
+            return;
+        }
+
+        var confirmation = new ModpackUninstallConfirmationWindow(_pack.Name);
+        if (!await confirmation.ShowDialog<bool>(this))
+            return;
+
+        _install.IsEnabled = false;
+        _uninstall.IsEnabled = false;
+        SetOptionalChoicesEnabled(false);
+        _progress.IsVisible = true;
+        _progress.IsIndeterminate = true;
+        _progressStatus.IsVisible = true;
+        _progressStatus.Text = "Uninstalling modpack...";
+        _downloadStats.IsVisible = false;
+        try
+        {
+            var report = await Task.Run(() =>
+                new ModpackInstaller(_gameFolder).Uninstall(_pack.Id));
+            if (report.Success)
+            {
+                _status.Text = $"Uninstalled {_pack.Name}.";
+                _progressStatus.Text = "Uninstall complete.";
+                _uninstall.IsVisible = false;
+            }
+            else
+            {
+                _status.Text = "Uninstall did not complete: " +
+                    (report.Lines.Count == 0
+                        ? "No further details were returned."
+                        : string.Join(Environment.NewLine, report.Lines));
+                _progressStatus.Text = "Uninstall stopped.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _status.Text = $"Uninstall failed: {ex.Message}";
+            _progressStatus.Text = "Uninstall stopped.";
+        }
+        finally
+        {
+            _progress.IsIndeterminate = false;
+            _uninstall.IsEnabled = true;
+            SetOptionalChoicesEnabled(true);
             RefreshInstallAvailability();
         }
     }

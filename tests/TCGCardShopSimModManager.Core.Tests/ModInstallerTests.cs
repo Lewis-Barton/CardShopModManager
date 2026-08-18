@@ -528,6 +528,63 @@ public sealed class ModInstallerTests : IDisposable
     }
 
     [Fact]
+    public void ModpackUninstall_RemovesEveryJournaledPackMod()
+    {
+        var modA = AddLooseFile("ModA.dll", "a") with
+        {
+            Id = "mod-a", Name = "Mod A", PackId = "shared-pack"
+        };
+        var modB = AddLooseFile("ModB.dll", "b") with
+        {
+            Id = "mod-b", Name = "Mod B", PackId = "shared-pack"
+        };
+        Assert.True(_installer.Install(modA, _sourceDir).Success);
+        Assert.True(_installer.Install(modB, _sourceDir).Success);
+        new ModpackJournalStore(_gameFolder).Record(
+            "shared-pack", "1.0.0", "Shared Pack", new List<string>());
+
+        var report = new ModpackInstaller(_gameFolder).Uninstall("shared-pack");
+
+        Assert.True(report.Success, string.Join("\n", report.Lines));
+        Assert.Empty(new JournalStore(_gameFolder).Load());
+        Assert.Empty(new ModpackJournalStore(_gameFolder).Load());
+        Assert.False(File.Exists(Path.Combine(
+            _gameFolder, "BepInEx", "plugins", "Mod A", "ModA.dll")));
+        Assert.False(File.Exists(Path.Combine(
+            _gameFolder, "BepInEx", "plugins", "Mod B", "ModB.dll")));
+    }
+
+    [Fact]
+    public void ModpackUninstall_RestoresEarlierRemovalWhenLaterModIsModified()
+    {
+        var modA = AddLooseFile("ModA.dll", "a") with
+        {
+            Id = "mod-a", Name = "Mod A", PackId = "shared-pack"
+        };
+        var modB = AddLooseFile("ModB.dll", "b") with
+        {
+            Id = "mod-b", Name = "Mod B", PackId = "shared-pack"
+        };
+        Assert.True(_installer.Install(modA, _sourceDir).Success);
+        Assert.True(_installer.Install(modB, _sourceDir).Success);
+        new ModpackJournalStore(_gameFolder).Record(
+            "shared-pack", "1.0.0", "Shared Pack", new List<string>());
+        var modAPath = Path.Combine(
+            _gameFolder, "BepInEx", "plugins", "Mod A", "ModA.dll");
+        var modBPath = Path.Combine(
+            _gameFolder, "BepInEx", "plugins", "Mod B", "ModB.dll");
+        File.WriteAllText(modAPath, "user edit");
+
+        var report = new ModpackInstaller(_gameFolder).Uninstall("shared-pack");
+
+        Assert.False(report.Success);
+        Assert.Equal("user edit", File.ReadAllText(modAPath));
+        Assert.Equal("b", File.ReadAllText(modBPath));
+        Assert.Equal(2, new JournalStore(_gameFolder).Load().Count);
+        Assert.Single(new ModpackJournalStore(_gameFolder).Load());
+    }
+
+    [Fact]
     public void JournalStore_ToleratesCorruptFile() // BUG-015
     {
         File.WriteAllText(Path.Combine(_gameFolder, "cardshopmodmanager.journal.json"), "{ not valid json");

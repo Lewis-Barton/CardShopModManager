@@ -288,15 +288,21 @@ boundaries were fixed before work continued on application-state defects.
   so BepInEx never discovered the installed DLL. A single archive folder with a
   plugin DLL directly inside it is now preserved under `BepInEx/plugins/`.
   Covered by a wrapped-plugin regression and confirmed against the real archive.
+- **BUG-086 — desktop modpacks must be uninstalled one mod at a time (Medium,
+  fixed):** installed pack details now offer a confirmed **Uninstall modpack**
+  action backed by Core. It removes journaled pack entries in reverse install
+  order under the game lock and uses the durable pack snapshot to restore an
+  earlier removal if a later mod is modified or another failure occurs. Covered
+  by successful full-pack and rollback regressions.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 3 |
 | High     | 0 | 32 |
-| Medium   | 0 | 39 |
+| Medium   | 0 | 40 |
 | Low      | 0 | 11 |
-| **Total**| **0** | **85** |
+| **Total**| **0** | **86** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

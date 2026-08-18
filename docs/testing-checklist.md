@@ -177,6 +177,13 @@ unit test already covers it, **[manual]** where it needs a real environment.
       copies uninstalled and give a shared destination one journal owner
       (`CreatePlan_ExcludesExactFileAndDirectoryTree`,
       `Install_ManifestExclusionAssignsOneOwnerForBundledFile`).
+- [x] **[auto]** Pack uninstall removes every journaled pack mod and its pack
+      record as one operation, and restores earlier removals when a modified
+      managed file blocks completion (`ModpackUninstall_RemovesEveryJournaledPackMod`,
+      `ModpackUninstall_RestoresEarlierRemovalWhenLaterModIsModified`).
+- [ ] **[manual]** Open an installed pack, confirm **Uninstall modpack** lists a
+      clear warning, cancel once, then confirm it removes the complete pack and
+      refreshes the installed state after closing pack details.
 - [ ] **[manual]** Interrupt or fail a multi-gigabyte hosted install after its
       downloads complete, retry it, and confirm each verified archive reports
       that it is ready from cache rather than downloading again.
