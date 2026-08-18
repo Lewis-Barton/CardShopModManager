@@ -177,8 +177,13 @@ before anything is installed. Rules, in order:
 
 1. **BepInEx layout** — archive has a top-level `BepInEx/` folder → its contents mirror into the game's `BepInEx/`.
 2. **Loose plugin folder** — loose `.dll` at the archive root → everything goes to `BepInEx/plugins/<mod name>/`.
-3. **Patcher** — top-level `patchers/` → its contents go to `BepInEx/patchers/`; anything else to `BepInEx/plugins/<mod name>/`.
-4. **Game root files** — anything else → mirrors into the game folder root.
+3. **BepInEx content tree** — top-level `plugins/` → `plugins/`, `patchers/`
+   and `config/` mirror under `BepInEx/`.
+4. **Wrapped plugin folder** — one top-level folder with a `.dll` directly
+   inside it → the complete folder goes under `BepInEx/plugins/`.
+5. **Patcher** — top-level `patchers/` → its contents go to
+   `BepInEx/patchers/`; anything else to `BepInEx/plugins/<mod name>/`.
+6. **Game root files** — anything else → mirrors into the game folder root.
 
 `README`/`LICENSE`/`CHANGELOG` files and OS junk (`.DS_Store`, `__MACOSX`, ...)
 are skipped, and the plan tells you what it skipped.
