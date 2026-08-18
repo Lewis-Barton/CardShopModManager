@@ -248,15 +248,49 @@ boundaries were fixed before work continued on application-state defects.
   planning or installation failure can be retried without contacting the source
   again. Covered by the large-archive policy and failed-planning cache-reuse
   regressions.
+- **BUG-081 — identical leftovers block migration from a manual install
+  (Medium, fixed):** a real install found an empty manager journal and no
+  `BepInEx` directory, but four unmanaged Doorstop bootstrap files remained in
+  the game root. Every file was byte-for-byte identical to the verified BepInEx
+  archive, yet preflight reported ordinary destination conflicts and blocked the
+  complete pack. Installation now adopts an identical existing file into the
+  journal with a preservation marker instead of copying it. Updates cannot
+  replace adopted files, disable leaves them active, and uninstall leaves them
+  on disk while clearing the journal. Different content still blocks the install.
+  Covered by adoption, update and uninstall regressions.
+- **BUG-082 — bundled shared files make the published overhaul uninstallable
+  (High, fixed):** the 22 required Real TCG Overhaul archives claimed 1,303
+  destinations, with 89 paths claimed by more than one mod. Eighty-eight are
+  byte-identical shared assets or generated configuration files, while
+  `BepInEx/config/munch.PhoneOverhaul.cfg` has genuinely different versions in
+  the Phone Overhaul and expansion archives. Mod entries can now exclude exact
+  archive-relative files or directory trees through validated
+  `excludedArchivePaths`. The corrected manifest gives every shared destination
+  one owner and retains the newer expansion-provided Phone Overhaul settings.
+  All 24 cached archives now plan 1,400 files with no conflicts or unmatched
+  exclusions. Long conflict reports are capped at 20 paths with a remaining
+  count. Covered by exclusion, ownership and report regressions.
+- **BUG-083 — the published framework cannot install its bootstrap DLL (High,
+  fixed):** the classifier rejected root `winhttp.dll` from the reserved BepInEx
+  entry, which would leave the framework unable to load even after pack
+  conflicts were resolved. The hash-verified framework entry may now place its
+  bootstrap DLL beside the game executable. The same DLL remains refused for
+  ordinary mods. Covered by framework and non-framework classifier regressions.
+- **BUG-084 — top-level plugin trees install outside BepInEx (High, fixed):**
+  archives rooted at `plugins/` were treated as game-root content, so the Real
+  TCG Overhaul API dependency landed in an unused game `plugins` folder and
+  BepInEx could not load Enhanced Prefab Loader. The classifier now mirrors this
+  common archive layout into `BepInEx/plugins/`. Covered by a classifier
+  regression and confirmed against the cached API archive from the real install.
 
 ## Summary
 | Severity | Open | Fixed |
 |----------|------|-------|
 | Critical | 0 | 3 |
-| High     | 0 | 28 |
-| Medium   | 0 | 38 |
+| High     | 0 | 31 |
+| Medium   | 0 | 39 |
 | Low      | 0 | 11 |
-| **Total**| **0** | **80** |
+| **Total**| **0** | **84** |
 
 ## Status table
 | BUG | Sev | Area | Title | Status | Files to change | Fix | Why / PR | Verified |

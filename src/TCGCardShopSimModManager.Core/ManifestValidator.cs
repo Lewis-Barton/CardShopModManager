@@ -99,6 +99,20 @@ public sealed class ManifestValidator
                 errors.Add($"{mod.Name}: Nexus mod id must be positive.");
             if (mod.NexusFileId <= 0)
                 errors.Add($"{mod.Name}: Nexus file id must be positive.");
+
+            var excludedPaths = mod.ExcludedArchivePaths ?? new List<string>();
+            foreach (var excludedPath in excludedPaths)
+            {
+                if (string.IsNullOrWhiteSpace(excludedPath) ||
+                    excludedPath.Contains('\\') ||
+                    IsUnsafeArchiveExclusion(excludedPath))
+                {
+                    errors.Add($"{mod.Name}: excluded archive path is unsafe ('{excludedPath}')");
+                }
+            }
+
+            if (excludedPaths.Distinct(StringComparer.OrdinalIgnoreCase).Count() != excludedPaths.Count)
+                errors.Add($"{mod.Name}: excluded archive paths must not contain duplicates.");
         }
 
         var modsById = (mods ?? new List<ModEntry>())
@@ -123,10 +137,16 @@ public sealed class ManifestValidator
             return true;
 
         foreach (var segment in relativePath.Split('/', '\\'))
-            if (segment is ".." or "")
+            if (segment is "." or ".." or "")
                 return true;
 
         return false;
+    }
+
+    private static bool IsUnsafeArchiveExclusion(string path)
+    {
+        var candidate = path.EndsWith("/", StringComparison.Ordinal) ? path[..^1] : path;
+        return candidate.Length == 0 || IsUnsafeRelativePath(candidate);
     }
 
     private static bool IsSafeDirectoryName(string name)

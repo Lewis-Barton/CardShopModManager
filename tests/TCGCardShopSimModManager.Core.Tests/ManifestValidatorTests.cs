@@ -181,4 +181,40 @@ public sealed class ManifestValidatorTests
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, error => error.Contains("duplicates"));
     }
+
+    [Theory]
+    [InlineData("../outside.dll")]
+    [InlineData("/rooted.dll")]
+    [InlineData("BepInEx\\config\\settings.cfg")]
+    [InlineData("")]
+    [InlineData("/")]
+    public void Validate_RejectsUnsafeExcludedArchivePath(string path)
+    {
+        var mod = Mod("example", "BepInExPlugin", "example.zip") with
+        {
+            ExcludedArchivePaths = [path]
+        };
+
+        var result = new ManifestValidator().Validate(Manifest(mod));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.Contains("excluded archive path is unsafe"));
+    }
+
+    [Fact]
+    public void Validate_AcceptsExactAndDirectoryArchiveExclusions()
+    {
+        var mod = Mod("example", "BepInExPlugin", "example.zip") with
+        {
+            ExcludedArchivePaths =
+            [
+                "BepInEx/config/settings.cfg",
+                "BepInEx/plugins/Shared/"
+            ]
+        };
+
+        var result = new ManifestValidator().Validate(Manifest(mod));
+
+        Assert.True(result.IsValid, string.Join("\n", result.Errors));
+    }
 }

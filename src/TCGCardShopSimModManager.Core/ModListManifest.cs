@@ -52,4 +52,8 @@ public sealed record ModEntry(
     /// <summary>Required entries are always installed. Optional entries are
     /// installed only when selected by the user. Defaults to true so existing
     /// manifests retain their current install-all behaviour.</summary>
-    bool Required = true);
+    bool Required = true,
+    /// <summary>Archive-relative files or directory trees this pack deliberately
+    /// leaves out. A trailing slash identifies a directory tree; other values
+    /// identify one exact file.</summary>
+    List<string>? ExcludedArchivePaths = null);

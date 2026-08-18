@@ -169,6 +169,14 @@ unit test already covers it, **[manual]** where it needs a real environment.
 - [x] **[auto]** If planning fails after a verified hosted download, retrying
       uses the persistent content cache without requesting the archive again
       (`ModpackInstaller_RetryUsesVerifiedCacheAfterPlanningFailure`).
+- [x] **[auto]** An identical unmanaged file is adopted without being copied,
+      remains marked as pre-existing, and is preserved by disable, update and
+      uninstall (`Install_AdoptsIdenticalExistingFileWithoutTakingDeletionOwnership`,
+      `Install_UpdateRefusesToReplaceAdoptedFile`).
+- [x] **[auto]** Exact-file and directory-tree archive exclusions leave bundled
+      copies uninstalled and give a shared destination one journal owner
+      (`CreatePlan_ExcludesExactFileAndDirectoryTree`,
+      `Install_ManifestExclusionAssignsOneOwnerForBundledFile`).
 - [ ] **[manual]** Interrupt or fail a multi-gigabyte hosted install after its
       downloads complete, retry it, and confirm each verified archive reports
       that it is ready from cache rather than downloading again.
@@ -179,13 +187,10 @@ unit test already covers it, **[manual]** where it needs a real environment.
       (`ModpackSubmissionTests`).
 - [ ] **[manual]** From the repo root, `dotnet run --project
       src/TCGCardShopSimModManager.Cli -- modpack validate` reports
-      `[VALID] essential-qol`.
+      `[VALID] real-tcg-overhaul`.
 - [ ] **[manual]** Disable + enable a *plugin* mod from an installed pack and
       confirm the game stops/starts loading it. (BepInEx is the framework and is
       intentionally not toggled.)
-- [ ] **[note]** The demo pack ships a placeholder BepInEx archive
-      (`bepinex-layout.zip`); real packs should point `bepinex`'s `downloadUrl`
-      at the official BepInEx release.
 
 ## Shipping
 

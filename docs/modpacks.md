@@ -106,9 +106,36 @@ partially download and then stall on a full disk. The per-file gate in
 `ModDownloader` remains as a backstop for any mod whose real size exceeds the
 declared total.
 
-`DownloadUrl`, `required`, `compatibleGameBuildIds`, and the optional top-level
-`totalSize` are the hosted pack schema additions; `NexusModId`/`NexusFileId`
-already exist on `ModEntry`.
+`DownloadUrl`, `required`, `excludedArchivePaths`, `compatibleGameBuildIds`, and
+the optional top-level `totalSize` are the hosted pack schema additions;
+`NexusModId`/`NexusFileId` already exist on `ModEntry`.
+
+### Excluding bundled files
+
+Some upstream archives bundle another mod's assets or generated configuration.
+When two selected entries would install the same destination, the manager stops
+before copying anything because it cannot safely guess which mod owns the file.
+A mod entry may use `excludedArchivePaths` to leave those bundled copies out:
+
+```json
+"excludedArchivePaths": [
+  "BepInEx/config/generated.cfg",
+  "BepInEx/plugins/Shared Defaults/"
+]
+```
+
+A value ending in `/` excludes that complete archive-relative directory tree.
+Any other value excludes one exact archive-relative file. Paths use `/`, cannot
+be rooted or contain `.` or `..` segments, and are matched without regard to
+case. Give every shared destination one deliberate owner; do not use exclusions
+to hide different files without first deciding which version the pack needs.
+Excluded paths appear as notes in the install report and are never journaled.
+
+Archives that already contain a top-level `plugins/` directory are treated as
+BepInEx content trees. Their `plugins/`, `patchers/`, and `config/` directories
+are mirrored under `BepInEx/`. This is distinct from game-root content: a
+dependency such as `plugins/Example.API/Example.API.dll` must be available to
+BepInEx rather than copied beside the game files.
 
 ### Game build compatibility
 
@@ -172,9 +199,10 @@ BepInEx is the loader every plugin runs inside, so it has to be on disk before
 any plugin is copied in. `ModpackInstaller.EnforceBepInExFirst` guarantees this:
 at install time it makes **every other mod depend on `bepinex`** (if it doesn't
 already), and the resolver orders dependencies first — so pack authors can't
-forget it. The current classifier installs a top-level `BepInEx/` folder but
-rejects root-level loader DLLs such as `winhttp.dll`. Real framework packages
-that rely on that bootstrap file are not yet supported end to end.
+forget it. The classifier installs a top-level `BepInEx/` folder and permits the
+reserved, hash-verified framework entry to place its root bootstrap DLL, such as
+`winhttp.dll`, beside the game executable. The same DLL remains forbidden for
+ordinary mod entries.
 
 The demo pack points `bepinex`'s `downloadUrl` at the committed
 `samples/mod-archives/bepinex-layout.zip` placeholder so the flow is

@@ -259,6 +259,8 @@ internal sealed class DurableRecoveryTransaction : IDisposable
                     _state.PackId, StringComparison.OrdinalIgnoreCase) == true);
             foreach (var file in entries.SelectMany(entry => entry.Files))
             {
+                if (file.PreserveOnUninstall)
+                    continue;
                 TryDelete(file.Path, errors);
                 if (DisabledPath(file.Path, _gameFolderPath) is { } disabledPath)
                     TryDelete(disabledPath, errors);

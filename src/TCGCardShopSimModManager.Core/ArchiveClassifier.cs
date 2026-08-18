@@ -9,11 +9,13 @@ namespace TCGCardShopSimModManager.Core;
 ///   1. Contains a BepInEx/ folder -> mirror the genuine framework tree into the
 ///      game's BepInEx/. The only prohibition is a known DLL search-order hijack
 ///      target (e.g. winhttp.dll, version.dll) sitting directly at the game root or
-///      the BepInEx/ root; those are refused so a mod can never pre-load attacker
-///      code into the game process before any legitimate DLL.
+///      the BepInEx/ root; those are refused unless the reserved framework entry
+///      needs its game-root bootstrap DLL.
 ///   2. Loose .dll at the archive root -> whole mod goes to BepInEx/plugins/{Name}/.
-///   3. Contains a patchers/ folder -> files go to BepInEx/patchers/.
-///   4. Anything else -> mirror the archive root straight into the game root, except
+///   3. Contains a plugins/ folder -> treat plugins/, patchers/, and config/ as
+///      the contents of a BepInEx folder and mirror them there.
+///   4. Contains a patchers/ folder -> files go to BepInEx/patchers/.
+///   5. Anything else -> mirror the archive root straight into the game root, except
 ///      hijack-target DLLs at the game root which are refused.
 /// Documentation and OS-junk files are skipped, not installed.
 /// </summary>
@@ -23,6 +25,7 @@ public sealed class ArchiveClassifier
     {
         BepInExLayout,
         PluginFolder,
+        PluginTree,
         Patcher,
         GameRoot,
         Empty
@@ -43,6 +46,11 @@ public sealed class ArchiveClassifier
     };
 
     private const string MacOsJunkDirectory = "__macosx";
+
+    private static readonly HashSet<string> BepInExContentDirectories = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "plugins", "patchers", "config"
+    };
 
     // Known DLL search-order hijack targets. A mod that drops one of these at the
     // game root or the BepInEx/ root would have attacker code loaded by the game (or
@@ -80,7 +88,7 @@ public sealed class ArchiveClassifier
                 continue;
             }
 
-            var destinationRelativePath = MapToDestination(relativePath, mod.Name, kind);
+            var destinationRelativePath = MapToDestination(relativePath, mod, kind);
             if (destinationRelativePath is null)
             {
                 var reason = IsHijackTarget(relativePath)
@@ -120,13 +128,16 @@ public sealed class ArchiveClassifier
                 Path.GetExtension(s.RelativePath).Equals(".dll", StringComparison.OrdinalIgnoreCase)))
             return LayoutKind.PluginFolder;
 
+        if (topLevelNames.Contains("plugins"))
+            return LayoutKind.PluginTree;
+
         if (topLevelNames.Contains("patchers"))
             return LayoutKind.Patcher;
 
         return LayoutKind.GameRoot;
     }
 
-    private static string? MapToDestination(string relativePath, string modName, LayoutKind kind)
+    private static string? MapToDestination(string relativePath, ModEntry mod, LayoutKind kind)
     {
         var segments = relativePath.Split('/');
 
@@ -150,9 +161,11 @@ public sealed class ArchiveClassifier
                 // sitting directly at the game root.
                 if (Path.GetExtension(relativePath).Equals(".dll", StringComparison.OrdinalIgnoreCase))
                 {
+                    if (segments.Length == 1 && IsFramework(mod) && IsHijackTarget(relativePath))
+                        return relativePath;
                     if (IsHijackTarget(relativePath))
                         return null;
-                    return $"BepInEx/plugins/{modName}/{relativePath}";
+                    return $"BepInEx/plugins/{mod.Name}/{relativePath}";
                 }
                 if (segments.Length == 1 && IsHijackTarget(relativePath))
                     return null;
@@ -161,7 +174,17 @@ public sealed class ArchiveClassifier
             case LayoutKind.PluginFolder:
                 if (IsHijackTarget(segments[^1]))
                     return null;
-                return $"BepInEx/plugins/{modName}/{relativePath}";
+                return $"BepInEx/plugins/{mod.Name}/{relativePath}";
+
+            case LayoutKind.PluginTree when BepInExContentDirectories.Contains(segments[0]):
+                if (IsHijackTarget(segments[^1]))
+                    return null;
+                return $"BepInEx/{relativePath}";
+
+            case LayoutKind.PluginTree:
+                if (IsHijackTarget(segments[^1]))
+                    return null;
+                return $"BepInEx/plugins/{mod.Name}/{relativePath}";
 
             case LayoutKind.Patcher when segments[0].Equals("patchers", StringComparison.OrdinalIgnoreCase):
                 if (segments.Length == 2 && IsHijackTarget(segments[1]))
@@ -171,7 +194,7 @@ public sealed class ArchiveClassifier
             case LayoutKind.Patcher:
                 if (IsHijackTarget(segments[^1]))
                     return null;
-                return $"BepInEx/plugins/{modName}/{relativePath}";
+                return $"BepInEx/plugins/{mod.Name}/{relativePath}";
 
             case LayoutKind.GameRoot:
                 if (segments.Length == 1 && IsHijackTarget(segments[0]))
@@ -192,10 +215,15 @@ public sealed class ArchiveClassifier
         return IgnoredFileNames.Contains(fileName) || IgnoredFileNamesAnywhere.Contains(fileName);
     }
 
+    private static bool IsFramework(ModEntry mod) =>
+        string.Equals(mod.Id, ModListConventions.BepInExModId, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(mod.InstallType, ModListConventions.BepInExInstallType, StringComparison.Ordinal);
+
     private static string LayoutDisplayName(LayoutKind kind) => kind switch
     {
         LayoutKind.BepInExLayout => "BepInEx layout (mirrors the game's BepInEx folder)",
         LayoutKind.PluginFolder => "loose plugin folder (goes to BepInEx/plugins/<mod name>)",
+        LayoutKind.PluginTree => "BepInEx content tree (mirrors plugins, patchers, and config)",
         LayoutKind.Patcher => "patcher layout (goes to BepInEx/patchers)",
         LayoutKind.GameRoot => "game root files (mirrors into the game folder root)",
         _ => "empty archive"

@@ -191,7 +191,10 @@ public sealed class DeploymentService
         if (conflicts.Count > 0)
         {
             lines.Add("File conflicts detected — refusing to install:");
-            lines.AddRange(conflicts.Select(c => $"  {c.Destination} is claimed by '{c.ModA}' and '{c.ModB}'"));
+            lines.AddRange(conflicts.Take(20).Select(c =>
+                $"  {c.Destination} is claimed by '{c.ModA}' and '{c.ModB}'"));
+            if (conflicts.Count > 20)
+                lines.Add($"  ... and {conflicts.Count - 20} more conflict(s).");
             return DeploymentReport.Failure(lines, null);
         }
 

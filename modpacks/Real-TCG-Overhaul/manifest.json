@@ -40,7 +40,10 @@
       "conflicts": [],
       "nexusModId": 577,
       "nexusFileId": 6029,
-      "required": true
+      "required": true,
+      "excludedArchivePaths": [
+        "BepInEx/plugins/Grading Overhaul/Admin/Defaults/"
+      ]
     },
     {
       "id": "pokemon-tcg-card-shop-simulator-v3-4-6030-577-6030",
@@ -53,7 +56,10 @@
       "conflicts": [],
       "nexusModId": 577,
       "nexusFileId": 6030,
-      "required": true
+      "required": true,
+      "excludedArchivePaths": [
+        "BepInEx/plugins/Grading Overhaul/Admin/Defaults/"
+      ]
     },
     {
       "id": "pokemon-tcg-card-shop-simulator-v3-4-6026-577-6026",
@@ -144,7 +150,10 @@
       "conflicts": [],
       "nexusModId": 1175,
       "nexusFileId": 6033,
-      "required": true
+      "required": true,
+      "excludedArchivePaths": [
+        "BepInEx/plugins/Grading Overhaul/Admin/Defaults/"
+      ]
     },
     {
       "id": "pokemon-pocket-expansions-6034-1175-6034",
@@ -157,7 +166,10 @@
       "conflicts": [],
       "nexusModId": 1175,
       "nexusFileId": 6034,
-      "required": true
+      "required": true,
+      "excludedArchivePaths": [
+        "BepInEx/plugins/Grading Overhaul/Admin/Defaults/"
+      ]
     },
     {
       "id": "pokemon-pocket-expansions-6032-1175-6032",
@@ -170,7 +182,13 @@
       "conflicts": [],
       "nexusModId": 1175,
       "nexusFileId": 6032,
-      "required": true
+      "required": true,
+      "excludedArchivePaths": [
+        "BepInEx/config/EnhancedPrefabLoader.cfg",
+        "BepInEx/config/munch.gradingoverhaul.cfg",
+        "BepInEx/config/munch.PhoneOverhaul.cfg",
+        "BepInEx/config/munch.PhoneOverhaul.Layouts.cfg"
+      ]
     },
     {
       "id": "epl-card-animator-1100-6050",
@@ -261,7 +279,10 @@
       "conflicts": [],
       "nexusModId": 685,
       "nexusFileId": 5260,
-      "required": true
+      "required": true,
+      "excludedArchivePaths": [
+        "BepInEx/config/munch.PhoneOverhaul.cfg"
+      ]
     },
     {
       "id": "bepinex-mod-manager-698-4002",

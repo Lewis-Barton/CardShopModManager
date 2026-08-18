@@ -133,6 +133,57 @@ public sealed class DeploymentServiceTests : IDisposable
     }
 
     [Fact]
+    public void Install_ManifestExclusionAssignsOneOwnerForBundledFile()
+    {
+        WriteZip(Path.Combine(_sourceDir, "a.zip"),
+            ("BepInEx/plugins/Shared/common.dll", "shared"),
+            ("BepInEx/plugins/A/a.dll", "a"));
+        WriteZip(Path.Combine(_sourceDir, "b.zip"),
+            ("BepInEx/plugins/Shared/common.dll", "shared"),
+            ("BepInEx/plugins/B/b.dll", "b"));
+        var gameFolder = Path.Combine(_root, "game");
+        Directory.CreateDirectory(gameFolder);
+        var first = MakeModJson("mod-a", archive: "a.zip", sha: ShaOf(Path.Combine(_sourceDir, "a.zip")));
+        var second = MakeModJson("mod-b", archive: "b.zip", sha: ShaOf(Path.Combine(_sourceDir, "b.zip")),
+            excludedArchivePaths: ["BepInEx/plugins/Shared/common.dll"]);
+        var manifest = WriteManifest([first, second]);
+
+        var report = new DeploymentService().Install(manifest, _sourceDir, gameFolder);
+
+        Assert.True(report.Success, string.Join("\n", report.Lines));
+        Assert.Equal("shared", File.ReadAllText(Path.Combine(
+            gameFolder, "BepInEx", "plugins", "Shared", "common.dll")));
+        var entries = new JournalStore(gameFolder).Load();
+        Assert.Contains(entries.Single(entry => entry.ModId == "mod-a").Files,
+            file => file.Path.EndsWith("common.dll"));
+        Assert.DoesNotContain(entries.Single(entry => entry.ModId == "mod-b").Files,
+            file => file.Path.EndsWith("common.dll"));
+    }
+
+    [Fact]
+    public void Install_LongConflictReportIsCondensed()
+    {
+        var shared = Enumerable.Range(1, 25)
+            .Select(number => ($"BepInEx/plugins/Shared/{number}.txt", number.ToString()))
+            .ToArray();
+        WriteZip(Path.Combine(_sourceDir, "a.zip"), shared);
+        WriteZip(Path.Combine(_sourceDir, "b.zip"), shared);
+        var gameFolder = Path.Combine(_root, "game");
+        Directory.CreateDirectory(gameFolder);
+        var manifest = WriteManifest(
+        [
+            MakeModJson("mod-a", archive: "a.zip", sha: ShaOf(Path.Combine(_sourceDir, "a.zip"))),
+            MakeModJson("mod-b", archive: "b.zip", sha: ShaOf(Path.Combine(_sourceDir, "b.zip")))
+        ]);
+
+        var report = new DeploymentService().Install(manifest, _sourceDir, gameFolder);
+
+        Assert.False(report.Success);
+        Assert.Contains(report.Lines, line => line == "  ... and 5 more conflict(s).");
+        Assert.Equal(20, report.Lines.Count(line => line.Contains("is claimed by")));
+    }
+
+    [Fact]
     public void Validate_EnforcesBepInExFirst_Bug020()
     {
         // BUG-020: the local validate path must order BepInEx before plugins even
@@ -308,7 +359,8 @@ public sealed class DeploymentServiceTests : IDisposable
         string sha = "0000000000000000000000000000000000000000000000000000000000000000",
         string[]? dependencies = null,
         string[]? conflicts = null,
-        string installType = "BepInExPlugin")
+        string installType = "BepInExPlugin",
+        string[]? excludedArchivePaths = null)
     {
         var json = new System.Text.StringBuilder($$"""
               { "id": "{{id}}", "name": "{{id}}", "version": "1.0.0", "archive": "{{archive}}", "sha256": "{{sha}}", "installType": "{{installType}}"
@@ -317,6 +369,8 @@ public sealed class DeploymentServiceTests : IDisposable
             json.Append($", \"dependencies\": {JsonSerializer.Serialize(dependencies)}");
         if (conflicts is { Length: > 0 })
             json.Append($", \"conflicts\": {JsonSerializer.Serialize(conflicts)}");
+        if (excludedArchivePaths is { Length: > 0 })
+            json.Append($", \"excludedArchivePaths\": {JsonSerializer.Serialize(excludedArchivePaths)}");
         json.Append(" }");
         return json.ToString();
     }

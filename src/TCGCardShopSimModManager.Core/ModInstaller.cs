@@ -91,7 +91,20 @@ public sealed class ModInstaller
                 throw new InvalidDataException($"{mod.Archive}: nothing could be extracted ({detail}).");
             }
 
-            return new ArchiveClassifier().BuildPlan(mod, result.Sources, result.RejectedEntries);
+            var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var sources = result.Sources
+                .Where(source =>
+                {
+                    var exclusion = MatchingArchiveExclusion(
+                        source.RelativePath, mod.ExcludedArchivePaths);
+                    if (exclusion is null)
+                        return true;
+                    excluded.Add($"{exclusion} (excluded by manifest)");
+                    return false;
+                })
+                .ToList();
+            var plan = new ArchiveClassifier().BuildPlan(mod, sources, result.RejectedEntries);
+            return plan with { SkippedEntries = plan.SkippedEntries.Concat(excluded).ToList() };
         }
 
         // A plain loose file (e.g. a bare DLL) is treated as a one-file mod.
@@ -121,6 +134,8 @@ public sealed class ModInstaller
         Directory.CreateDirectory(workDir);
 
         var installedPaths = new List<string>();
+        var changedPaths = new List<string>();
+        var preservedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var backups = new List<(string Original, string Backup)>();
         try
         {
@@ -150,17 +165,36 @@ public sealed class ModInstaller
                 }
             }
 
-            var existing = plan.Files
-                .Where(f =>
+            var existing = new List<string>();
+            foreach (var file in plan.Files)
+            {
+                var destination = PhysicalPath(_gameFolderPath, file.DestinationRelativePath);
+                if (!File.Exists(destination) || ownedPaths.ContainsKey(destination))
+                    continue;
+                if (HashesMatch(file.SourceAbsolutePath, destination))
                 {
-                    var destination = PhysicalPath(_gameFolderPath, f.DestinationRelativePath);
-                    return File.Exists(destination) && !ownedPaths.ContainsKey(destination);
-                })
-                .Select(f => f.DestinationRelativePath)
-                .ToList();
+                    preservedPaths.Add(destination);
+                    skipped.Add($"{file.DestinationRelativePath} (reused identical pre-existing file)");
+                }
+                else
+                    existing.Add(file.DestinationRelativePath);
+            }
             if (existing.Count > 0)
                 return new InstallResult(false,
                     $"{mod.Archive}: destination already exists, refusing to overwrite: {existing[0]}", null);
+
+            foreach (var file in plan.Files)
+            {
+                var destination = PhysicalPath(_gameFolderPath, file.DestinationRelativePath);
+                if (ownedPaths.TryGetValue(destination, out var ownedFile) &&
+                    ownedFile.PreserveOnUninstall &&
+                    File.Exists(destination) &&
+                    !HashesMatch(file.SourceAbsolutePath, destination))
+                {
+                    return new InstallResult(false,
+                        $"Cannot update {mod.Name}: an adopted file would need to be replaced: {destination}", null);
+                }
+            }
 
             var duplicate = plan.Files
                 .GroupBy(f => f.DestinationRelativePath, StringComparer.OrdinalIgnoreCase)
@@ -174,7 +208,8 @@ public sealed class ModInstaller
                 var backupRoot = Path.Combine(workDir, "previous-install");
                 Directory.CreateDirectory(backupRoot);
                 var backupNumber = 0;
-                foreach (var file in existingEntry.Files.Where(f => File.Exists(f.Path)))
+                foreach (var file in existingEntry.Files.Where(f =>
+                             !f.PreserveOnUninstall && File.Exists(f.Path)))
                 {
                     var backup = Path.Combine(backupRoot, (++backupNumber).ToString());
                     File.Copy(file.Path, backup);
@@ -187,15 +222,27 @@ public sealed class ModInstaller
                 var destinationPath = PhysicalPath(_gameFolderPath, file.DestinationRelativePath);
                 Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
 
+                if (preservedPaths.Contains(destinationPath) ||
+                    (ownedPaths.TryGetValue(destinationPath, out var existingFile) &&
+                     existingFile.PreserveOnUninstall && File.Exists(destinationPath)))
+                {
+                    preservedPaths.Add(destinationPath);
+                    installedPaths.Add(destinationPath);
+                    continue;
+                }
+
                 // Copy, then verify the copy landed intact before trusting it.
                 installedPaths.Add(destinationPath);
+                changedPaths.Add(destinationPath);
                 File.Copy(file.SourceAbsolutePath, destinationPath, overwrite: ownedPaths.ContainsKey(destinationPath));
                 if (!HashesMatch(file.SourceAbsolutePath, destinationPath))
                     throw new IOException($"Verification failed after copying {file.DestinationRelativePath}");
             }
 
             var installedSet = installedPaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            foreach (var oldFile in ownedPaths.Keys.Where(path => !installedSet.Contains(path)))
+            foreach (var oldFile in ownedPaths
+                         .Where(pair => !pair.Value.PreserveOnUninstall && !installedSet.Contains(pair.Key))
+                         .Select(pair => pair.Key))
                 if (File.Exists(oldFile))
                     File.Delete(oldFile);
 
@@ -205,7 +252,8 @@ public sealed class ModInstaller
             _journal.Add(new InstallJournalEntry(
                 plan.Mod.Name,
                 DateTimeOffset.UtcNow,
-                installedPaths.Select(p => new JournalFileEntry(p, ComputeSha256(p))).ToList(),
+                installedPaths.Select(p => new JournalFileEntry(
+                    p, ComputeSha256(p), preservedPaths.Contains(p))).ToList(),
                 PackId: mod.PackId,
                 ModId: mod.Id,
                 Version: mod.Version,
@@ -216,7 +264,7 @@ public sealed class ModInstaller
         catch (Exception ex)
         {
             // Roll back this install: delete exactly what this call created.
-            foreach (var path in installedPaths)
+            foreach (var path in changedPaths)
             {
                 try
                 {
@@ -334,6 +382,13 @@ private DisableResult DisableCore(string modName)
 
     foreach (var file in entry.Files)
     {
+        if (file.PreserveOnUninstall)
+        {
+            warnings.Add($"Pre-existing file remains enabled: {file.Path}");
+            nonManaged++;
+            continue;
+        }
+
         var sections = ManagedSections(file.Path);
         if (sections is null)
         {
@@ -445,6 +500,13 @@ private EnableResult EnableCore(string modName)
 
     foreach (var file in entry.Files)
     {
+        if (file.PreserveOnUninstall)
+        {
+            warnings.Add($"Pre-existing file was not managed: {file.Path}");
+            nonManaged++;
+            continue;
+        }
+
         var sections = ManagedSections(file.Path);
         if (sections is null)
         {
@@ -602,6 +664,12 @@ private void PruneEmptyActiveFolders()
 
     foreach (var file in entry.Files)
     {
+        if (file.PreserveOnUninstall)
+        {
+            warnings.Add($"Pre-existing file kept in place: {file.Path}");
+            continue;
+        }
+
         var pathToDelete = file.Path;
         if (!File.Exists(pathToDelete))
         {
@@ -684,6 +752,25 @@ private void PruneEmptyActiveFolders()
 
     private static bool HashesMatch(string first, string second) =>
         ComputeSha256(first).Equals(ComputeSha256(second), StringComparison.OrdinalIgnoreCase);
+
+    private static string? MatchingArchiveExclusion(
+        string relativePath, List<string>? exclusions)
+    {
+        foreach (var exclusion in exclusions ?? new List<string>())
+        {
+            if (exclusion.EndsWith("/", StringComparison.Ordinal))
+            {
+                if (relativePath.StartsWith(exclusion, StringComparison.OrdinalIgnoreCase))
+                    return exclusion;
+            }
+            else if (relativePath.Equals(exclusion, StringComparison.OrdinalIgnoreCase))
+            {
+                return exclusion;
+            }
+        }
+
+        return null;
+    }
 
     private string? ExistingDisabledPath(string[] sections)
     {

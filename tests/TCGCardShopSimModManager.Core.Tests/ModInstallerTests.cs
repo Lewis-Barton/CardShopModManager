@@ -154,6 +154,89 @@ public sealed class ModInstallerTests : IDisposable
     }
 
     [Fact]
+    public void Install_AdoptsIdenticalExistingFileWithoutTakingDeletionOwnership()
+    {
+        var mod = AddLooseFile("ExampleMod.dll", "dll-bytes");
+        var destination = Path.Combine(
+            _gameFolder, "BepInEx", "plugins", "Example Mod", "ExampleMod.dll");
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        File.WriteAllText(destination, "dll-bytes");
+
+        var install = _installer.Install(mod, _sourceDir);
+
+        Assert.True(install.Success, install.Error);
+        var journalFile = Assert.Single(Assert.Single(new JournalStore(_gameFolder).Load()).Files);
+        Assert.True(journalFile.PreserveOnUninstall);
+        Assert.Contains(install.SkippedEntries!, note => note.Contains("reused identical pre-existing file"));
+
+        var disable = _installer.Disable(mod.Name);
+
+        Assert.False(disable.Success);
+        Assert.True(File.Exists(destination));
+
+        var uninstall = _installer.Uninstall(mod.Name);
+
+        Assert.True(uninstall.Success, uninstall.Error);
+        Assert.True(File.Exists(destination));
+        Assert.Contains(uninstall.Warnings, warning => warning.Contains("Pre-existing file kept"));
+        Assert.Empty(new JournalStore(_gameFolder).Load());
+    }
+
+    [Fact]
+    public void Install_UpdateRefusesToReplaceAdoptedFile()
+    {
+        var first = AddLooseFile("ExampleMod.dll", "version-one") with
+        {
+            Id = "stable-id",
+            Version = "1.0.0"
+        };
+        var destination = Path.Combine(
+            _gameFolder, "BepInEx", "plugins", "Example Mod", "ExampleMod.dll");
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        File.WriteAllText(destination, "version-one");
+        Assert.True(_installer.Install(first, _sourceDir).Success);
+
+        var second = AddLooseFile("ExampleMod.dll", "version-two") with
+        {
+            Id = "stable-id",
+            Version = "2.0.0"
+        };
+        var result = _installer.Install(second, _sourceDir);
+
+        Assert.False(result.Success);
+        Assert.Contains("adopted file", result.Error);
+        Assert.Equal("version-one", File.ReadAllText(destination));
+        var entry = Assert.Single(new JournalStore(_gameFolder).Load());
+        Assert.Equal("1.0.0", entry.Version);
+        Assert.True(Assert.Single(entry.Files).PreserveOnUninstall);
+    }
+
+    [Fact]
+    public void CreatePlan_ExcludesExactFileAndDirectoryTree()
+    {
+        var zipPath = CreateZip(
+            ("BepInEx/plugins/Mod/keep.dll", "keep"),
+            ("BepInEx/config/generated.cfg", "generated"),
+            ("BepInEx/plugins/Shared/a.txt", "a"),
+            ("BepInEx/plugins/Shared/nested/b.txt", "b"));
+        var mod = AddZip("excluded.zip", zipPath) with
+        {
+            ExcludedArchivePaths =
+            [
+                "BepInEx/config/generated.cfg",
+                "BepInEx/plugins/Shared/"
+            ]
+        };
+
+        var plan = _installer.CreatePlan(
+            mod, _sourceDir, Path.Combine(_testRoot, "excluded-plan"));
+
+        var file = Assert.Single(plan.Files);
+        Assert.Equal("BepInEx/plugins/Mod/keep.dll", file.DestinationRelativePath);
+        Assert.Equal(2, plan.SkippedEntries.Count(entry => entry.Contains("excluded by manifest")));
+    }
+
+    [Fact]
     public void Install_RejectsDestinationOutsideGameFolder_WhenValidationIsBypassed()
     {
         var mod = AddLooseFile("ExampleMod.dll", "dll-bytes") with { Name = "../../../escaped" };
@@ -570,6 +653,7 @@ public sealed class ModInstallerTests : IDisposable
         Assert.Null(entry.ModId);
         Assert.Null(entry.Version);
         Assert.Null(entry.ArchiveSha256);
+        Assert.All(entry.Files, file => Assert.False(file.PreserveOnUninstall));
     }
 
     [Fact]

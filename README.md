@@ -121,6 +121,10 @@ once the new state is proven valid.
   selections and let the user opt into entries marked `false`. Selecting an
   optional mod also selects its optional dependencies. The desktop app confirms
   the selected optional mods before starting the download.
+- `excludedArchivePaths` may name an exact archive-relative file or a directory
+  tree ending in `/`. Pack authors use it to give bundled shared files one
+  deliberate owner; excluded content is reported and never installed or
+  journaled.
 - `compatibleGameBuildIds` lists the numeric Steam build IDs the list author
   has tested. The app reads the installed build from Steam's app manifest and
   marks the pack as potentially unsupported when it cannot confirm a match.
@@ -278,11 +282,14 @@ automatically when no OAuth session is active.
   (`.exe`, `.bat`, `.cmd`, ...) are rejected. Nothing is extracted into the game
   directly.
 - Install refuses to overwrite existing files and rejects two sources mapping
-  to one destination. Symbolic links and junctions below the selected game root
-  cannot redirect file operations elsewhere. If any mod in a deployment fails,
-  earlier mods from that deployment are rolled back and previous versions are
-  restored. A durable recovery record also restores interrupted deployment or
-  hosted-pack changes on the next operation after a process or machine stop.
+  to one destination. An unmanaged file whose hash already matches the planned
+  source can be adopted for tracking, but remains marked as pre-existing so an
+  uninstall or update cannot delete or replace it. Symbolic links and junctions
+  below the selected game root cannot redirect file operations elsewhere. If
+  any mod in a deployment fails, earlier mods from that deployment are rolled
+  back and previous versions are restored. A durable recovery record also
+  restores interrupted deployment or hosted-pack changes on the next operation
+  after a process or machine stop.
 - Every installed file is hashed in `cardshopmodmanager.journal.json` in the
   game folder, so uninstall can prove a file is still what we installed before
   deleting it.

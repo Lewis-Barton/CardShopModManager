@@ -64,6 +64,25 @@ public sealed class ArchiveClassifierTests
     }
 
     [Fact]
+    public void PluginsFolder_MirrorsIntoBepInExPlugins()
+    {
+        var plan = new ArchiveClassifier().BuildPlan(Mod, new[]
+        {
+            Source("plugins/EnhancedPrefabLoader.API/EnhancedPrefabLoader.API.dll"),
+            Source("patchers/EnhancedPrefabLoader/Prepatch.dll"),
+            Source("config/EnhancedPrefabLoader.cfg")
+        });
+
+        Assert.Equal("BepInEx content tree (mirrors plugins, patchers, and config)", plan.LayoutName);
+        Assert.Contains(plan.Files, file => file.DestinationRelativePath ==
+            "BepInEx/plugins/EnhancedPrefabLoader.API/EnhancedPrefabLoader.API.dll");
+        Assert.Contains(plan.Files, file => file.DestinationRelativePath ==
+            "BepInEx/patchers/EnhancedPrefabLoader/Prepatch.dll");
+        Assert.Contains(plan.Files, file => file.DestinationRelativePath ==
+            "BepInEx/config/EnhancedPrefabLoader.cfg");
+    }
+
+    [Fact]
     public void RootFilesWithoutStructure_MirrorIntoGameRoot()
     {
         var plan = new ArchiveClassifier().BuildPlan(Mod, new[]
@@ -178,6 +197,26 @@ public sealed class ArchiveClassifierTests
         Assert.Contains("BepInEx layout", plan.LayoutName);
         Assert.DoesNotContain(plan.Files, f => f.SourceRelativePath == "winhttp.dll");
         Assert.Contains(plan.SkippedEntries, s => s.Contains("winhttp.dll") && s.Contains("refused"));
+    }
+
+    [Fact]
+    public void FrameworkBootstrapDllAtGameRoot_IsAllowed()
+    {
+        var framework = Mod with
+        {
+            Id = ModListConventions.BepInExModId,
+            InstallType = ModListConventions.BepInExInstallType
+        };
+        var plan = new ArchiveClassifier().BuildPlan(framework, new[]
+        {
+            Source("BepInEx/core/BepInEx.dll"),
+            Source("winhttp.dll")
+        });
+
+        Assert.Contains(plan.Files,
+            file => file.SourceRelativePath == "winhttp.dll" &&
+                    file.DestinationRelativePath == "winhttp.dll");
+        Assert.DoesNotContain(plan.SkippedEntries, entry => entry.Contains("winhttp.dll"));
     }
 
     [Fact]
